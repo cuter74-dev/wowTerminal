@@ -33,6 +33,9 @@ zeroize = { version = "1", features = ["zeroize_derive"] }
 base64 = "0.22"
 toml = "0.8"
 portable-pty = "0.9"
+russh = "0.61"
+dirs = "5"
+tempfile = "3"
 
 [dev-dependencies]
 wiremock = "0.6"

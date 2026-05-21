@@ -4,8 +4,9 @@ import { FitAddon } from "@xterm/addon-fit";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
+import { TerminalSource } from "../types";
 
-type PtyOutputPayload = {
+type OutputPayload = {
   session_id: string;
   data_b64: string;
 };
@@ -23,8 +24,44 @@ function bytesToBase64(bytes: Uint8Array): string {
   return btoa(bin);
 }
 
-export function Terminal() {
+type Commands = {
+  spawnCmd: string;
+  writeCmd: string;
+  resizeCmd: string;
+  killCmd: string;
+  outputEvent: string;
+  spawnArgs: (cols: number, rows: number) => Record<string, unknown>;
+};
+
+function commandsFor(source: TerminalSource): Commands {
+  if (source.kind === "local") {
+    return {
+      spawnCmd: "pty_spawn",
+      writeCmd: "pty_write",
+      resizeCmd: "pty_resize",
+      killCmd: "pty_kill",
+      outputEvent: "pty:output",
+      spawnArgs: (cols, rows) => ({ args: { cols, rows } }),
+    };
+  }
+  return {
+    spawnCmd: "ssh_connect",
+    writeCmd: "ssh_write",
+    resizeCmd: "ssh_resize",
+    killCmd: "ssh_kill",
+    outputEvent: "ssh:output",
+    spawnArgs: (cols, rows) => ({
+      args: { hostId: source.hostId, cols, rows },
+    }),
+  };
+}
+
+export function Terminal({ source }: { source: TerminalSource }) {
   const containerRef = useRef<HTMLDivElement>(null);
+
+  // source가 바뀌면 effect를 재실행해 새 세션을 띄운다.
+  const sourceKey =
+    source.kind === "local" ? "local" : `ssh:${source.hostId}`;
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -40,6 +77,7 @@ export function Terminal() {
     term.open(containerRef.current);
     fit.fit();
 
+    const cmds = commandsFor(source);
     let sessionId: string | null = null;
     let unlistenOutput: UnlistenFn | null = null;
     let disposed = false;
@@ -47,7 +85,7 @@ export function Terminal() {
     const encoder = new TextEncoder();
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
-      void invoke("pty_write", {
+      void invoke(cmds.writeCmd, {
         sessionId,
         dataB64: bytesToBase64(encoder.encode(data)),
       });
@@ -55,7 +93,7 @@ export function Terminal() {
 
     const onResizeDisposable = term.onResize(({ cols, rows }) => {
       if (!sessionId) return;
-      void invoke("pty_resize", { sessionId, cols, rows });
+      void invoke(cmds.resizeCmd, { sessionId, cols, rows });
     });
 
     const ro = new ResizeObserver(() => {
@@ -67,19 +105,19 @@ export function Terminal() {
 
     (async () => {
       try {
-        unlistenOutput = await listen<PtyOutputPayload>("pty:output", (event) => {
+        unlistenOutput = await listen<OutputPayload>(cmds.outputEvent, (event) => {
           const payload = event.payload;
           if (sessionId && payload.session_id !== sessionId) return;
-          const bytes = base64ToBytes(payload.data_b64);
-          term.write(bytes);
+          term.write(base64ToBytes(payload.data_b64));
         });
 
         if (disposed) return;
-        sessionId = await invoke<string>("pty_spawn", {
-          args: { cols: term.cols, rows: term.rows },
-        });
+        sessionId = await invoke<string>(
+          cmds.spawnCmd,
+          cmds.spawnArgs(term.cols, term.rows),
+        );
       } catch (err) {
-        term.writeln(`\r\n[pty] failed to start: ${String(err)}`);
+        term.writeln(`\r\n[session] failed to start: ${String(err)}`);
       }
     })();
 
@@ -89,10 +127,11 @@ export function Terminal() {
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
       if (unlistenOutput) unlistenOutput();
-      if (sessionId) void invoke("pty_kill", { sessionId }).catch(() => {});
+      if (sessionId) void invoke(cmds.killCmd, { sessionId }).catch(() => {});
       term.dispose();
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sourceKey]);
 
   return (
     <div

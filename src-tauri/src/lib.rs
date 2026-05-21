@@ -18,8 +18,14 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(AiRegistry::new())
         .setup(|app| {
-            let manager = pty::commands::build_manager(&app.handle());
-            app.manage(PtyState(manager));
+            let pty_manager = pty::commands::build_manager(&app.handle());
+            app.manage(PtyState(pty_manager));
+
+            let hosts_path = dirs::config_dir()
+                .map(|p| p.join("wowterminal").join("hosts.toml"))
+                .unwrap_or_else(|| std::path::PathBuf::from("hosts.toml"));
+            let ssh_state = ssh::commands::build_state(&app.handle(), hosts_path);
+            app.manage(ssh_state);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -30,6 +36,14 @@ pub fn run() {
             pty::commands::pty_write,
             pty::commands::pty_resize,
             pty::commands::pty_kill,
+            ssh::commands::ssh_list_hosts,
+            ssh::commands::ssh_save_host,
+            ssh::commands::ssh_delete_host,
+            ssh::commands::ssh_connect,
+            ssh::commands::ssh_write,
+            ssh::commands::ssh_resize,
+            ssh::commands::ssh_kill,
+            ssh::commands::secrets_unlock,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

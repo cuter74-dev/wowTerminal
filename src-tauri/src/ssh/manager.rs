@@ -1,0 +1,106 @@
+//! 활성 SSH 세션 관리. PtyManager와 같은 패턴.
+
+use std::collections::HashMap;
+use std::sync::Arc;
+
+use thiserror::Error;
+use tokio::sync::Mutex;
+
+use crate::pty::manager::DataSink;
+
+use super::session::{ResolvedAuth, SessionId, SshSession};
+use super::types::SshHost;
+
+#[derive(Debug, Error)]
+pub enum SshError {
+    #[error("session not found: {0}")]
+    NotFound(SessionId),
+
+    #[error("connect: {0}")]
+    Connect(String),
+
+    #[error("auth: {0}")]
+    Auth(String),
+
+    #[error("channel: {0}")]
+    Channel(String),
+
+    #[error("io: {0}")]
+    Io(String),
+}
+
+pub struct SshManager {
+    sessions: Mutex<HashMap<SessionId, Arc<SshSession>>>,
+    sink: DataSink,
+}
+
+impl SshManager {
+    pub fn new(sink: DataSink) -> Self {
+        Self {
+            sessions: Mutex::new(HashMap::new()),
+            sink,
+        }
+    }
+
+    pub async fn connect(
+        &self,
+        host: &SshHost,
+        auth: ResolvedAuth,
+        cols: u16,
+        rows: u16,
+    ) -> Result<SessionId, SshError> {
+        let session_id: SessionId = uuid::Uuid::new_v4().to_string();
+        let session = SshSession::connect(
+            &host.host,
+            host.port,
+            &host.user,
+            auth,
+            cols,
+            rows,
+            session_id.clone(),
+            self.sink.clone(),
+        )
+        .await?;
+
+        self.sessions
+            .lock()
+            .await
+            .insert(session_id.clone(), Arc::new(session));
+
+        Ok(session_id)
+    }
+
+    pub async fn write(&self, id: &str, data: &[u8]) -> Result<(), SshError> {
+        let session = {
+            let guard = self.sessions.lock().await;
+            guard
+                .get(id)
+                .cloned()
+                .ok_or_else(|| SshError::NotFound(id.into()))?
+        };
+        session.write(data).await
+    }
+
+    pub async fn resize(&self, id: &str, cols: u16, rows: u16) -> Result<(), SshError> {
+        let session = {
+            let guard = self.sessions.lock().await;
+            guard
+                .get(id)
+                .cloned()
+                .ok_or_else(|| SshError::NotFound(id.into()))?
+        };
+        session.resize(cols, rows).await
+    }
+
+    pub async fn kill(&self, id: &str) -> Result<(), SshError> {
+        let session = {
+            let mut guard = self.sessions.lock().await;
+            guard.remove(id).ok_or_else(|| SshError::NotFound(id.into()))?
+        };
+        session.close().await
+    }
+
+    pub async fn session_count(&self) -> usize {
+        self.sessions.lock().await.len()
+    }
+}
