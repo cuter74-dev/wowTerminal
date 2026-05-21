@@ -7,8 +7,13 @@
 //!
 //! 자세한 설계는 `docs/design/ai-backend.md` 참고.
 
+pub mod adapters;
+pub mod commands;
+pub mod config;
+pub mod registry;
 pub mod types;
 
+pub use registry::AiRegistry;
 pub use types::*;
 
 use async_trait::async_trait;

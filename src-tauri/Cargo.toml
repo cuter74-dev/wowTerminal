@@ -21,4 +21,12 @@ thiserror = "2"
 anyhow = "1"
 tokio = { version = "1", features = ["full"] }
 async-trait = "0.1"
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+url = "2"
+futures-util = "0.3"
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[dev-dependencies]
+wiremock = "0.6"
+tokio = { version = "1", features = ["full", "macros", "test-util"] }
 
