@@ -1,4 +1,9 @@
-//! PTY (의사 터미널) 코어.
+//! 로컬 PTY 세션 관리.
 //!
-//! 로컬 셸을 PTY로 띄우고 프론트엔드의 xterm.js와 양방향 바이트 스트림을 연결한다.
-//! 구현은 추후 `portable-pty` crate 기반으로 진행.
+//! 각 세션은 portable-pty의 `PtyPair`를 들고, master 쪽 reader/writer를 별도 스레드에서 다룬다.
+//! 출력은 Tauri event `pty:output`으로 프론트엔드에 전달된다.
+
+pub mod commands;
+pub mod manager;
+
+pub use manager::{PtyError, PtyManager, SessionId};
