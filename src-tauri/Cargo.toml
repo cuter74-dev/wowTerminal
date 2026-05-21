@@ -25,6 +25,13 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 url = "2"
 futures-util = "0.3"
 uuid = { version = "1", features = ["v4", "serde"] }
+keyring = { version = "3", features = ["apple-native", "windows-native", "sync-secret-service"] }
+aes-gcm = "0.10"
+argon2 = "0.5"
+rand = "0.8"
+zeroize = { version = "1", features = ["zeroize_derive"] }
+base64 = "0.22"
+toml = "0.8"
 
 [dev-dependencies]
 wiremock = "0.6"

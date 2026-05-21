@@ -1,5 +1,6 @@
 pub mod ai;
 pub mod pty;
+pub mod secrets;
 pub mod ssh;
 
 use ai::registry::AiRegistry;
