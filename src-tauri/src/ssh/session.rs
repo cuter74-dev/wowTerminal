@@ -30,6 +30,7 @@ enum TofuOutcome {
     Accepted,
     FirstContactRecorded,
     Mismatch {
+        algorithm: String,
         stored_fingerprint: String,
         presented_fingerprint: String,
     },
@@ -83,6 +84,7 @@ impl Handler for TofuHandler {
             Ok(MatchResult::Mismatch { stored }) => (
                 false,
                 TofuOutcome::Mismatch {
+                    algorithm: algorithm.clone(),
                     stored_fingerprint: stored.fingerprint,
                     presented_fingerprint: fingerprint,
                 },
@@ -249,11 +251,13 @@ impl SshSession {
 fn map_outcome_to_error(host: &str, port: u16, outcome: TofuOutcome) -> Option<SshError> {
     match outcome {
         TofuOutcome::Mismatch {
+            algorithm,
             stored_fingerprint,
             presented_fingerprint,
         } => Some(SshError::HostKeyMismatch {
             host: host.into(),
             port,
+            algorithm,
             stored: stored_fingerprint,
             presented: presented_fingerprint,
         }),
@@ -407,9 +411,11 @@ mod tests {
         let outcome = shared2.outcome.lock().unwrap().clone().unwrap();
         match outcome {
             TofuOutcome::Mismatch {
+                algorithm,
                 stored_fingerprint,
                 presented_fingerprint,
             } => {
+                assert_eq!(algorithm, "ssh-ed25519");
                 assert!(stored_fingerprint.starts_with("SHA256:"));
                 assert!(presented_fingerprint.starts_with("SHA256:"));
                 assert_ne!(stored_fingerprint, presented_fingerprint);
@@ -423,6 +429,7 @@ mod tests {
     #[tokio::test]
     async fn map_outcome_translates_mismatch() {
         let outcome = TofuOutcome::Mismatch {
+            algorithm: "ssh-ed25519".into(),
             stored_fingerprint: "SHA256:a".into(),
             presented_fingerprint: "SHA256:b".into(),
         };
@@ -431,11 +438,13 @@ mod tests {
             SshError::HostKeyMismatch {
                 host,
                 port,
+                algorithm,
                 stored,
                 presented,
             } => {
                 assert_eq!(host, "h");
                 assert_eq!(port, 22);
+                assert_eq!(algorithm, "ssh-ed25519");
                 assert_eq!(stored, "SHA256:a");
                 assert_eq!(presented, "SHA256:b");
             }

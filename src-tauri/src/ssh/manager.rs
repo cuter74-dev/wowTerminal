@@ -33,6 +33,7 @@ pub enum SshError {
     HostKeyMismatch {
         host: String,
         port: u16,
+        algorithm: String,
         stored: String,
         presented: String,
     },

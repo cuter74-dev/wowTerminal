@@ -18,3 +18,21 @@ export interface SshHost {
 export type TerminalSource =
   | { kind: "local" }
   | { kind: "ssh"; hostId: string };
+
+/// Rust 측 `SshConnectError` (serde tag "kind", snake_case)와 일치.
+export type SshConnectError =
+  | {
+      kind: "host_key_mismatch";
+      host: string;
+      port: number;
+      algorithm: string;
+      stored: string;
+      presented: string;
+    }
+  | { kind: "other"; message: string };
+
+export function isSshConnectError(e: unknown): e is SshConnectError {
+  if (typeof e !== "object" || e === null) return false;
+  const obj = e as { kind?: unknown };
+  return obj.kind === "host_key_mismatch" || obj.kind === "other";
+}

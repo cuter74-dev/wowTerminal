@@ -4,7 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
-import { TerminalSource } from "../types";
+import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
 
 type OutputPayload = {
   session_id: string;
@@ -56,10 +56,17 @@ function commandsFor(source: TerminalSource): Commands {
   };
 }
 
-export function Terminal({ source }: { source: TerminalSource }) {
+interface Props {
+  source: TerminalSource;
+  /** SSH spawn에서 구조화된 에러를 받으면 호출. 모달 띄우는 용도. */
+  onSshError?: (err: SshConnectError) => void;
+  /** 재시도 트리거. 값이 바뀌면 effect가 다시 실행되어 새로 spawn. */
+  retryNonce?: number;
+}
+
+export function Terminal({ source, onSshError, retryNonce = 0 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
-  // source가 바뀌면 effect를 재실행해 새 세션을 띄운다.
   const sourceKey =
     source.kind === "local" ? "local" : `ssh:${source.hostId}`;
 
@@ -117,6 +124,19 @@ export function Terminal({ source }: { source: TerminalSource }) {
           cmds.spawnArgs(term.cols, term.rows),
         );
       } catch (err) {
+        if (source.kind === "ssh" && isSshConnectError(err)) {
+          if (err.kind === "host_key_mismatch") {
+            // 보안 경고는 화면 메시지보다 모달로 위로 올림.
+            term.writeln(
+              `\r\n\x1b[31m[ssh] host key mismatch for ${err.host}:${err.port} — see warning dialog\x1b[0m`,
+            );
+            onSshError?.(err);
+            return;
+          }
+          term.writeln(`\r\n[ssh] ${err.message}`);
+          onSshError?.(err);
+          return;
+        }
         term.writeln(`\r\n[session] failed to start: ${String(err)}`);
       }
     })();
@@ -131,7 +151,7 @@ export function Terminal({ source }: { source: TerminalSource }) {
       term.dispose();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sourceKey]);
+  }, [sourceKey, retryNonce]);
 
   return (
     <div

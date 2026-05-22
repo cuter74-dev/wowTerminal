@@ -11,10 +11,59 @@ use crate::pty::manager::DataSink;
 use crate::secrets::{EncryptedFileStore, SecretStore};
 
 use super::known_hosts::{KnownHostEntry, KnownHostsStore};
-use super::manager::SshManager;
+use super::manager::{SshError, SshManager};
 use super::session::{ResolvedAuth, SessionId};
 use super::store::HostStore;
 use super::types::{SshAuthMethod, SshHost};
+
+/// 프론트엔드가 패턴 매칭으로 구분할 수 있도록 직렬화된 에러.
+/// 단순 `String` 대신 이 enum을 쓰면 UI가 HostKeyMismatch를 정확히 감지해
+/// 별도 모달을 띄울 수 있다.
+#[derive(Serialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum SshConnectError {
+    HostKeyMismatch {
+        host: String,
+        port: u16,
+        algorithm: String,
+        stored: String,
+        presented: String,
+    },
+    Other {
+        message: String,
+    },
+}
+
+impl From<SshError> for SshConnectError {
+    fn from(e: SshError) -> Self {
+        match e {
+            SshError::HostKeyMismatch {
+                host,
+                port,
+                algorithm,
+                stored,
+                presented,
+            } => Self::HostKeyMismatch {
+                host,
+                port,
+                algorithm,
+                stored,
+                presented,
+            },
+            other => Self::Other {
+                message: other.to_string(),
+            },
+        }
+    }
+}
+
+impl SshConnectError {
+    fn from_string(message: impl Into<String>) -> Self {
+        Self::Other {
+            message: message.into(),
+        }
+    }
+}
 
 pub struct SshState {
     pub manager: Arc<SshManager>,
@@ -81,19 +130,22 @@ pub struct SshConnectArgs {
 pub async fn ssh_connect(
     args: SshConnectArgs,
     state: State<'_, SshState>,
-) -> Result<SessionId, String> {
-    let host = state.store.get(&args.host_id).map_err(|e| e.to_string())?;
+) -> Result<SessionId, SshConnectError> {
+    let host = state
+        .store
+        .get(&args.host_id)
+        .map_err(|e| SshConnectError::from_string(e.to_string()))?;
     let cols = args.cols.unwrap_or(80);
     let rows = args.rows.unwrap_or(24);
 
     let auth = resolve_auth(&host.auth, state.secrets.as_deref())
-        .map_err(|e| e.to_string())?;
+        .map_err(SshConnectError::from_string)?;
 
     state
         .manager
         .connect(&host, auth, cols, rows)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(SshConnectError::from)
 }
 
 #[tauri::command]
