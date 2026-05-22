@@ -86,9 +86,38 @@ src-tauri/src/ssh/
 ## 보안 체크리스트
 - [ ] 평문 키 파일 디스크에 두지 않음 (사용자 import 옵션 A 외)
 - [ ] 메모리 평문 시크릿은 사용 직후 zeroize
-- [ ] 호스트 키 검증 (known_hosts 유사 메커니즘) — TOFU + UI에서 변경 시 경고
+- [x] 호스트 키 검증 (known_hosts TOFU) — `known_hosts.rs` 참고. 변경 시 `SshError::HostKeyMismatch`로 명확한 에러; UI 강제 갱신은 `ssh_trust_known_host` 명령
 - [ ] 잘못된 패스프레이즈 시 적절한 backoff (brute force 방지)
 - [ ] 외부에서 호스트 프로필을 export할 때 시크릿은 절대 함께 export되지 않음
+
+## known_hosts (TOFU)
+
+### 정책
+- **첫 접속**: 서버가 제시한 호스트 키의 SHA-256 fingerprint를 `(host, port)`에 매핑해 저장. 접속은 허용.
+- **재접속 (일치)**: 통과.
+- **재접속 (불일치)**: 즉시 거절. `SshError::HostKeyMismatch { host, port, stored, presented }`로 명확히 표시. UI는 사용자에게 보여주고, 사용자가 위험을 인지한 경우 `ssh_trust_known_host(host, port, algorithm, fingerprint)`로 새 키를 신뢰하도록 갱신할 수 있다.
+
+### 저장 위치 / 형식
+- `~/.config/wowterminal/known_hosts.toml`
+- 한 줄 = `(host, port)` 한 엔트리. fingerprint는 `SHA256:...` 형식 (ssh-key crate의 `Fingerprint::to_string()`).
+
+```toml
+version = 1
+
+[entries."example.com:22"]
+algorithm = "ssh-ed25519"
+fingerprint = "SHA256:AbCd..."
+added_at = "@unix:1716352800"
+```
+
+### 구현
+- `src-tauri/src/ssh/known_hosts.rs` — `KnownHostsStore` (CRUD + `check`/`record`/`forget`/`list`)
+- `src-tauri/src/ssh/session.rs` — `TofuHandler`가 `russh::Handler::check_server_key`를 구현. 결과(`TofuOutcome`)를 `Arc<Mutex<Option<...>>>`로 외부에 노출해 connect 실패 시 정확한 에러로 변환.
+- Tauri 명령: `ssh_list_known_hosts`, `ssh_forget_known_host`, `ssh_trust_known_host`.
+
+### 한계 / TODO
+- IPv6 주소를 그대로 키로 쓰면 `:` 분리에서 문제 → 후속에 zone 표기/괄호 도입 필요.
+- 사용자에게 첫 접속임을 알리는 안내(피싱 방지) UI는 미구현. v1.0 전 추가 권장.
 
 ## 열린 질문
 - 마스터 패스프레이즈 변경 시 모든 시크릿 재암호화 — UX 어떻게 노출할지.

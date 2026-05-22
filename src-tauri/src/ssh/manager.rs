@@ -8,6 +8,7 @@ use tokio::sync::Mutex;
 
 use crate::pty::manager::DataSink;
 
+use super::known_hosts::KnownHostsStore;
 use super::session::{ResolvedAuth, SessionId, SshSession};
 use super::types::SshHost;
 
@@ -27,19 +28,33 @@ pub enum SshError {
 
     #[error("io: {0}")]
     Io(String),
+
+    #[error("host key mismatch for {host}:{port} (stored={stored}, presented={presented})")]
+    HostKeyMismatch {
+        host: String,
+        port: u16,
+        stored: String,
+        presented: String,
+    },
 }
 
 pub struct SshManager {
     sessions: Mutex<HashMap<SessionId, Arc<SshSession>>>,
     sink: DataSink,
+    known_hosts: Arc<KnownHostsStore>,
 }
 
 impl SshManager {
-    pub fn new(sink: DataSink) -> Self {
+    pub fn new(sink: DataSink, known_hosts: Arc<KnownHostsStore>) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
             sink,
+            known_hosts,
         }
+    }
+
+    pub fn known_hosts(&self) -> Arc<KnownHostsStore> {
+        Arc::clone(&self.known_hosts)
     }
 
     pub async fn connect(
@@ -59,6 +74,7 @@ impl SshManager {
             rows,
             session_id.clone(),
             self.sink.clone(),
+            Arc::clone(&self.known_hosts),
         )
         .await?;
 

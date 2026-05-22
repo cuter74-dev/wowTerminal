@@ -3,34 +3,98 @@
 //! 채널 자체는 actor 태스크가 소유한다. 외부에서는 [`tokio::sync::mpsc`]로 명령
 //! ([`SessionCmd`])을 보내고, 채널이 받은 데이터는 [`crate::pty::manager::DataSink`]
 //! 콜백으로 흘러나간다.
+//!
+//! 호스트 키 검증은 [`TofuHandler`]가 담당. 첫 접속이면 저장, 일치하면 통과,
+//! 불일치면 거절 + outcome 기록. 거절은 러닝 중인 connect()가 일반 에러로 반환되므로
+//! 호출 측에서 outcome을 확인해 [`SshError::HostKeyMismatch`]로 변환한다.
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use russh::client::{self, Handler};
-use russh::keys::ssh_key::PrivateKey;
+use russh::keys::ssh_key::{HashAlg, PrivateKey, PublicKey};
 use russh::keys::PrivateKeyWithHashAlg;
 use russh::ChannelMsg;
 use tokio::sync::mpsc;
 
 use crate::pty::manager::DataSink;
 
+use super::known_hosts::{KnownHostsStore, MatchResult};
 use super::manager::SshError;
 use super::types::SshAuthMethod;
 
 pub type SessionId = String;
 
-/// 호스트 키 검증 정책. v1은 단순화를 위해 무조건 수락 (TOFU 미구현).
-struct PermissiveHandler;
+/// 호스트 키 검증 결과 — TofuHandler가 connect 도중에 채워준다.
+#[derive(Debug, Clone)]
+enum TofuOutcome {
+    Accepted,
+    FirstContactRecorded,
+    Mismatch {
+        stored_fingerprint: String,
+        presented_fingerprint: String,
+    },
+    InternalError(String),
+}
 
-impl Handler for PermissiveHandler {
+#[derive(Clone)]
+struct TofuShared {
+    store: Arc<KnownHostsStore>,
+    host: String,
+    port: u16,
+    outcome: Arc<Mutex<Option<TofuOutcome>>>,
+}
+
+/// TOFU 정책 핸들러.
+struct TofuHandler {
+    shared: TofuShared,
+}
+
+impl Handler for TofuHandler {
     type Error = russh::Error;
 
     async fn check_server_key(
         &mut self,
-        _server_public_key: &russh::keys::ssh_key::PublicKey,
+        server_public_key: &PublicKey,
     ) -> Result<bool, Self::Error> {
-        // TODO: known_hosts 기반 TOFU 검증 도입.
-        Ok(true)
+        let algorithm = server_public_key.algorithm().as_str().to_string();
+        let fingerprint = server_public_key.fingerprint(HashAlg::Sha256).to_string();
+
+        let result = self.shared.store.check(
+            &self.shared.host,
+            self.shared.port,
+            &algorithm,
+            &fingerprint,
+        );
+
+        let (accept, outcome) = match result {
+            Err(e) => (false, TofuOutcome::InternalError(e.to_string())),
+            Ok(MatchResult::Match) => (true, TofuOutcome::Accepted),
+            Ok(MatchResult::FirstContact) => {
+                match self.shared.store.record(
+                    &self.shared.host,
+                    self.shared.port,
+                    &algorithm,
+                    &fingerprint,
+                ) {
+                    Ok(_) => (true, TofuOutcome::FirstContactRecorded),
+                    Err(e) => (false, TofuOutcome::InternalError(e.to_string())),
+                }
+            }
+            Ok(MatchResult::Mismatch { stored }) => (
+                false,
+                TofuOutcome::Mismatch {
+                    stored_fingerprint: stored.fingerprint,
+                    presented_fingerprint: fingerprint,
+                },
+            ),
+        };
+
+        *self
+            .shared
+            .outcome
+            .lock()
+            .expect("tofu outcome mutex poisoned") = Some(outcome);
+        Ok(accept)
     }
 }
 
@@ -41,13 +105,13 @@ enum SessionCmd {
     Close,
 }
 
-/// SSH 세션 핸들. drop 또는 [`close`]까지 actor 태스크는 살아있다.
 pub struct SshSession {
     tx: mpsc::UnboundedSender<SessionCmd>,
 }
 
 impl SshSession {
     /// 호스트에 연결하고 PTY 채널을 연 뒤 actor 태스크를 띄운다.
+    /// `known_hosts`는 TOFU 정책에 사용된다.
     pub async fn connect(
         host: &str,
         port: u16,
@@ -57,11 +121,33 @@ impl SshSession {
         rows: u16,
         session_id: SessionId,
         sink: DataSink,
+        known_hosts: Arc<KnownHostsStore>,
     ) -> Result<Self, SshError> {
+        let shared = TofuShared {
+            store: known_hosts,
+            host: host.to_string(),
+            port,
+            outcome: Arc::new(Mutex::new(None)),
+        };
+        let handler = TofuHandler {
+            shared: shared.clone(),
+        };
+
         let config = Arc::new(client::Config::default());
-        let mut handle = client::connect(config, (host, port), PermissiveHandler)
-            .await
-            .map_err(|e| SshError::Connect(e.to_string()))?;
+        let connect_result = client::connect(config, (host, port), handler).await;
+
+        let mut handle = match connect_result {
+            Ok(h) => h,
+            Err(e) => {
+                // host key 거절로 인한 실패라면 더 구체적인 에러로 변환.
+                if let Some(outcome) = shared.outcome.lock().expect("outcome lock").take() {
+                    return Err(map_outcome_to_error(host, port, outcome).unwrap_or_else(|| {
+                        SshError::Connect(e.to_string())
+                    }));
+                }
+                return Err(SshError::Connect(e.to_string()));
+            }
+        };
 
         let auth_ok = match auth {
             ResolvedAuth::Password(pw) => handle
@@ -100,7 +186,6 @@ impl SshSession {
         let sink_for_pump = sink.clone();
         let id_for_pump = session_id.clone();
 
-        // actor 태스크: 채널 owning + cmd 수신 + 채널 메시지 처리.
         tokio::spawn(async move {
             loop {
                 tokio::select! {
@@ -137,7 +222,6 @@ impl SshSession {
                     }
                 }
             }
-            // 채널 닫힘. handle은 drop되면서 정리.
             drop(handle);
         });
 
@@ -162,89 +246,19 @@ impl SshSession {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use std::sync::Mutex;
-    use std::time::Duration;
-    use tokio::time::timeout;
-
-    fn empty_sink() -> DataSink {
-        Arc::new(|_, _| {})
-    }
-
-    #[tokio::test]
-    async fn connect_to_unreachable_port_returns_connect_error() {
-        // 거의 확실히 닫혀있는 포트.
-        let result = SshSession::connect(
-            "127.0.0.1",
-            1,
-            "nobody",
-            ResolvedAuth::Password("x".into()),
-            80,
-            24,
-            "test-session".into(),
-            empty_sink(),
-        );
-        let result = timeout(Duration::from_secs(5), result)
-            .await
-            .expect("connect should fail fast, not hang");
-        match result {
-            Err(SshError::Connect(_)) | Err(SshError::Auth(_)) => {}
-            other => panic!("expected Connect or Auth error, got {:?}", other.is_ok()),
-        }
-    }
-
-    #[test]
-    fn resolved_auth_password_requires_password_bytes() {
-        let m = SshAuthMethod::Password {
-            secret_id: "x".into(),
-        };
-        let err = ResolvedAuth::from_method(&m, None, None, None).unwrap_err();
-        assert!(matches!(err, SshError::Auth(_)));
-    }
-
-    #[test]
-    fn resolved_auth_password_decodes_utf8() {
-        let m = SshAuthMethod::Password {
-            secret_id: "x".into(),
-        };
-        let auth = ResolvedAuth::from_method(&m, Some(b"hello"), None, None).unwrap();
-        match auth {
-            ResolvedAuth::Password(s) => assert_eq!(s, "hello"),
-            _ => panic!("expected Password"),
-        }
-    }
-
-    #[test]
-    fn resolved_auth_agent_not_implemented() {
-        let m = SshAuthMethod::Agent;
-        let err = ResolvedAuth::from_method(&m, None, None, None).unwrap_err();
-        match err {
-            SshError::Auth(msg) => assert!(msg.contains("not yet implemented")),
-            other => panic!("expected Auth, got {:?}", other),
-        }
-    }
-
-    #[test]
-    fn resolved_auth_private_key_invalid_pem_fails() {
-        let m = SshAuthMethod::PrivateKey {
-            key_id: "x".into(),
-            passphrase_secret_id: None,
-        };
-        let err = ResolvedAuth::from_method(&m, None, Some(b"not a key"), None).unwrap_err();
-        assert!(matches!(err, SshError::Auth(_)));
-    }
-
-    /// 가짜 sink 헬퍼 — 채널 도착 데이터 확인용. Mutex로 보호된 Vec 사용.
-    #[allow(dead_code)]
-    fn vec_sink() -> (DataSink, Arc<Mutex<Vec<(SessionId, Vec<u8>)>>>) {
-        let store: Arc<Mutex<Vec<(SessionId, Vec<u8>)>>> = Arc::new(Mutex::new(Vec::new()));
-        let s = Arc::clone(&store);
-        let sink: DataSink = Arc::new(move |id, data| {
-            s.lock().expect("sink store poisoned").push((id, data));
-        });
-        (sink, store)
+fn map_outcome_to_error(host: &str, port: u16, outcome: TofuOutcome) -> Option<SshError> {
+    match outcome {
+        TofuOutcome::Mismatch {
+            stored_fingerprint,
+            presented_fingerprint,
+        } => Some(SshError::HostKeyMismatch {
+            host: host.into(),
+            port,
+            stored: stored_fingerprint,
+            presented: presented_fingerprint,
+        }),
+        TofuOutcome::InternalError(msg) => Some(SshError::Connect(format!("known_hosts: {msg}"))),
+        TofuOutcome::Accepted | TofuOutcome::FirstContactRecorded => None,
     }
 }
 
@@ -258,7 +272,6 @@ pub enum ResolvedAuth {
 impl std::fmt::Debug for ResolvedAuth {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            // 비밀번호/키 내용을 디버그 출력에 노출하지 않는다.
             ResolvedAuth::Password(_) => f.write_str("ResolvedAuth::Password(<redacted>)"),
             ResolvedAuth::PrivateKey(_) => f.write_str("ResolvedAuth::PrivateKey(<redacted>)"),
         }
@@ -299,5 +312,197 @@ impl ResolvedAuth {
                 "ssh-agent delegation not yet implemented".into(),
             )),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::PathBuf;
+    use std::time::Duration;
+    use tokio::time::timeout;
+
+    fn empty_sink() -> DataSink {
+        Arc::new(|_, _| {})
+    }
+
+    fn tmp_known_hosts() -> PathBuf {
+        std::env::temp_dir().join(format!("wowterm-kh-{}.toml", uuid::Uuid::new_v4()))
+    }
+
+    // 사전 생성한 ed25519 공개키 두 개 (테스트 픽스처).
+    // ssh-keygen -t ed25519 -N "" -f /tmp/k 로 만들 수 있음.
+    const TEST_PUB_A: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIDiudAQkXZMAdKJhwZgnibeqjsLtEaZJxlFb4/xZac2Q test-a";
+    const TEST_PUB_B: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIA6spJMgmrofylWwA6O6qyEpLySKJO/0WId5B1NFxn2D test-b";
+
+    fn test_public_key(which: char) -> PublicKey {
+        let s = if which == 'a' { TEST_PUB_A } else { TEST_PUB_B };
+        PublicKey::from_openssh(s).expect("parse fixture key")
+    }
+
+    fn make_handler(store: Arc<KnownHostsStore>, host: &str, port: u16) -> (TofuHandler, TofuShared) {
+        let shared = TofuShared {
+            store,
+            host: host.into(),
+            port,
+            outcome: Arc::new(Mutex::new(None)),
+        };
+        (TofuHandler { shared: shared.clone() }, shared)
+    }
+
+    #[tokio::test]
+    async fn first_contact_records_and_accepts() {
+        let path = tmp_known_hosts();
+        let store = Arc::new(KnownHostsStore::new(&path));
+        let pubkey = test_public_key('a');
+        let (mut handler, shared) = make_handler(store.clone(), "h", 22);
+
+        let accepted = handler.check_server_key(&pubkey).await.unwrap();
+        assert!(accepted);
+
+        let outcome = shared.outcome.lock().unwrap().clone().unwrap();
+        assert!(matches!(outcome, TofuOutcome::FirstContactRecorded));
+
+        // 저장됐는지 직접 확인.
+        let list = store.list().unwrap();
+        assert_eq!(list.len(), 1);
+        assert_eq!(list[0].0, "h:22");
+        assert!(list[0].1.fingerprint.starts_with("SHA256:"));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn same_key_on_second_visit_accepts() {
+        let path = tmp_known_hosts();
+        let store = Arc::new(KnownHostsStore::new(&path));
+        let pubkey = test_public_key('a');
+
+        let (mut h1, _) = make_handler(store.clone(), "h", 22);
+        assert!(h1.check_server_key(&pubkey).await.unwrap());
+
+        let (mut h2, shared2) = make_handler(store.clone(), "h", 22);
+        let accepted = h2.check_server_key(&pubkey).await.unwrap();
+        assert!(accepted);
+        let outcome = shared2.outcome.lock().unwrap().clone().unwrap();
+        assert!(matches!(outcome, TofuOutcome::Accepted));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn different_key_is_rejected_with_mismatch() {
+        let path = tmp_known_hosts();
+        let store = Arc::new(KnownHostsStore::new(&path));
+        let pub_old = test_public_key('a');
+        let pub_new = test_public_key('b');
+
+        let (mut h1, _) = make_handler(store.clone(), "h", 22);
+        assert!(h1.check_server_key(&pub_old).await.unwrap());
+
+        let (mut h2, shared2) = make_handler(store.clone(), "h", 22);
+        let accepted = h2.check_server_key(&pub_new).await.unwrap();
+        assert!(!accepted, "different key must be rejected");
+
+        let outcome = shared2.outcome.lock().unwrap().clone().unwrap();
+        match outcome {
+            TofuOutcome::Mismatch {
+                stored_fingerprint,
+                presented_fingerprint,
+            } => {
+                assert!(stored_fingerprint.starts_with("SHA256:"));
+                assert!(presented_fingerprint.starts_with("SHA256:"));
+                assert_ne!(stored_fingerprint, presented_fingerprint);
+            }
+            other => panic!("expected Mismatch, got {:?}", other),
+        }
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn map_outcome_translates_mismatch() {
+        let outcome = TofuOutcome::Mismatch {
+            stored_fingerprint: "SHA256:a".into(),
+            presented_fingerprint: "SHA256:b".into(),
+        };
+        let err = map_outcome_to_error("h", 22, outcome).unwrap();
+        match err {
+            SshError::HostKeyMismatch {
+                host,
+                port,
+                stored,
+                presented,
+            } => {
+                assert_eq!(host, "h");
+                assert_eq!(port, 22);
+                assert_eq!(stored, "SHA256:a");
+                assert_eq!(presented, "SHA256:b");
+            }
+            other => panic!("expected HostKeyMismatch, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn connect_to_unreachable_port_returns_connect_error() {
+        let path = tmp_known_hosts();
+        let store = Arc::new(KnownHostsStore::new(&path));
+
+        let result = SshSession::connect(
+            "127.0.0.1",
+            1,
+            "nobody",
+            ResolvedAuth::Password("x".into()),
+            80,
+            24,
+            "test-session".into(),
+            empty_sink(),
+            store,
+        );
+        let result = timeout(Duration::from_secs(5), result)
+            .await
+            .expect("connect should fail fast, not hang");
+        match result {
+            Err(SshError::Connect(_)) | Err(SshError::Auth(_)) => {}
+            other => panic!("expected Connect or Auth error, got {:?}", other.is_ok()),
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn resolved_auth_password_requires_password_bytes() {
+        let m = SshAuthMethod::Password { secret_id: "x".into() };
+        let err = ResolvedAuth::from_method(&m, None, None, None).unwrap_err();
+        assert!(matches!(err, SshError::Auth(_)));
+    }
+
+    #[test]
+    fn resolved_auth_password_decodes_utf8() {
+        let m = SshAuthMethod::Password { secret_id: "x".into() };
+        let auth = ResolvedAuth::from_method(&m, Some(b"hello"), None, None).unwrap();
+        match auth {
+            ResolvedAuth::Password(s) => assert_eq!(s, "hello"),
+            _ => panic!("expected Password"),
+        }
+    }
+
+    #[test]
+    fn resolved_auth_agent_not_implemented() {
+        let m = SshAuthMethod::Agent;
+        let err = ResolvedAuth::from_method(&m, None, None, None).unwrap_err();
+        match err {
+            SshError::Auth(msg) => assert!(msg.contains("not yet implemented")),
+            other => panic!("expected Auth, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn resolved_auth_private_key_invalid_pem_fails() {
+        let m = SshAuthMethod::PrivateKey {
+            key_id: "x".into(),
+            passphrase_secret_id: None,
+        };
+        let err = ResolvedAuth::from_method(&m, None, Some(b"not a key"), None).unwrap_err();
+        assert!(matches!(err, SshError::Auth(_)));
     }
 }

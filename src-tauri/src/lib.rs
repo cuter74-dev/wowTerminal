@@ -21,10 +21,13 @@ pub fn run() {
             let pty_manager = pty::commands::build_manager(&app.handle());
             app.manage(PtyState(pty_manager));
 
-            let hosts_path = dirs::config_dir()
-                .map(|p| p.join("wowterminal").join("hosts.toml"))
-                .unwrap_or_else(|| std::path::PathBuf::from("hosts.toml"));
-            let ssh_state = ssh::commands::build_state(&app.handle(), hosts_path);
+            let config_dir = dirs::config_dir()
+                .map(|p| p.join("wowterminal"))
+                .unwrap_or_else(|| std::path::PathBuf::from("."));
+            let hosts_path = config_dir.join("hosts.toml");
+            let known_hosts_path = config_dir.join("known_hosts.toml");
+            let ssh_state =
+                ssh::commands::build_state(&app.handle(), hosts_path, known_hosts_path);
             app.manage(ssh_state);
             Ok(())
         })
@@ -43,6 +46,9 @@ pub fn run() {
             ssh::commands::ssh_write,
             ssh::commands::ssh_resize,
             ssh::commands::ssh_kill,
+            ssh::commands::ssh_list_known_hosts,
+            ssh::commands::ssh_forget_known_host,
+            ssh::commands::ssh_trust_known_host,
             ssh::commands::secrets_unlock,
         ])
         .run(tauri::generate_context!())
