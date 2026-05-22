@@ -93,9 +93,9 @@ src-tauri/src/ssh/
 ## known_hosts (TOFU)
 
 ### 정책
-- **첫 접속**: 서버가 제시한 호스트 키의 SHA-256 fingerprint를 `(host, port)`에 매핑해 저장. 접속은 허용.
+- **첫 접속**: 자동 저장하지 **않는다**. 거절하고 `SshError::FirstContactRequired { host, port, algorithm, fingerprint }`로 사용자에게 fingerprint를 보여준다. 사용자가 별도 채널로 fingerprint를 확인한 뒤 `ssh_trust_known_host(...)`를 호출해야 known_hosts에 기록되고, 그 다음 접속이 통과한다.
 - **재접속 (일치)**: 통과.
-- **재접속 (불일치)**: 즉시 거절. `SshError::HostKeyMismatch { host, port, stored, presented }`로 명확히 표시. UI는 사용자에게 보여주고, 사용자가 위험을 인지한 경우 `ssh_trust_known_host(host, port, algorithm, fingerprint)`로 새 키를 신뢰하도록 갱신할 수 있다.
+- **재접속 (불일치)**: 즉시 거절. `SshError::HostKeyMismatch { host, port, algorithm, stored, presented }`. UI는 사용자에게 보여주고, 사용자가 위험을 인지한 경우 `ssh_trust_known_host`로 새 키를 신뢰하도록 갱신할 수 있다.
 
 ### 저장 위치 / 형식
 - `~/.config/wowterminal/known_hosts.toml`
@@ -117,7 +117,6 @@ added_at = "@unix:1716352800"
 
 ### 한계 / TODO
 - IPv6 주소를 그대로 키로 쓰면 `:` 분리에서 문제 → 후속에 zone 표기/괄호 도입 필요.
-- 사용자에게 첫 접속임을 알리는 안내(피싱 방지) UI는 미구현. v1.0 전 추가 권장.
 
 ## 열린 질문
 - 마스터 패스프레이즈 변경 시 모든 시크릿 재암호화 — UX 어떻게 노출할지.

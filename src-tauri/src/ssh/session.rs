@@ -28,7 +28,11 @@ pub type SessionId = String;
 #[derive(Debug, Clone)]
 enum TofuOutcome {
     Accepted,
-    FirstContactRecorded,
+    /// 처음 보는 호스트. 정책상 사용자 확인 전에는 저장하지 않고 거절한다.
+    FirstContactPending {
+        algorithm: String,
+        fingerprint: String,
+    },
     Mismatch {
         algorithm: String,
         stored_fingerprint: String,
@@ -70,17 +74,15 @@ impl Handler for TofuHandler {
         let (accept, outcome) = match result {
             Err(e) => (false, TofuOutcome::InternalError(e.to_string())),
             Ok(MatchResult::Match) => (true, TofuOutcome::Accepted),
-            Ok(MatchResult::FirstContact) => {
-                match self.shared.store.record(
-                    &self.shared.host,
-                    self.shared.port,
-                    &algorithm,
-                    &fingerprint,
-                ) {
-                    Ok(_) => (true, TofuOutcome::FirstContactRecorded),
-                    Err(e) => (false, TofuOutcome::InternalError(e.to_string())),
-                }
-            }
+            // 정책: 첫 접속에서는 자동 저장하지 않고 사용자 확인을 요구한다.
+            // 사용자가 별도로 `ssh_trust_known_host`를 호출해 신뢰해야 재접속이 통과한다.
+            Ok(MatchResult::FirstContact) => (
+                false,
+                TofuOutcome::FirstContactPending {
+                    algorithm: algorithm.clone(),
+                    fingerprint: fingerprint.clone(),
+                },
+            ),
             Ok(MatchResult::Mismatch { stored }) => (
                 false,
                 TofuOutcome::Mismatch {
@@ -261,8 +263,17 @@ fn map_outcome_to_error(host: &str, port: u16, outcome: TofuOutcome) -> Option<S
             stored: stored_fingerprint,
             presented: presented_fingerprint,
         }),
+        TofuOutcome::FirstContactPending {
+            algorithm,
+            fingerprint,
+        } => Some(SshError::FirstContactRequired {
+            host: host.into(),
+            port,
+            algorithm,
+            fingerprint,
+        }),
         TofuOutcome::InternalError(msg) => Some(SshError::Connect(format!("known_hosts: {msg}"))),
-        TofuOutcome::Accepted | TofuOutcome::FirstContactRecorded => None,
+        TofuOutcome::Accepted => None,
     }
 }
 
@@ -355,35 +366,49 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn first_contact_records_and_accepts() {
+    async fn first_contact_requires_confirmation() {
+        // 새 정책: 첫 접속은 자동 저장 X. 거절 + FirstContactPending outcome.
         let path = tmp_known_hosts();
         let store = Arc::new(KnownHostsStore::new(&path));
         let pubkey = test_public_key('a');
         let (mut handler, shared) = make_handler(store.clone(), "h", 22);
 
         let accepted = handler.check_server_key(&pubkey).await.unwrap();
-        assert!(accepted);
+        assert!(!accepted, "first contact must require explicit user trust");
 
         let outcome = shared.outcome.lock().unwrap().clone().unwrap();
-        assert!(matches!(outcome, TofuOutcome::FirstContactRecorded));
+        match outcome {
+            TofuOutcome::FirstContactPending {
+                algorithm,
+                fingerprint,
+            } => {
+                assert_eq!(algorithm, "ssh-ed25519");
+                assert!(fingerprint.starts_with("SHA256:"));
+            }
+            other => panic!("expected FirstContactPending, got {:?}", other),
+        }
 
-        // 저장됐는지 직접 확인.
+        // 자동 저장되지 않았는지 확인.
         let list = store.list().unwrap();
-        assert_eq!(list.len(), 1);
-        assert_eq!(list[0].0, "h:22");
-        assert!(list[0].1.fingerprint.starts_with("SHA256:"));
+        assert!(list.is_empty(), "store must not record on silent first contact");
 
         let _ = std::fs::remove_file(&path);
     }
 
     #[tokio::test]
-    async fn same_key_on_second_visit_accepts() {
+    async fn user_trust_after_first_contact_then_match() {
+        // 시나리오: 첫 접속(거절) → 사용자가 trust(=store.record) → 재접속 통과.
         let path = tmp_known_hosts();
         let store = Arc::new(KnownHostsStore::new(&path));
         let pubkey = test_public_key('a');
 
         let (mut h1, _) = make_handler(store.clone(), "h", 22);
-        assert!(h1.check_server_key(&pubkey).await.unwrap());
+        assert!(!h1.check_server_key(&pubkey).await.unwrap());
+
+        // 사용자가 모달에서 trust 클릭 → ssh_trust_known_host → record.
+        let algo = pubkey.algorithm().as_str().to_string();
+        let fp = pubkey.fingerprint(HashAlg::Sha256).to_string();
+        store.record("h", 22, &algo, &fp).unwrap();
 
         let (mut h2, shared2) = make_handler(store.clone(), "h", 22);
         let accepted = h2.check_server_key(&pubkey).await.unwrap();
@@ -396,13 +421,16 @@ mod tests {
 
     #[tokio::test]
     async fn different_key_is_rejected_with_mismatch() {
+        // 시나리오: trust로 키 A를 등록한 뒤, 다른 키 B로 접속 시도 → Mismatch.
         let path = tmp_known_hosts();
         let store = Arc::new(KnownHostsStore::new(&path));
         let pub_old = test_public_key('a');
         let pub_new = test_public_key('b');
 
-        let (mut h1, _) = make_handler(store.clone(), "h", 22);
-        assert!(h1.check_server_key(&pub_old).await.unwrap());
+        // 사용자가 trust로 첫 키를 등록한 상태를 시뮬레이션.
+        let algo = pub_old.algorithm().as_str().to_string();
+        let fp = pub_old.fingerprint(HashAlg::Sha256).to_string();
+        store.record("h", 22, &algo, &fp).unwrap();
 
         let (mut h2, shared2) = make_handler(store.clone(), "h", 22);
         let accepted = h2.check_server_key(&pub_new).await.unwrap();
@@ -449,6 +477,29 @@ mod tests {
                 assert_eq!(presented, "SHA256:b");
             }
             other => panic!("expected HostKeyMismatch, got {:?}", other),
+        }
+    }
+
+    #[tokio::test]
+    async fn map_outcome_translates_first_contact() {
+        let outcome = TofuOutcome::FirstContactPending {
+            algorithm: "ssh-ed25519".into(),
+            fingerprint: "SHA256:xyz".into(),
+        };
+        let err = map_outcome_to_error("h", 22, outcome).unwrap();
+        match err {
+            SshError::FirstContactRequired {
+                host,
+                port,
+                algorithm,
+                fingerprint,
+            } => {
+                assert_eq!(host, "h");
+                assert_eq!(port, 22);
+                assert_eq!(algorithm, "ssh-ed25519");
+                assert_eq!(fingerprint, "SHA256:xyz");
+            }
+            other => panic!("expected FirstContactRequired, got {:?}", other),
         }
     }
 

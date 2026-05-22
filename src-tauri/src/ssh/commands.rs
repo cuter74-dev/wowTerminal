@@ -17,8 +17,8 @@ use super::store::HostStore;
 use super::types::{SshAuthMethod, SshHost};
 
 /// 프론트엔드가 패턴 매칭으로 구분할 수 있도록 직렬화된 에러.
-/// 단순 `String` 대신 이 enum을 쓰면 UI가 HostKeyMismatch를 정확히 감지해
-/// 별도 모달을 띄울 수 있다.
+/// 단순 `String` 대신 이 enum을 쓰면 UI가 HostKeyMismatch / FirstContact를
+/// 정확히 감지해 별도 모달을 띄울 수 있다.
 #[derive(Serialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SshConnectError {
@@ -28,6 +28,12 @@ pub enum SshConnectError {
         algorithm: String,
         stored: String,
         presented: String,
+    },
+    FirstContact {
+        host: String,
+        port: u16,
+        algorithm: String,
+        fingerprint: String,
     },
     Other {
         message: String,
@@ -49,6 +55,17 @@ impl From<SshError> for SshConnectError {
                 algorithm,
                 stored,
                 presented,
+            },
+            SshError::FirstContactRequired {
+                host,
+                port,
+                algorithm,
+                fingerprint,
+            } => Self::FirstContact {
+                host,
+                port,
+                algorithm,
+                fingerprint,
             },
             other => Self::Other {
                 message: other.to_string(),

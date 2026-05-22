@@ -126,9 +126,15 @@ export function Terminal({ source, onSshError, retryNonce = 0 }: Props) {
       } catch (err) {
         if (source.kind === "ssh" && isSshConnectError(err)) {
           if (err.kind === "host_key_mismatch") {
-            // 보안 경고는 화면 메시지보다 모달로 위로 올림.
             term.writeln(
               `\r\n\x1b[31m[ssh] host key mismatch for ${err.host}:${err.port} — see warning dialog\x1b[0m`,
+            );
+            onSshError?.(err);
+            return;
+          }
+          if (err.kind === "first_contact") {
+            term.writeln(
+              `\r\n\x1b[33m[ssh] first contact with ${err.host}:${err.port} — verify fingerprint in dialog\x1b[0m`,
             );
             onSshError?.(err);
             return;

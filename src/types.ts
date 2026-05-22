@@ -29,10 +29,21 @@ export type SshConnectError =
       stored: string;
       presented: string;
     }
+  | {
+      kind: "first_contact";
+      host: string;
+      port: number;
+      algorithm: string;
+      fingerprint: string;
+    }
   | { kind: "other"; message: string };
 
 export function isSshConnectError(e: unknown): e is SshConnectError {
   if (typeof e !== "object" || e === null) return false;
   const obj = e as { kind?: unknown };
-  return obj.kind === "host_key_mismatch" || obj.kind === "other";
+  return (
+    obj.kind === "host_key_mismatch" ||
+    obj.kind === "first_contact" ||
+    obj.kind === "other"
+  );
 }

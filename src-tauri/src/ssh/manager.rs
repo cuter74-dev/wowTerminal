@@ -37,6 +37,14 @@ pub enum SshError {
         stored: String,
         presented: String,
     },
+
+    #[error("first contact with {host}:{port} requires user confirmation (fingerprint={fingerprint})")]
+    FirstContactRequired {
+        host: String,
+        port: u16,
+        algorithm: String,
+        fingerprint: String,
+    },
 }
 
 pub struct SshManager {
