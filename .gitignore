@@ -39,6 +39,8 @@ src-tauri/WixTools/
 *.pem
 *.key
 secrets/
+# code module — secrets/ pattern above must not hide it
+!src-tauri/src/secrets/
 config/local.toml
 
 # OS
