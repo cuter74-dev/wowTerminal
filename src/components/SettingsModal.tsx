@@ -66,8 +66,48 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   onChange={(e) => patchGeneral({ restoreTabs: e.target.checked })}
                 />
               </Row>
-              <div style={{ color: "#789", fontSize: 11, marginTop: 8 }}>
-                wowTerminal v0.1.0 · 기획서 기반 구현
+
+              {/* About (S-068) */}
+              <div
+                style={{
+                  marginTop: 14,
+                  padding: 14,
+                  background: "#1d1d24",
+                  border: "1px solid #2f2f37",
+                  borderRadius: 6,
+                }}
+              >
+                <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+                  <span style={{ fontSize: 26 }}>🖥️</span>
+                  <div>
+                    <div style={{ fontWeight: 700, color: "#fff" }}>AI Terminal</div>
+                    <div style={{ fontSize: 11, color: "#789" }}>v0.1.0-beta</div>
+                  </div>
+                </div>
+                <div style={{ fontSize: 12, color: "#9aa", lineHeight: 1.6 }}>
+                  컨텍스트를 아는 AI 터미널 — LLM × SSH × SFTP.
+                  <br />
+                  Tauri 2 (Rust) · React 19 · xterm.js · russh · russh-sftp
+                </div>
+                <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                  <button
+                    onClick={() => alert("현재 최신 버전입니다 (v0.1.0-beta).")}
+                    style={{
+                      background: "#2a2a35",
+                      color: "#ddd",
+                      border: "1px solid #444",
+                      borderRadius: 4,
+                      padding: "5px 12px",
+                      cursor: "pointer",
+                      fontSize: 12,
+                    }}
+                  >
+                    업데이트 확인
+                  </button>
+                  <span style={{ fontSize: 11, color: "#566" }}>
+                    github.com/cuter74-dev/wowTerminal
+                  </span>
+                </div>
               </div>
             </Section>
           )}

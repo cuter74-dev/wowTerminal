@@ -25,6 +25,7 @@ import {
   PasswordPromptModal,
   PasswordPromptInfo,
 } from "./components/PasswordPromptModal";
+import { ConnectionErrorModal } from "./components/ConnectionErrorModal";
 import {
   Pane,
   SshConnectError,
@@ -231,6 +232,9 @@ function App() {
   const [passwordPrompt, setPasswordPrompt] = useState<
     (PasswordPromptInfo & { tabId: string; leafId: string }) | null
   >(null);
+  const [connError, setConnError] = useState<
+    { tabId: string; leafId: string; label: string; message: string } | null
+  >(null);
 
   const showMismatch =
     mismatch && mismatch.tabId === activeTabId ? mismatch : null;
@@ -240,6 +244,8 @@ function App() {
     passwordPrompt && passwordPrompt.tabId === activeTabId
       ? passwordPrompt
       : null;
+  const showConnError =
+    connError && connError.tabId === activeTabId ? connError : null;
 
   function handleSshError(tabId: string, leafId: string, err: SshConnectError) {
     if (err.kind === "host_key_mismatch") {
@@ -268,6 +274,14 @@ function App() {
         host: err.host,
         port: err.port,
         user: err.user,
+      });
+    } else if (err.kind === "other") {
+      const tab = tabs.find((t) => t.id === tabId);
+      setConnError({
+        tabId,
+        leafId,
+        label: tab?.label ?? "SSH",
+        message: err.message,
       });
     }
   }
@@ -903,6 +917,18 @@ function App() {
           }}
         />
       )}
+      {showConnError && (
+        <ConnectionErrorModal
+          info={{ label: showConnError.label, message: showConnError.message }}
+          onClose={() => setConnError(null)}
+          onRetry={() => {
+            const leafId = showConnError.leafId;
+            setConnError(null);
+            bumpRetry(leafId);
+          }}
+        />
+      )}
+
       {showPasswordPrompt && (
         <PasswordPromptModal
           info={{
