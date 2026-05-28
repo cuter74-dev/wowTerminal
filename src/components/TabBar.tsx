@@ -17,11 +17,9 @@ interface Props {
   onContextMenu: (id: string, x: number, y: number) => void;
   onRenameCommit: (id: string, label: string) => void;
   onRenameCancel: () => void;
-  onDragStart: (id: string) => void;
-  onDragEnd: () => void;
+  /** 탭에서 pointer down — 드래그 분리 후보 시작 (WKWebView는 HTML5 DnD 불안정 → pointer 기반). */
+  onTabPointerDown: (id: string, clientX: number, clientY: number) => void;
 }
-
-export const TAB_DRAG_MIME = "application/x-wowterm-tab";
 
 export function TabBar({
   tabs,
@@ -33,8 +31,7 @@ export function TabBar({
   onContextMenu,
   onRenameCommit,
   onRenameCancel,
-  onDragStart,
-  onDragEnd,
+  onTabPointerDown,
 }: Props) {
   return (
     <div
@@ -55,13 +52,11 @@ export function TabBar({
         return (
           <div
             key={t.id}
-            draggable={!editing}
-            onDragStart={(e) => {
-              e.dataTransfer.setData(TAB_DRAG_MIME, t.id);
-              e.dataTransfer.effectAllowed = "move";
-              onDragStart(t.id);
+            onMouseDown={(e) => {
+              if (e.button === 0 && !editing) {
+                onTabPointerDown(t.id, e.clientX, e.clientY);
+              }
             }}
-            onDragEnd={() => onDragEnd()}
             onClick={() => onActivate(t.id)}
             onContextMenu={(e) => {
               e.preventDefault();

@@ -33,6 +33,10 @@ pub struct DetachedInit {
     pub label: String,
     /// 세션 인계용. Some이면 새 윈도우가 이 기존 sessionId에 attach (새 spawn 대신).
     pub session_id: Option<String>,
+    /// 분리 직전 원본 화면 스냅샷(ANSI). 새 윈도우가 attach 시 복원해 이전 화면을 보존.
+    pub screen: Option<String>,
+    /// 인계할 AI 대화 세션 id. 새 윈도우 AIPanel이 localStorage에서 복원.
+    pub ai_session_id: Option<String>,
 }
 
 #[derive(Default)]
@@ -44,13 +48,25 @@ pub struct DetachedRegistry {
 pub async fn open_detached_window(
     app: AppHandle,
     registry: State<'_, DetachedRegistry>,
+    ssh_state: State<'_, crate::ssh::commands::SshState>,
+    pty_state: State<'_, crate::pty::commands::PtyState>,
     source: DetachedSource,
     label_hint: String,
     session_id: Option<String>,
+    screen: Option<String>,
+    ai_session_id: Option<String>,
 ) -> Result<String, String> {
     let id = Uuid::new_v4().to_string();
     // window label은 capability matcher와 맞춰 `detached-*` 패턴 유지.
     let window_label = format!("detached-{}", &id[..8]);
+
+    // 세션 인계: 백엔드 매니저에 보호 등록 → 원본 창의 cleanup kill이 이 세션을 죽이지 않음.
+    if let Some(sid) = &session_id {
+        match &source {
+            DetachedSource::Ssh { .. } => ssh_state.manager.mark_detached(sid).await,
+            DetachedSource::Local => pty_state.0.mark_detached(sid),
+        }
+    }
 
     registry
         .entries
@@ -62,6 +78,8 @@ pub async fn open_detached_window(
                 source,
                 label: label_hint.clone(),
                 session_id,
+                screen,
+                ai_session_id,
             },
         );
 
@@ -94,5 +112,6 @@ pub fn detached_init(
         .entries
         .lock()
         .map_err(|_| "detached registry poisoned".to_string())?;
-    Ok(g.remove(&label))
+    let entry = g.remove(&label);
+    Ok(entry)
 }

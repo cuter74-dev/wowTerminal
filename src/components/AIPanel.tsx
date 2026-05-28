@@ -26,6 +26,10 @@ interface Props {
   paneCount: number;
   /** 사이드바에서 호스트명 → 라벨 매핑이 가능하면 컨텍스트 표시에 사용. */
   contextLabel?: string;
+  /** 활성 대화 세션 id가 바뀔 때 보고 (App이 탭별 보관 → 분리 시 새 창에 인계). */
+  onActiveSession?: (sessionId: string | null) => void;
+  /** 세션 인계: 있으면 mount 시 이 대화를 localStorage에서 복원 (분리된 새 창). */
+  initialSessionId?: string;
 }
 
 function extractCodeBlocks(text: string): string[] {
@@ -54,6 +58,8 @@ export function AIPanel({
   focusedPaneId,
   paneCount,
   contextLabel,
+  onActiveSession,
+  initialSessionId,
 }: Props) {
   const [backends, setBackends] = useState<BackendInfo[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
@@ -123,8 +129,23 @@ export function AIPanel({
   }
   useEffect(() => {
     void reload();
+    // 세션 인계: 분리된 새 창은 받은 sessionId로 대화를 localStorage에서 복원.
+    if (initialSessionId) {
+      const s = loadSessions().find((x) => x.id === initialSessionId);
+      if (s) {
+        setActiveSessionId(s.id);
+        setMessages(s.messages);
+        if (s.backendId) setCurrentId(s.backendId);
+      }
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // 활성 대화 세션 id를 부모에 보고 → App이 탭별로 보관(분리 시 인계용).
+  useEffect(() => {
+    onActiveSession?.(activeSessionId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeSessionId]);
 
   const current = useMemo(
     () => backends.find((b) => b.id === currentId) ?? null,

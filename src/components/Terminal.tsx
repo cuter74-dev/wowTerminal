@@ -1,15 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 import { Terminal as XTerm } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
+import { SerializeAddon } from "@xterm/addon-serialize";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
-import {
-  registerTerminal,
-  unregisterTerminal,
-  isSessionDetached,
-} from "../terminalRegistry";
+import { registerTerminal, unregisterTerminal } from "../terminalRegistry";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 
@@ -86,6 +83,8 @@ interface Props {
   onSession?: (sessionId: string) => void;
   /** 세션 인계: 있으면 새 spawn 대신 이 기존 sessionId에 attach (listen + write/resize). */
   attachSessionId?: string;
+  /** 세션 인계: 분리 직전 원본 화면 스냅샷(ANSI). attach 시 먼저 복원해 이전 화면을 보존. */
+  attachScreen?: string;
 }
 
 export function Terminal({
@@ -98,6 +97,7 @@ export function Terminal({
   termSettings,
   onSession,
   attachSessionId,
+  attachScreen,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
@@ -131,6 +131,8 @@ export function Terminal({
     const fit = new FitAddon();
     fitRef.current = fit;
     term.loadAddon(fit);
+    const serializeAddon = new SerializeAddon();
+    term.loadAddon(serializeAddon);
     term.open(containerRef.current);
     fit.fit();
 
@@ -226,6 +228,18 @@ export function Terminal({
             dataB64: bytesToBase64(encoder.encode(text)),
           });
         },
+        fit: () => {
+          try {
+            fit.fit();
+          } catch {}
+        },
+        serialize: () => {
+          try {
+            return serializeAddon.serialize();
+          } catch {
+            return "";
+          }
+        },
       });
     }
 
@@ -243,13 +257,29 @@ export function Terminal({
         if (disposed) return;
 
         if (attachSessionId) {
-          // 기존 세션 인계 — spawn하지 않고 새 윈도우 크기에 맞춰 resize만.
-          term.writeln("\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m");
-          void invoke(cmds.resizeCmd, {
-            sessionId: attachSessionId,
-            cols: term.cols,
-            rows: term.rows,
-          });
+          // 기존 세션 인계 — spawn하지 않는다. 새 윈도우는 레이아웃이 늦게 잡혀
+          // mount 시 fit이 0일 수 있으므로, 지연 후 fit → 그 크기로 resize 순서로.
+          // 분리 직전 화면 스냅샷이 있으면 먼저 복원해 이전 작업 화면을 그대로 보여준다.
+          if (attachScreen) {
+            term.write(attachScreen);
+          } else {
+            term.writeln("\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m");
+          }
+          const finishAttach = () => {
+            if (disposed) return;
+            try {
+              fit.fit();
+            } catch {}
+            void invoke(cmds.resizeCmd, {
+              sessionId: attachSessionId,
+              cols: term.cols,
+              rows: term.rows,
+            });
+            // 스냅샷이 없을 때만 Ctrl-L로 셸이 프롬프트를 다시 그리게 한다.
+            // 스냅샷이 있으면 Ctrl-L은 복원된 화면을 지우므로 보내지 않는다.
+            if (!attachScreen) writeToSession("\x0c");
+          };
+          setTimeout(finishAttach, 250);
         } else {
           sessionId = await invoke<string>(
             cmds.spawnCmd,
@@ -298,8 +328,8 @@ export function Terminal({
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
       if (unlistenOutput) unlistenOutput();
-      // 다른 윈도우로 분리(인계)된 세션은 kill하지 않는다.
-      if (sessionId && !isSessionDetached(sessionId)) {
+      // kill은 항상 보내되, 인계된 세션은 백엔드 detach_guard가 첫 kill을 무시한다.
+      if (sessionId) {
         void invoke(cmds.killCmd, { sessionId }).catch(() => {});
       }
       term.dispose();

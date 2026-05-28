@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { TitleBar } from "./components/TitleBar";
-import { TabBar, TAB_DRAG_MIME } from "./components/TabBar";
+import { TabBar } from "./components/TabBar";
 import { TabContextMenu } from "./components/TabContextMenu";
 import { HostList } from "./components/HostList";
 import { AIPanel } from "./components/AIPanel";
@@ -26,7 +26,7 @@ import {
   PasswordPromptInfo,
 } from "./components/PasswordPromptModal";
 import { ConnectionErrorModal } from "./components/ConnectionErrorModal";
-import { markSessionDetached } from "./terminalRegistry";
+import { getTerminal } from "./terminalRegistry";
 import {
   Pane,
   SshConnectError,
@@ -57,6 +57,8 @@ interface DetachedInit {
   source: TerminalSource;
   label: string;
   sessionId?: string | null;
+  screen?: string | null;
+  aiSessionId?: string | null;
 }
 
 function newId(): string {
@@ -128,11 +130,16 @@ function App() {
     x: number;
     y: number;
   } | null>(null);
-  const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  // 탭 드래그 분리 (pointer 기반 — WKWebView HTML5 DnD 불안정).
+  const [drag, setDrag] = useState<{ tabId: string; active: boolean } | null>(null);
   // leaf id → spawn된 sessionId (세션 인계 시 조회).
   const sessionByLeaf = useRef<Record<string, string>>({});
   // leaf id → attach할 기존 sessionId (분리 윈도우 부트스트랩).
   const [attachSessionByLeaf, setAttachSessionByLeaf] = useState<Record<string, string>>({});
+  const [attachScreenByLeaf, setAttachScreenByLeaf] = useState<Record<string, string>>({});
+  // 탭별 활성 AI 대화 세션 id (분리 시 새 창에 인계). AIPanel.onActiveSession이 채움.
+  const aiSessionByTab = useRef<Record<string, string | null>>({});
+  const [attachAiByTab, setAttachAiByTab] = useState<Record<string, string>>({});
   const [fileBrowser, setFileBrowser] = useState<{
     hostId: string;
     hostLabel: string;
@@ -158,8 +165,12 @@ function App() {
   }, [reloadHosts]);
 
   // detached 윈도우 부트스트랩: 백엔드 registry에서 source를 받아 첫 탭 구성.
+  // StrictMode(dev)는 effect를 두 번 실행하는데, detached_init은 registry에서 항목을
+  // 꺼내며 제거하므로 두 번째 호출은 None을 받아 새 세션으로 fallback된다 → 1회 가드.
+  const detachedInitRan = useRef(false);
   useEffect(() => {
-    if (!IS_DETACHED_WINDOW) return;
+    if (!IS_DETACHED_WINDOW || detachedInitRan.current) return;
+    detachedInitRan.current = true;
     (async () => {
       try {
         const init = await invoke<DetachedInit | null>("detached_init");
@@ -173,6 +184,13 @@ function App() {
           // 세션 인계: 받은 sessionId를 첫 leaf에 attach.
           if (init.sessionId && tab.root.kind === "leaf") {
             setAttachSessionByLeaf({ [tab.root.id]: init.sessionId });
+            if (init.screen) {
+              setAttachScreenByLeaf({ [tab.root.id]: init.screen });
+            }
+          }
+          // AI 대화 인계: 받은 aiSessionId를 이 탭의 AIPanel에 복원시킨다.
+          if (init.aiSessionId) {
+            setAttachAiByTab({ [tab.id]: init.aiSessionId });
           }
         } else {
           // 라벨이 detached-*인데 registry 항목이 없는 비정상 케이스 — 기본 로컬셸로 폴백.
@@ -221,6 +239,17 @@ function App() {
     () => tabs.find((t) => t.id === activeTabId) ?? null,
     [tabs, activeTabId],
   );
+
+  // 탭 활성화/전환 시 활성 탭의 모든 leaf를 다시 fit (xterm은 display:none에서 0 크기라
+  // 표시될 때 재계산이 필요). 등록 직후 동작하도록 rAF로 지연.
+  useEffect(() => {
+    if (!activeTab) return;
+    const ids = collectLeaves(activeTab.root).map((l) => l.id);
+    const raf = requestAnimationFrame(() => {
+      ids.forEach((id) => getTerminal(id)?.fit());
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [activeTabId, activeTab]);
   const focusedLeaf = useMemo(() => {
     if (!activeTab) return null;
     const leaf = findLeaf(activeTab.root, activeTab.focusedPaneId);
@@ -424,14 +453,19 @@ function App() {
       source.kind === "local"
         ? { kind: "local" }
         : { kind: "ssh", hostId: source.hostId };
-    // 살아있는 세션이 있으면 인계 (kill 방지 + 새 윈도우가 attach).
+    // 살아있는 세션이 있으면 인계 — 백엔드가 open_detached_window에서 보호 등록한다.
     const sessionId = sessionByLeaf.current[leaf.id];
-    if (sessionId) markSessionDetached(sessionId);
+    // 분리 직전 화면 스냅샷을 캡처해 새 창에서 복원 (이전 작업 화면 보존).
+    const screen = sessionId ? getTerminal(leaf.id)?.serialize() ?? null : null;
+    // 이 탭의 AI 대화 세션도 함께 인계 (새 창 AIPanel이 localStorage에서 복원).
+    const aiSessionId = aiSessionByTab.current[tab.id] ?? null;
     try {
       await invoke<string>("open_detached_window", {
         source: sourceArg,
         labelHint: tab.label,
         sessionId: sessionId ?? null,
+        screen,
+        aiSessionId,
       });
       // 원본 leaf/탭 제거. markSessionDetached 덕분에 cleanup이 kill하지 않음.
       if (tab.root.kind === "leaf") {
@@ -709,6 +743,35 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs, activeTabId, editingTabId, activeTab, focusedLeaf]);
 
+  // 탭 드래그 분리: pointer가 탭바 아래로 충분히 내려가면 active, 거기서 떼면 새 창으로 분리.
+  useEffect(() => {
+    if (!drag) return;
+    const THRESHOLD_Y = 110; // 타이틀바(32)+탭바(34) 아래로 충분히
+    function move(e: MouseEvent) {
+      if (e.clientY > THRESHOLD_Y) {
+        setDrag((d) => (d && !d.active ? { ...d, active: true } : d));
+      }
+    }
+    function up(e: MouseEvent) {
+      const tabId = drag!.tabId;
+      const detach = drag!.active && e.clientY > THRESHOLD_Y;
+      setDrag(null);
+      if (detach) void detachLeafToNewWindow(tabId);
+    }
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") setDrag(null);
+    }
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+      window.removeEventListener("keydown", onKey);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag]);
+
   if (!bootstrapped) {
     return (
       <main
@@ -778,8 +841,9 @@ function App() {
           setEditingTabId(null);
         }}
         onRenameCancel={() => setEditingTabId(null)}
-        onDragStart={(id) => setDraggingTabId(id)}
-        onDragEnd={() => setDraggingTabId(null)}
+        onTabPointerDown={(id) => {
+          if (tabs.length > 0) setDrag({ tabId: id, active: false });
+        }}
       />
 
       <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
@@ -838,22 +902,40 @@ function App() {
                   sessionByLeaf.current[leafId] = sid;
                 }}
                 attachSessionByLeaf={attachSessionByLeaf}
+                attachScreenByLeaf={attachScreenByLeaf}
               />
             </div>
           ))}
         </div>
 
-        <AIPanel
-          activeTab={activeTab}
-          focusedSource={focusedSource}
-          focusedPaneId={activeTab?.focusedPaneId ?? null}
-          paneCount={activeTab ? collectLeaves(activeTab.root).length : 0}
-          contextLabel={
-            focusedSource && focusedSource.kind === "ssh"
-              ? labelForHost(focusedSource.hostId)
-              : undefined
-          }
-        />
+        {/* AI 패널도 탭별로 mount (display 토글) — 탭마다 대화/컨텍스트 독립. */}
+        {tabs.map((tab) => {
+          const fLeaf = findLeaf(tab.root, tab.focusedPaneId);
+          const fSource =
+            fLeaf && fLeaf.kind === "leaf" ? fLeaf.source : null;
+          return (
+            <div
+              key={tab.id}
+              style={{ display: tab.id === activeTabId ? "flex" : "none" }}
+            >
+              <AIPanel
+                activeTab={tab}
+                focusedSource={fSource}
+                focusedPaneId={tab.focusedPaneId}
+                paneCount={collectLeaves(tab.root).length}
+                contextLabel={
+                  fSource && fSource.kind === "ssh"
+                    ? labelForHost(fSource.hostId)
+                    : undefined
+                }
+                onActiveSession={(sid) => {
+                  aiSessionByTab.current[tab.id] = sid;
+                }}
+                initialSessionId={attachAiByTab[tab.id]}
+              />
+            </div>
+          );
+        })}
       </div>
 
       {fileBrowser && (
@@ -872,15 +954,7 @@ function App() {
         />
       )}
 
-      {draggingTabId && (
-        <DropZoneOverlay
-          onDrop={(id) => {
-            setDraggingTabId(null);
-            void detachLeafToNewWindow(id);
-          }}
-          onCancel={() => setDraggingTabId(null)}
-        />
-      )}
+      {drag?.active && <DropZoneOverlay />}
 
       {contextMenu &&
         (() => {
@@ -986,37 +1060,13 @@ function App() {
   );
 }
 
-/** 드래그 분리(S-008) 드롭존: 탭바 아래 영역 전체를 덮는 반투명 오버레이. */
-function DropZoneOverlay({
-  onDrop,
-  onCancel,
-}: {
-  onDrop: (tabId: string) => void;
-  onCancel: () => void;
-}) {
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onCancel();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onCancel]);
-
+/** 드래그 분리 드롭존: 탭바 아래 영역을 덮는 안내 오버레이. mouseup은 App이 window에서 처리. */
+function DropZoneOverlay() {
   return (
     <div
-      onDragOver={(e) => {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-      }}
-      onDrop={(e) => {
-        e.preventDefault();
-        const id = e.dataTransfer.getData(TAB_DRAG_MIME);
-        if (id) onDrop(id);
-        else onCancel();
-      }}
       style={{
         position: "fixed",
-        inset: "66px 0 0 0", // 타이틀바(32) + 탭바(34) 아래 — 탭바로 다시 드래그하면 dragend로 취소
+        inset: "66px 0 0 0",
         background: "rgba(10, 16, 32, 0.55)",
         border: "2px dashed #4a9eff",
         display: "flex",
@@ -1028,14 +1078,12 @@ function DropZoneOverlay({
         color: "#fff",
         textAlign: "center",
         userSelect: "none",
-        pointerEvents: "all",
+        pointerEvents: "none", // mouseup이 통과하도록 — 분리 판정은 window 리스너에서
       }}
     >
       <div style={{ fontSize: 32 }}>🔲</div>
-      <div style={{ fontSize: 16 }}>새 창으로 분리</div>
-      <div style={{ fontSize: 12, color: "#bcd" }}>
-        여기에 드롭하면 이 탭이 새 창으로 열립니다. ESC: 취소
-      </div>
+      <div style={{ fontSize: 16 }}>여기서 떼면 새 창으로 분리</div>
+      <div style={{ fontSize: 12, color: "#bcd" }}>ESC: 취소</div>
     </div>
   );
 }

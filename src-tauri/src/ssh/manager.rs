@@ -57,6 +57,8 @@ pub enum SshError {
 
 pub struct SshManager {
     sessions: Mutex<HashMap<SessionId, Arc<SshSession>>>,
+    /// 다른 윈도우로 인계된 세션 — 다음 kill 1회를 무시(세션 유지)하기 위한 가드.
+    detach_guard: Mutex<std::collections::HashSet<SessionId>>,
     sink: DataSink,
     known_hosts: Arc<KnownHostsStore>,
 }
@@ -65,9 +67,15 @@ impl SshManager {
     pub fn new(sink: DataSink, known_hosts: Arc<KnownHostsStore>) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
+            detach_guard: Mutex::new(std::collections::HashSet::new()),
             sink,
             known_hosts,
         }
+    }
+
+    /// 세션을 인계 보호 등록 — 직후 들어오는 kill 1회를 무시한다 (원본 창의 cleanup kill 방지).
+    pub async fn mark_detached(&self, id: &str) {
+        self.detach_guard.lock().await.insert(id.to_string());
     }
 
     pub fn known_hosts(&self) -> Arc<KnownHostsStore> {
@@ -126,6 +134,10 @@ impl SshManager {
     }
 
     pub async fn kill(&self, id: &str) -> Result<(), SshError> {
+        // 인계 보호된 세션이면 이번 kill 1회를 무시하고 세션을 유지한다.
+        if self.detach_guard.lock().await.remove(id) {
+            return Ok(());
+        }
         let session = {
             let mut guard = self.sessions.lock().await;
             guard.remove(id).ok_or_else(|| SshError::NotFound(id.into()))?

@@ -7,6 +7,10 @@ export interface TerminalHandle {
   getRecentText: (maxLines?: number) => string;
   /** 텍스트를 그 세션에 입력으로 보냄 (예: AI 제안 명령). 개행은 호출자가 포함. */
   sendInput: (text: string) => void;
+  /** 컨테이너 크기에 맞춰 다시 fit (탭 전환/표시 시 — display:none에서 복귀 후 필요). */
+  fit: () => void;
+  /** 현재 화면+스크롤백을 ANSI 포함 문자열로 직렬화 (세션 인계 시 새 창 복원용). */
+  serialize: () => string;
 }
 
 const registry = new Map<string, TerminalHandle>();
@@ -24,13 +28,5 @@ export function getTerminal(id: string | null | undefined): TerminalHandle | und
   return registry.get(id);
 }
 
-// 세션 인계용: 다른 윈도우로 분리된 sessionId는 원본 Terminal unmount 시 kill하지 않는다.
-const detachedSessions = new Set<string>();
-
-export function markSessionDetached(sessionId: string): void {
-  detachedSessions.add(sessionId);
-}
-
-export function isSessionDetached(sessionId: string): boolean {
-  return detachedSessions.has(sessionId);
-}
+// 세션 인계 보호는 백엔드(SshManager/PtyManager의 detach_guard)에서 처리한다.
+// 원본 창의 kill 명령은 그대로 보내되, 백엔드가 인계된 세션의 첫 kill을 무시한다.

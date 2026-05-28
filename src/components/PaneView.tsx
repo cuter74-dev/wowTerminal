@@ -24,6 +24,8 @@ interface Props {
   onSession: (leafId: string, sessionId: string) => void;
   /** leaf id → attach할 기존 sessionId (분리된 윈도우의 인계). */
   attachSessionByLeaf: Record<string, string>;
+  /** leaf id → 분리 직전 화면 스냅샷(ANSI). attach 시 복원. */
+  attachScreenByLeaf: Record<string, string>;
   path?: number[];
 }
 
@@ -103,6 +105,7 @@ function LeafPane(
           onSshConnected={() => props.onSshConnected(pane.id)}
           onSession={(sid) => props.onSession(pane.id, sid)}
           attachSessionId={props.attachSessionByLeaf[pane.id]}
+          attachScreen={props.attachScreenByLeaf[pane.id]}
         />
       </div>
     </div>

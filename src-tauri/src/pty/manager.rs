@@ -57,6 +57,8 @@ struct Session {
 
 pub struct PtyManager {
     sessions: Mutex<HashMap<SessionId, Session>>,
+    /// 다른 윈도우로 인계된 세션 — 다음 kill 1회 무시(세션 유지).
+    detach_guard: Mutex<std::collections::HashSet<SessionId>>,
     sink: DataSink,
 }
 
@@ -64,8 +66,17 @@ impl PtyManager {
     pub fn new(sink: DataSink) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
+            detach_guard: Mutex::new(std::collections::HashSet::new()),
             sink,
         }
+    }
+
+    /// 세션 인계 보호 — 직후 kill 1회 무시.
+    pub fn mark_detached(&self, id: &str) {
+        self.detach_guard
+            .lock()
+            .expect("detach_guard poisoned")
+            .insert(id.to_string());
     }
 
     /// 새 PTY 세션을 시작한다. 셸 미지정 시 OS 기본 (Linux: $SHELL or /bin/bash, Windows: cmd.exe).
@@ -150,6 +161,15 @@ impl PtyManager {
     }
 
     pub fn kill(&self, id: &str) -> Result<(), PtyError> {
+        // 인계 보호된 세션이면 이번 kill 1회 무시.
+        if self
+            .detach_guard
+            .lock()
+            .expect("detach_guard poisoned")
+            .remove(id)
+        {
+            return Ok(());
+        }
         let mut guard = self.sessions.lock().expect("sessions mutex poisoned");
         let mut session = guard
             .remove(id)
