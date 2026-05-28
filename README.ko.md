@@ -54,4 +54,4 @@ npm run tauri dev
 
 ## 라이선스
 
-미정 (TBD)
+[MIT](LICENSE) © CW JUNG

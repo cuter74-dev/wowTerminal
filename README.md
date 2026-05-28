@@ -101,4 +101,4 @@ Design notes are in [`docs/design/`](docs/design/); the dated development log is
 
 ## License
 
-TBD
+[MIT](LICENSE) © CW JUNG
