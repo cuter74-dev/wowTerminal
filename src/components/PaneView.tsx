@@ -20,6 +20,10 @@ interface Props {
   /** 표시용 라벨 헬퍼 (source → "로컬 셸" / 호스트명). */
   labelForSource: (source: TerminalSource) => string;
   termSettings: TerminalSettings;
+  /** spawn된 leaf의 sessionId 보고 (세션 인계용). */
+  onSession: (leafId: string, sessionId: string) => void;
+  /** leaf id → attach할 기존 sessionId (분리된 윈도우의 인계). */
+  attachSessionByLeaf: Record<string, string>;
   path?: number[];
 }
 
@@ -97,6 +101,8 @@ function LeafPane(
           termSettings={props.termSettings}
           onSshError={(err) => props.onSshError(pane.id, err)}
           onSshConnected={() => props.onSshConnected(pane.id)}
+          onSession={(sid) => props.onSession(pane.id, sid)}
+          attachSessionId={props.attachSessionByLeaf[pane.id]}
         />
       </div>
     </div>

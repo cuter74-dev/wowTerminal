@@ -23,3 +23,14 @@ export function getTerminal(id: string | null | undefined): TerminalHandle | und
   if (!id) return undefined;
   return registry.get(id);
 }
+
+// 세션 인계용: 다른 윈도우로 분리된 sessionId는 원본 Terminal unmount 시 kill하지 않는다.
+const detachedSessions = new Set<string>();
+
+export function markSessionDetached(sessionId: string): void {
+  detachedSessions.add(sessionId);
+}
+
+export function isSessionDetached(sessionId: string): boolean {
+  return detachedSessions.has(sessionId);
+}

@@ -27,9 +27,12 @@ pub enum DetachedSource {
 }
 
 #[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct DetachedInit {
     pub source: DetachedSource,
     pub label: String,
+    /// 세션 인계용. Some이면 새 윈도우가 이 기존 sessionId에 attach (새 spawn 대신).
+    pub session_id: Option<String>,
 }
 
 #[derive(Default)]
@@ -43,6 +46,7 @@ pub async fn open_detached_window(
     registry: State<'_, DetachedRegistry>,
     source: DetachedSource,
     label_hint: String,
+    session_id: Option<String>,
 ) -> Result<String, String> {
     let id = Uuid::new_v4().to_string();
     // window label은 capability matcher와 맞춰 `detached-*` 패턴 유지.
@@ -57,6 +61,7 @@ pub async fn open_detached_window(
             DetachedInit {
                 source,
                 label: label_hint.clone(),
+                session_id,
             },
         );
 

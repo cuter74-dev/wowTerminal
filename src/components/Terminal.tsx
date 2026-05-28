@@ -5,7 +5,11 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
-import { registerTerminal, unregisterTerminal } from "../terminalRegistry";
+import {
+  registerTerminal,
+  unregisterTerminal,
+  isSessionDetached,
+} from "../terminalRegistry";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 
@@ -78,6 +82,10 @@ interface Props {
   paneId?: string;
   /** 터미널 폰트/테마 설정. 변경 시 런타임으로 반영. */
   termSettings: TerminalSettings;
+  /** spawn 성공 시 sessionId 보고 (세션 인계용 — App이 leafId→sessionId 보관). */
+  onSession?: (sessionId: string) => void;
+  /** 세션 인계: 있으면 새 spawn 대신 이 기존 sessionId에 attach (listen + write/resize). */
+  attachSessionId?: string;
 }
 
 export function Terminal({
@@ -88,6 +96,8 @@ export function Terminal({
   password,
   paneId,
   termSettings,
+  onSession,
+  attachSessionId,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
@@ -221,6 +231,9 @@ export function Terminal({
 
     (async () => {
       try {
+        // attach 모드: listen 필터가 동작하도록 sessionId를 먼저 설정.
+        if (attachSessionId) sessionId = attachSessionId;
+
         unlistenOutput = await listen<OutputPayload>(cmds.outputEvent, (event) => {
           const payload = event.payload;
           if (sessionId && payload.session_id !== sessionId) return;
@@ -228,12 +241,24 @@ export function Terminal({
         });
 
         if (disposed) return;
-        sessionId = await invoke<string>(
-          cmds.spawnCmd,
-          cmds.spawnArgs(term.cols, term.rows),
-        );
-        if (source.kind === "ssh") {
-          onSshConnected?.();
+
+        if (attachSessionId) {
+          // 기존 세션 인계 — spawn하지 않고 새 윈도우 크기에 맞춰 resize만.
+          term.writeln("\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m");
+          void invoke(cmds.resizeCmd, {
+            sessionId: attachSessionId,
+            cols: term.cols,
+            rows: term.rows,
+          });
+        } else {
+          sessionId = await invoke<string>(
+            cmds.spawnCmd,
+            cmds.spawnArgs(term.cols, term.rows),
+          );
+          if (source.kind === "ssh") {
+            onSshConnected?.();
+          }
+          onSession?.(sessionId);
         }
       } catch (err) {
         if (source.kind === "ssh" && isSshConnectError(err)) {
@@ -273,7 +298,10 @@ export function Terminal({
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
       if (unlistenOutput) unlistenOutput();
-      if (sessionId) void invoke(cmds.killCmd, { sessionId }).catch(() => {});
+      // 다른 윈도우로 분리(인계)된 세션은 kill하지 않는다.
+      if (sessionId && !isSessionDetached(sessionId)) {
+        void invoke(cmds.killCmd, { sessionId }).catch(() => {});
+      }
       term.dispose();
       termRef.current = null;
       fitRef.current = null;

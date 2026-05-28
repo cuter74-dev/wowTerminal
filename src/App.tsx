@@ -26,6 +26,7 @@ import {
   PasswordPromptInfo,
 } from "./components/PasswordPromptModal";
 import { ConnectionErrorModal } from "./components/ConnectionErrorModal";
+import { markSessionDetached } from "./terminalRegistry";
 import {
   Pane,
   SshConnectError,
@@ -55,6 +56,7 @@ const IS_DETACHED_WINDOW = CURRENT_WINDOW_LABEL.startsWith("detached-");
 interface DetachedInit {
   source: TerminalSource;
   label: string;
+  sessionId?: string | null;
 }
 
 function newId(): string {
@@ -127,6 +129,10 @@ function App() {
     y: number;
   } | null>(null);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  // leaf id → spawn된 sessionId (세션 인계 시 조회).
+  const sessionByLeaf = useRef<Record<string, string>>({});
+  // leaf id → attach할 기존 sessionId (분리 윈도우 부트스트랩).
+  const [attachSessionByLeaf, setAttachSessionByLeaf] = useState<Record<string, string>>({});
   const [fileBrowser, setFileBrowser] = useState<{
     hostId: string;
     hostLabel: string;
@@ -164,6 +170,10 @@ function App() {
               : makeSshTab(init.source.hostId, init.label);
           setTabs([tab]);
           setActiveTabId(tab.id);
+          // 세션 인계: 받은 sessionId를 첫 leaf에 attach.
+          if (init.sessionId && tab.root.kind === "leaf") {
+            setAttachSessionByLeaf({ [tab.root.id]: init.sessionId });
+          }
         } else {
           // 라벨이 detached-*인데 registry 항목이 없는 비정상 케이스 — 기본 로컬셸로 폴백.
           const fallback = makeLocalTab("로컬 셸 1");
@@ -414,12 +424,16 @@ function App() {
       source.kind === "local"
         ? { kind: "local" }
         : { kind: "ssh", hostId: source.hostId };
+    // 살아있는 세션이 있으면 인계 (kill 방지 + 새 윈도우가 attach).
+    const sessionId = sessionByLeaf.current[leaf.id];
+    if (sessionId) markSessionDetached(sessionId);
     try {
       await invoke<string>("open_detached_window", {
         source: sourceArg,
         labelHint: tab.label,
+        sessionId: sessionId ?? null,
       });
-      // 성공 시 원본 leaf/탭 제거. v1은 세션 인계가 아니라 새 윈도우에서 새 세션 spawn.
+      // 원본 leaf/탭 제거. markSessionDetached 덕분에 cleanup이 kill하지 않음.
       if (tab.root.kind === "leaf") {
         closeTab(tab.id);
       } else {
@@ -820,6 +834,10 @@ function App() {
                 passwordByLeaf={passwordByLeaf}
                 labelForSource={labelForSource}
                 termSettings={settings.terminal}
+                onSession={(leafId, sid) => {
+                  sessionByLeaf.current[leafId] = sid;
+                }}
+                attachSessionByLeaf={attachSessionByLeaf}
               />
             </div>
           ))}
