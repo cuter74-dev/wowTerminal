@@ -1,6 +1,19 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { FileEntry, Listing, SearchHit } from "../types";
+
+function newTransferId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
+  return Math.random().toString(36).slice(2);
+}
+
+interface Transfer {
+  id: string;
+  label: string;
+  transferred: number;
+  total: number;
+}
 
 interface Props {
   hostId: string;
@@ -40,7 +53,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
   const [remoteSel, setRemoteSel] = useState<FileEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [remoteBusy, setRemoteBusy] = useState(true);
-  const [transfer, setTransfer] = useState<string | null>(null);
+  const [transfer, setTransfer] = useState<Transfer | null>(null);
   const [menu, setMenu] = useState<{
     entry: FileEntry;
     x: number;
@@ -89,6 +102,24 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 전송 진행 이벤트 구독.
+  useEffect(() => {
+    let un: UnlistenFn | undefined;
+    void listen<{ transferId: string; transferred: number; total: number }>(
+      "sftp:progress",
+      (e) => {
+        setTransfer((prev) =>
+          prev && prev.id === e.payload.transferId
+            ? { ...prev, transferred: e.payload.transferred, total: e.payload.total }
+            : prev,
+        );
+      },
+    ).then((f) => {
+      un = f;
+    });
+    return () => un?.();
+  }, []);
+
   async function download() {
     if (!remoteSel || remoteSel.is_dir || !remote || !local) return;
     if (
@@ -96,13 +127,15 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       !confirm(`로컬에 '${remoteSel.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
     )
       return;
-    setTransfer(`↓ ${remoteSel.name}`);
+    const id = newTransferId();
+    setTransfer({ id, label: `↓ ${remoteSel.name}`, transferred: 0, total: remoteSel.size });
     setError(null);
     try {
       await invoke("sftp_download", {
         hostId,
         remotePath: joinPosix(remote.cwd, remoteSel.name),
         localDir: local.cwd,
+        transferId: id,
       });
       await loadLocal(local.cwd);
     } catch (e) {
@@ -119,13 +152,15 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       !confirm(`원격에 '${localSel.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
     )
       return;
-    setTransfer(`↑ ${localSel.name}`);
+    const id = newTransferId();
+    setTransfer({ id, label: `↑ ${localSel.name}`, transferred: 0, total: localSel.size });
     setError(null);
     try {
       await invoke("sftp_upload", {
         hostId,
         localPath: joinPosix(local.cwd, localSel.name),
         remoteDir: remote.cwd,
+        transferId: id,
       });
       await loadRemote(remote.cwd);
     } catch (e) {
@@ -240,12 +275,14 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       !confirm(`원격에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
     )
       return;
-    setTransfer(`↑ ${entry.name}`);
+    const id = newTransferId();
+    setTransfer({ id, label: `↑ ${entry.name}`, transferred: 0, total: entry.size });
     try {
       await invoke("sftp_upload", {
         hostId,
         localPath: joinPosix(local.cwd, entry.name),
         remoteDir: remote.cwd,
+        transferId: id,
       });
       await loadRemote(remote.cwd);
     } catch (e) {
@@ -262,12 +299,14 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       !confirm(`로컬에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
     )
       return;
-    setTransfer(`↓ ${entry.name}`);
+    const id = newTransferId();
+    setTransfer({ id, label: `↓ ${entry.name}`, transferred: 0, total: entry.size });
     try {
       await invoke("sftp_download", {
         hostId,
         remotePath: joinPosix(remote.cwd, entry.name),
         localDir: local.cwd,
+        transferId: id,
       });
       await loadLocal(local.cwd);
     } catch (e) {
@@ -408,8 +447,41 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
               →
             </button>
             {transfer && (
-              <div style={{ fontSize: 9, textAlign: "center", color: "#4a9eff" }}>
-                {transfer}
+              <div style={{ width: "100%", textAlign: "center", padding: "0 4px" }}>
+                <div
+                  style={{
+                    fontSize: 9,
+                    color: "#4a9eff",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {transfer.label}
+                </div>
+                <div
+                  style={{
+                    height: 4,
+                    background: "#2a2a30",
+                    borderRadius: 2,
+                    overflow: "hidden",
+                    margin: "3px 0",
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${transfer.total > 0 ? Math.round((transfer.transferred / transfer.total) * 100) : 0}%`,
+                      background: "#4a9eff",
+                      transition: "width 0.1s",
+                    }}
+                  />
+                </div>
+                <div style={{ fontSize: 8, color: "#789" }}>
+                  {transfer.total > 0
+                    ? `${Math.round((transfer.transferred / transfer.total) * 100)}%`
+                    : "…"}
+                </div>
               </div>
             )}
           </div>

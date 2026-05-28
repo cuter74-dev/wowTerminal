@@ -15,7 +15,7 @@ use super::keys::{self, KeyStore};
 use super::known_hosts::{KnownHostEntry, KnownHostsStore};
 use super::manager::{SshError, SshManager};
 use super::session::{ResolvedAuth, SessionId};
-use super::sftp::{FileEntry, SearchHit, SftpManager};
+use super::sftp::{FileEntry, ProgressSink, SearchHit, SftpManager};
 use super::store::HostStore;
 use super::tags::TagStore;
 use super::types::{Group, SshAuthMethod, SshHost, SshKeyEntry, Tag};
@@ -128,9 +128,21 @@ pub fn build_state(
 
     let known_hosts = Arc::new(KnownHostsStore::new(known_hosts_path));
 
+    let progress_handle = app.clone();
+    let progress: ProgressSink = Arc::new(move |transfer_id, transferred, total| {
+        let _ = progress_handle.emit(
+            "sftp:progress",
+            SftpProgress {
+                transfer_id,
+                transferred,
+                total,
+            },
+        );
+    });
+
     SshState {
         manager: Arc::new(SshManager::new(sink, Arc::clone(&known_hosts))),
-        sftp: Arc::new(SftpManager::new(Arc::clone(&known_hosts))),
+        sftp: Arc::new(SftpManager::new(Arc::clone(&known_hosts), progress)),
         store: HostStore::new(hosts_path),
         groups: GroupStore::new(groups_path),
         tags: TagStore::new(tags_path),
@@ -144,6 +156,14 @@ pub fn build_state(
 struct SshOutput {
     session_id: SessionId,
     data_b64: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SftpProgress {
+    transfer_id: String,
+    transferred: u64,
+    total: u64,
 }
 
 #[tauri::command]
@@ -487,6 +507,7 @@ pub async fn sftp_download(
     host_id: String,
     remote_path: String,
     local_dir: String,
+    transfer_id: String,
     state: State<'_, SshState>,
 ) -> Result<String, String> {
     let name = basename(&remote_path);
@@ -494,7 +515,7 @@ pub async fn sftp_download(
     let local_str = local_path.to_string_lossy().to_string();
     state
         .sftp
-        .download(&host_id, &remote_path, &local_str)
+        .download(&host_id, &remote_path, &local_str, &transfer_id)
         .await
         .map_err(|e| e.to_string())?;
     Ok(local_str)
@@ -506,6 +527,7 @@ pub async fn sftp_upload(
     host_id: String,
     local_path: String,
     remote_dir: String,
+    transfer_id: String,
     state: State<'_, SshState>,
 ) -> Result<String, String> {
     let name = std::path::Path::new(&local_path)
@@ -515,7 +537,7 @@ pub async fn sftp_upload(
     let remote_path = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
     state
         .sftp
-        .upload(&host_id, &local_path, &remote_path)
+        .upload(&host_id, &local_path, &remote_path, &transfer_id)
         .await
         .map_err(|e| e.to_string())?;
     Ok(remote_path)

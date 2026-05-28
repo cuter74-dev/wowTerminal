@@ -40,16 +40,21 @@ struct SftpConn {
     _handle: russh::client::Handle<TofuHandler>,
 }
 
+/// 전송 진행 콜백: (transfer_id, transferred_bytes, total_bytes).
+pub type ProgressSink = Arc<dyn Fn(String, u64, u64) + Send + Sync>;
+
 pub struct SftpManager {
     conns: Mutex<HashMap<String, Arc<SftpConn>>>,
     known_hosts: Arc<KnownHostsStore>,
+    progress: ProgressSink,
 }
 
 impl SftpManager {
-    pub fn new(known_hosts: Arc<KnownHostsStore>) -> Self {
+    pub fn new(known_hosts: Arc<KnownHostsStore>, progress: ProgressSink) -> Self {
         Self {
             conns: Mutex::new(HashMap::new()),
             known_hosts,
+            progress,
         }
     }
 
@@ -149,57 +154,94 @@ impl SftpManager {
             .ok_or_else(|| SshError::NotFound(host_id.into()))
     }
 
-    /// 원격 → 로컬. 다운로드한 바이트 수 반환.
+    /// 원격 → 로컬. 64KB 청크 스트리밍 + 진행 이벤트. 다운로드한 바이트 수 반환.
     pub async fn download(
         &self,
         host_id: &str,
         remote: &str,
         local: &str,
+        transfer_id: &str,
     ) -> Result<u64, SshError> {
-        use tokio::io::AsyncReadExt;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let conn = self.conn(host_id).await?;
+        let total = conn
+            .sftp
+            .metadata(remote)
+            .await
+            .ok()
+            .and_then(|m| m.size)
+            .unwrap_or(0);
         let mut rf = conn
             .sftp
             .open(remote)
             .await
             .map_err(|e| SshError::Channel(format!("open {remote}: {e}")))?;
-        let mut buf = Vec::new();
-        rf.read_to_end(&mut buf)
+        let mut out = tokio::fs::File::create(local)
             .await
-            .map_err(|e| SshError::Io(format!("read {remote}: {e}")))?;
-        let len = buf.len() as u64;
-        tokio::fs::write(local, buf)
-            .await
-            .map_err(|e| SshError::Io(format!("write {local}: {e}")))?;
-        Ok(len)
+            .map_err(|e| SshError::Io(format!("create {local}: {e}")))?;
+        let mut buf = vec![0u8; 64 * 1024];
+        let mut done: u64 = 0;
+        (self.progress)(transfer_id.to_string(), 0, total);
+        loop {
+            let n = rf
+                .read(&mut buf)
+                .await
+                .map_err(|e| SshError::Io(format!("read {remote}: {e}")))?;
+            if n == 0 {
+                break;
+            }
+            out.write_all(&buf[..n])
+                .await
+                .map_err(|e| SshError::Io(format!("write {local}: {e}")))?;
+            done += n as u64;
+            (self.progress)(transfer_id.to_string(), done, total);
+        }
+        let _ = out.flush().await;
+        Ok(done)
     }
 
-    /// 로컬 → 원격. 업로드한 바이트 수 반환.
+    /// 로컬 → 원격. 64KB 청크 스트리밍 + 진행 이벤트. 업로드한 바이트 수 반환.
     pub async fn upload(
         &self,
         host_id: &str,
         local: &str,
         remote: &str,
+        transfer_id: &str,
     ) -> Result<u64, SshError> {
-        use tokio::io::AsyncWriteExt;
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let conn = self.conn(host_id).await?;
-        let data = tokio::fs::read(local)
+        let total = tokio::fs::metadata(local)
             .await
-            .map_err(|e| SshError::Io(format!("read {local}: {e}")))?;
-        let len = data.len() as u64;
+            .map(|m| m.len())
+            .unwrap_or(0);
+        let mut inp = tokio::fs::File::open(local)
+            .await
+            .map_err(|e| SshError::Io(format!("open {local}: {e}")))?;
         let mut rf = conn
             .sftp
             .create(remote)
             .await
             .map_err(|e| SshError::Channel(format!("create {remote}: {e}")))?;
-        rf.write_all(&data)
-            .await
-            .map_err(|e| SshError::Channel(format!("write {remote}: {e}")))?;
-        rf.flush()
-            .await
-            .map_err(|e| SshError::Channel(format!("flush {remote}: {e}")))?;
+        let mut buf = vec![0u8; 64 * 1024];
+        let mut done: u64 = 0;
+        (self.progress)(transfer_id.to_string(), 0, total);
+        loop {
+            let n = inp
+                .read(&mut buf)
+                .await
+                .map_err(|e| SshError::Io(format!("read {local}: {e}")))?;
+            if n == 0 {
+                break;
+            }
+            rf.write_all(&buf[..n])
+                .await
+                .map_err(|e| SshError::Channel(format!("write {remote}: {e}")))?;
+            done += n as u64;
+            (self.progress)(transfer_id.to_string(), done, total);
+        }
+        let _ = rf.flush().await;
         let _ = rf.shutdown().await;
-        Ok(len)
+        Ok(done)
     }
 
     /// 원격 파일/빈 디렉토리 삭제.
