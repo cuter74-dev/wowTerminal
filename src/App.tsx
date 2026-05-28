@@ -8,6 +8,8 @@ import { HostList } from "./components/HostList";
 import { AIPanel } from "./components/AIPanel";
 import { PaneView } from "./components/PaneView";
 import { FileBrowser } from "./components/FileBrowser";
+import { SettingsModal } from "./components/SettingsModal";
+import { AppSettings, loadSettings, saveSettings } from "./settings";
 import {
   HostKeyMismatchModal,
   MismatchInfo,
@@ -114,6 +116,12 @@ function App() {
     hostId: string;
     hostLabel: string;
   } | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  function updateSettings(s: AppSettings) {
+    setSettings(s);
+    saveSettings(s);
+  }
 
   const [hosts, setHosts] = useState<SshHost[]>([]);
   const reloadHosts = useCallback(async () => {
@@ -701,6 +709,7 @@ function App() {
             });
           }
         }}
+        onOpenSettings={() => setShowSettings(true)}
       />
       <TabBar
         tabs={tabs}
@@ -770,6 +779,7 @@ function App() {
                 retryByLeaf={retryByLeaf}
                 passwordByLeaf={passwordByLeaf}
                 labelForSource={labelForSource}
+                termSettings={settings.terminal}
               />
             </div>
           ))}
@@ -793,6 +803,14 @@ function App() {
           hostId={fileBrowser.hostId}
           hostLabel={fileBrowser.hostLabel}
           onClose={() => setFileBrowser(null)}
+        />
+      )}
+
+      {showSettings && (
+        <SettingsModal
+          settings={settings}
+          onChange={updateSettings}
+          onClose={() => setShowSettings(false)}
         />
       )}
 

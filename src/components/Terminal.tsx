@@ -6,6 +6,7 @@ import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
 import { registerTerminal, unregisterTerminal } from "../terminalRegistry";
+import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 
 type OutputPayload = {
   session_id: string;
@@ -74,6 +75,8 @@ interface Props {
   password?: string;
   /** 이 터미널이 속한 pane(leaf) id. terminalRegistry 등록 키로 사용. */
   paneId?: string;
+  /** 터미널 폰트/테마 설정. 변경 시 런타임으로 반영. */
+  termSettings: TerminalSettings;
 }
 
 export function Terminal({
@@ -83,8 +86,13 @@ export function Terminal({
   retryNonce = 0,
   password,
   paneId,
+  termSettings,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const termRef = useRef<XTerm | null>(null);
+  const fitRef = useRef<FitAddon | null>(null);
+  // 첫 마운트 시점의 설정으로 생성하고, 이후 변경은 아래 별도 effect가 런타임 반영.
+  const initialSettings = useRef(termSettings);
 
   const sourceKey =
     source.kind === "local" ? "local" : `ssh:${source.hostId}`;
@@ -92,13 +100,17 @@ export function Terminal({
   useEffect(() => {
     if (!containerRef.current) return;
 
+    const s = initialSettings.current;
     const term = new XTerm({
-      fontFamily: "Menlo, Consolas, 'Courier New', monospace",
-      fontSize: 14,
-      cursorBlink: true,
-      theme: { background: "#1e1e1e", foreground: "#e6e6e6" },
+      fontFamily: s.fontFamily,
+      fontSize: s.fontSize,
+      cursorBlink: s.cursorBlink,
+      scrollback: s.scrollback,
+      theme: TERMINAL_THEMES[s.theme],
     });
+    termRef.current = term;
     const fit = new FitAddon();
+    fitRef.current = fit;
     term.loadAddon(fit);
     term.open(containerRef.current);
     fit.fit();
@@ -208,14 +220,34 @@ export function Terminal({
       if (unlistenOutput) unlistenOutput();
       if (sessionId) void invoke(cmds.killCmd, { sessionId }).catch(() => {});
       term.dispose();
+      termRef.current = null;
+      fitRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sourceKey, retryNonce]);
 
+  // 설정 변경 시 런타임 반영 (세션 재시작 없이).
+  useEffect(() => {
+    const term = termRef.current;
+    if (!term) return;
+    term.options.fontSize = termSettings.fontSize;
+    term.options.fontFamily = termSettings.fontFamily;
+    term.options.cursorBlink = termSettings.cursorBlink;
+    term.options.scrollback = termSettings.scrollback;
+    term.options.theme = TERMINAL_THEMES[termSettings.theme];
+    try {
+      fitRef.current?.fit();
+    } catch {}
+  }, [termSettings]);
+
   return (
     <div
       ref={containerRef}
-      style={{ width: "100%", height: "100%", background: "#1e1e1e" }}
+      style={{
+        width: "100%",
+        height: "100%",
+        background: TERMINAL_THEMES[termSettings.theme].background,
+      }}
     />
   );
 }

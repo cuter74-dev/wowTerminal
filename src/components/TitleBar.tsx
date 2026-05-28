@@ -6,6 +6,7 @@ interface Props {
   /** 활성 패널이 SSH일 때만 enabled. 클릭 시 SFTP 파일 브라우저 오픈. */
   canOpenFiles: boolean;
   onOpenFiles: () => void;
+  onOpenSettings: () => void;
 }
 
 function subtitleFor(tab: Tab): string {
@@ -20,6 +21,7 @@ export function TitleBar({
   tabCount,
   canOpenFiles,
   onOpenFiles,
+  onOpenSettings,
 }: Props) {
   const subtitle = activeTab ? subtitleFor(activeTab) : "준비됨";
 
@@ -60,6 +62,7 @@ export function TitleBar({
         📁 파일
       </button>
       <button
+        onClick={onOpenSettings}
         style={{
           background: "transparent",
           border: "none",
@@ -67,7 +70,7 @@ export function TitleBar({
           cursor: "pointer",
           fontSize: 13,
         }}
-        title="설정 (미구현)"
+        title="설정 (S-054)"
       >
         ⚙ 설정
       </button>

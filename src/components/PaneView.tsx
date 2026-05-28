@@ -1,6 +1,7 @@
 import { useRef } from "react";
 import { Pane, SshConnectError, TerminalSource } from "../types";
 import { Terminal } from "./Terminal";
+import { TerminalSettings } from "../settings";
 
 interface Props {
   pane: Pane;
@@ -18,6 +19,7 @@ interface Props {
   passwordByLeaf: Record<string, string>;
   /** 표시용 라벨 헬퍼 (source → "로컬 셸" / 호스트명). */
   labelForSource: (source: TerminalSource) => string;
+  termSettings: TerminalSettings;
   path?: number[];
 }
 
@@ -92,6 +94,7 @@ function LeafPane(
           paneId={pane.id}
           retryNonce={props.retryByLeaf[pane.id] ?? 0}
           password={props.passwordByLeaf[pane.id]}
+          termSettings={props.termSettings}
           onSshError={(err) => props.onSshError(pane.id, err)}
           onSshConnected={() => props.onSshConnected(pane.id)}
         />
