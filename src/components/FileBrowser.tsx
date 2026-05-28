@@ -17,6 +17,10 @@ function joinPosix(cwd: string, name: string): string {
   return `${cwd.replace(/\/+$/, "")}/${name}`;
 }
 
+function nameExists(listing: Listing | null, name: string): boolean {
+  return !!listing?.entries.some((e) => e.name === name);
+}
+
 function fmtSize(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -46,6 +50,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
   const [preview, setPreview] = useState<{ name: string; content: string } | null>(
     null,
   );
+  const [permEdit, setPermEdit] = useState<FileEntry | null>(null);
 
   const loadLocal = useCallback(async (path?: string) => {
     try {
@@ -85,6 +90,11 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
 
   async function download() {
     if (!remoteSel || remoteSel.is_dir || !remote || !local) return;
+    if (
+      nameExists(local, remoteSel.name) &&
+      !confirm(`로컬에 '${remoteSel.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
+    )
+      return;
     setTransfer(`↓ ${remoteSel.name}`);
     setError(null);
     try {
@@ -103,6 +113,11 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
 
   async function upload() {
     if (!localSel || localSel.is_dir || !local || !remote) return;
+    if (
+      nameExists(remote, localSel.name) &&
+      !confirm(`원격에 '${localSel.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
+    )
+      return;
     setTransfer(`↑ ${localSel.name}`);
     setError(null);
     try {
@@ -175,6 +190,20 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     }
   }
 
+  async function applyChmod(entry: FileEntry, mode: number) {
+    if (!remote) return;
+    try {
+      await invoke("sftp_chmod", {
+        hostId,
+        path: joinPosix(remote.cwd, entry.name),
+        mode,
+      });
+      await loadRemote(remote.cwd);
+    } catch (e) {
+      setError(`권한 변경: ${String(e)}`);
+    }
+  }
+
   async function previewRemote(entry: FileEntry) {
     if (!remote || entry.is_dir) return;
     try {
@@ -205,6 +234,11 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
 
   async function uploadEntry(entry: FileEntry) {
     if (entry.is_dir || !local || !remote) return;
+    if (
+      nameExists(remote, entry.name) &&
+      !confirm(`원격에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
+    )
+      return;
     setTransfer(`↑ ${entry.name}`);
     try {
       await invoke("sftp_upload", {
@@ -222,6 +256,11 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
 
   async function downloadEntry(entry: FileEntry) {
     if (entry.is_dir || !local || !remote) return;
+    if (
+      nameExists(local, entry.name) &&
+      !confirm(`로컬에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
+    )
+      return;
     setTransfer(`↓ ${entry.name}`);
     try {
       await invoke("sftp_download", {
@@ -392,6 +431,18 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             onUpload={() => void uploadEntry(menu.entry)}
             onRename={() => void renameRemote(menu.entry)}
             onDelete={() => void deleteRemoteEntry(menu.entry)}
+            onProps={() => setPermEdit(menu.entry)}
+          />
+        )}
+
+        {permEdit && (
+          <PermissionsModal
+            entry={permEdit}
+            onClose={() => setPermEdit(null)}
+            onApply={(mode) => {
+              void applyChmod(permEdit, mode);
+              setPermEdit(null);
+            }}
           />
         )}
 
@@ -418,6 +469,7 @@ function ContextMenu({
   onUpload,
   onRename,
   onDelete,
+  onProps,
 }: {
   x: number;
   y: number;
@@ -429,6 +481,7 @@ function ContextMenu({
   onUpload: () => void;
   onRename: () => void;
   onDelete: () => void;
+  onProps: () => void;
 }) {
   useEffect(() => {
     const close = () => onDismiss();
@@ -448,6 +501,7 @@ function ContextMenu({
     items.push({ label: "미리보기", action: onPreview, disabled: entry.is_dir });
     items.push({ label: "← 다운로드", action: onDownload, disabled: entry.is_dir });
     items.push({ label: "이름 변경", action: onRename });
+    items.push({ label: "속성/권한", action: onProps });
     items.push({ label: "삭제", action: onDelete });
   } else {
     items.push({ label: "→ 업로드", action: onUpload, disabled: entry.is_dir });
@@ -706,6 +760,101 @@ function Panel({
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PermissionsModal({
+  entry,
+  onClose,
+  onApply,
+}: {
+  entry: FileEntry;
+  onClose: () => void;
+  onApply: (mode: number) => void;
+}) {
+  const init = ((entry.permissions ?? 0o644) & 0o777) >>> 0;
+  const [mode, setMode] = useState(init);
+  const groups: Array<{ label: string; shift: number }> = [
+    { label: "소유자", shift: 6 },
+    { label: "그룹", shift: 3 },
+    { label: "기타", shift: 0 },
+  ];
+  const bits: Array<{ label: string; bit: number }> = [
+    { label: "읽기 (r)", bit: 4 },
+    { label: "쓰기 (w)", bit: 2 },
+    { label: "실행 (x)", bit: 1 },
+  ];
+  const has = (shift: number, bit: number) => (mode & (bit << shift)) !== 0;
+  const toggle = (shift: number, bit: number) => setMode((m) => m ^ (bit << shift));
+  const octal = (mode & 0o777).toString(8).padStart(3, "0");
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 360,
+          background: "#26262d",
+          border: "1px solid #333",
+          borderRadius: 6,
+          color: "#e6e6e6",
+          padding: 18,
+          fontSize: 13,
+        }}
+      >
+        <strong style={{ fontSize: 14 }}>속성 / 권한 — {entry.name}</strong>
+        <div style={{ fontSize: 11, color: "#789", margin: "6px 0 14px" }}>
+          {entry.is_dir ? "디렉토리" : `${fmtSize(entry.size)}`} · 8진수{" "}
+          <code style={{ color: "#9cf" }}>{octal}</code>
+        </div>
+        <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <thead>
+            <tr style={{ color: "#9aa", fontSize: 11 }}>
+              <th style={{ textAlign: "left", padding: 4 }} />
+              {bits.map((b) => (
+                <th key={b.bit} style={{ padding: 4 }}>{b.label}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {groups.map((g) => (
+              <tr key={g.shift}>
+                <td style={{ padding: 4, color: "#ccc" }}>{g.label}</td>
+                {bits.map((b) => (
+                  <td key={b.bit} style={{ textAlign: "center", padding: 4 }}>
+                    <input
+                      type="checkbox"
+                      checked={has(g.shift, b.bit)}
+                      onChange={() => toggle(g.shift, b.bit)}
+                    />
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
+          <button onClick={onClose} style={toolBtnStyle}>취소</button>
+          <button
+            onClick={() => onApply(mode & 0o777)}
+            style={{ ...toolBtnStyle, background: "#0a5380", borderColor: "#4a9eff", color: "#fff" }}
+          >
+            적용 (chmod {octal})
+          </button>
+        </div>
       </div>
     </div>
   );

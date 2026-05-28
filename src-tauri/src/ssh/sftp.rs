@@ -240,6 +240,20 @@ impl SftpManager {
         Ok(())
     }
 
+    /// POSIX 권한 변경 (chmod). mode는 8진수 비트 (예: 0o755).
+    pub async fn chmod(&self, host_id: &str, path: &str, mode: u32) -> Result<(), SshError> {
+        let conn = self.conn(host_id).await?;
+        let attrs = russh_sftp::protocol::FileAttributes {
+            permissions: Some(mode),
+            ..Default::default()
+        };
+        conn.sftp
+            .set_metadata(path, attrs)
+            .await
+            .map_err(|e| SshError::Channel(format!("chmod {path}: {e}")))?;
+        Ok(())
+    }
+
     /// 텍스트 미리보기용. 최대 max_bytes까지 읽어 UTF-8(lossy)로 반환 (바이너리도 안전).
     pub async fn read_text(
         &self,

@@ -581,6 +581,21 @@ pub async fn sftp_read_text(
         .map_err(|e| e.to_string())
 }
 
+/// 원격 파일 권한 변경. mode는 8진수 정수 (예: 0o755 = 493).
+#[tauri::command]
+pub async fn sftp_chmod(
+    host_id: String,
+    path: String,
+    mode: u32,
+    state: State<'_, SshState>,
+) -> Result<(), String> {
+    state
+        .sftp
+        .chmod(&host_id, &path, mode)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 pub fn local_list_dir(path: Option<String>) -> Result<Listing, String> {
     use std::time::UNIX_EPOCH;
