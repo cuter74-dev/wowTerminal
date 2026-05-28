@@ -7,6 +7,7 @@ import { TabContextMenu } from "./components/TabContextMenu";
 import { HostList } from "./components/HostList";
 import { AIPanel } from "./components/AIPanel";
 import { PaneView } from "./components/PaneView";
+import { FileBrowser } from "./components/FileBrowser";
 import {
   HostKeyMismatchModal,
   MismatchInfo,
@@ -109,6 +110,10 @@ function App() {
     y: number;
   } | null>(null);
   const [draggingTabId, setDraggingTabId] = useState<string | null>(null);
+  const [fileBrowser, setFileBrowser] = useState<{
+    hostId: string;
+    hostLabel: string;
+  } | null>(null);
 
   const [hosts, setHosts] = useState<SshHost[]>([]);
   const reloadHosts = useCallback(async () => {
@@ -684,7 +689,19 @@ function App() {
         color: "#e6e6e6",
       }}
     >
-      <TitleBar activeTab={activeTab} tabCount={tabs.length} />
+      <TitleBar
+        activeTab={activeTab}
+        tabCount={tabs.length}
+        canOpenFiles={!!activeHostId}
+        onOpenFiles={() => {
+          if (activeHostId) {
+            setFileBrowser({
+              hostId: activeHostId,
+              hostLabel: labelForHost(activeHostId),
+            });
+          }
+        }}
+      />
       <TabBar
         tabs={tabs}
         activeTabId={activeTabId}
@@ -770,6 +787,14 @@ function App() {
           }
         />
       </div>
+
+      {fileBrowser && (
+        <FileBrowser
+          hostId={fileBrowser.hostId}
+          hostLabel={fileBrowser.hostLabel}
+          onClose={() => setFileBrowser(null)}
+        />
+      )}
 
       {draggingTabId && (
         <DropZoneOverlay

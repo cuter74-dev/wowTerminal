@@ -196,6 +196,7 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
         {editing && (
           <BackendForm
             initial={editing === "new" ? null : editing}
+            existingIds={list.map((b) => b.id)}
             onCancel={() => setEditing(null)}
             onSaved={async () => {
               setEditing(null);
@@ -220,10 +221,12 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
 
 function BackendForm({
   initial,
+  existingIds,
   onCancel,
   onSaved,
 }: {
   initial: BackendInfo | null;
+  existingIds: string[];
   onCancel: () => void;
   onSaved: () => void;
 }) {
@@ -242,7 +245,13 @@ function BackendForm({
     setPresetIdx(idx);
     if (idx < 0) return;
     const p = PRESETS[idx];
-    if (p.id) setId(p.id);
+    if (p.id) {
+      // 같은 프리셋으로 여러 개 등록할 수 있도록 충돌 시 -2, -3 … 자동 부여.
+      let candidate = p.id;
+      let n = 2;
+      while (existingIds.includes(candidate)) candidate = `${p.id}-${n++}`;
+      setId(candidate);
+    }
     if (p.displayName) setDisplayName(p.displayName);
     if (p.apiBase) setApiBase(p.apiBase);
     if (p.defaultModel) setDefaultModel(p.defaultModel);
@@ -255,14 +264,21 @@ function BackendForm({
       setError("id / displayName / apiBase / defaultModel은 필수입니다.");
       return;
     }
+    // 새 백엔드인데 ID가 기존과 겹치면 덮어쓰기가 되므로 거부.
+    if (!initial && existingIds.includes(finalId)) {
+      setError(
+        `ID '${finalId}'가 이미 존재합니다. 다른 ID를 입력하세요 (예: ${finalId}-2).`,
+      );
+      return;
+    }
     try {
       setSaving(true);
       await invoke("ai_save_backend", {
         args: {
           id: finalId,
-          displayName,
-          apiBase,
-          defaultModel,
+          displayName: displayName.trim(),
+          apiBase: apiBase.trim(),
+          defaultModel: defaultModel.trim(),
           apiKey: apiKey || null,
         },
       });

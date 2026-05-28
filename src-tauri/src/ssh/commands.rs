@@ -14,6 +14,7 @@ use super::groups::GroupStore;
 use super::known_hosts::{KnownHostEntry, KnownHostsStore};
 use super::manager::{SshError, SshManager};
 use super::session::{ResolvedAuth, SessionId};
+use super::sftp::{FileEntry, SftpManager};
 use super::store::HostStore;
 use super::tags::TagStore;
 use super::types::{Group, SshAuthMethod, SshHost, Tag};
@@ -96,6 +97,7 @@ impl SshConnectError {
 
 pub struct SshState {
     pub manager: Arc<SshManager>,
+    pub sftp: Arc<SftpManager>,
     pub store: HostStore,
     pub groups: GroupStore,
     pub tags: TagStore,
@@ -125,6 +127,7 @@ pub fn build_state(
 
     SshState {
         manager: Arc::new(SshManager::new(sink, Arc::clone(&known_hosts))),
+        sftp: Arc::new(SftpManager::new(Arc::clone(&known_hosts))),
         store: HostStore::new(hosts_path),
         groups: GroupStore::new(groups_path),
         tags: TagStore::new(tags_path),
@@ -311,6 +314,202 @@ pub fn ssh_remember_password(
     };
     state.store.upsert(host).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ---- SFTP 파일 브라우저 (S-025~) ----
+
+#[derive(Serialize)]
+pub struct Listing {
+    /// 정규화된 현재 경로.
+    pub cwd: String,
+    pub entries: Vec<FileEntry>,
+}
+
+/// 호스트에 SFTP로 연결하고 시작 경로를 리스팅한다. password prompt 인증은
+/// v1 SFTP에서 미지원 — agent 또는 keychain 저장된 password/key 호스트만.
+#[tauri::command]
+pub async fn sftp_open(
+    host_id: String,
+    path: Option<String>,
+    state: State<'_, SshState>,
+) -> Result<Listing, String> {
+    let host = state.store.get(&host_id).map_err(|e| e.to_string())?;
+    let auth = resolve_auth(
+        &host.auth,
+        state.secrets.as_deref(),
+        None,
+        &host.host,
+        host.port,
+        &host.user,
+    )
+    .map_err(|e| e.to_string())?;
+    state.sftp.connect(&host, auth).await.map_err(|e| e.to_string())?;
+
+    let start = path.unwrap_or_else(|| ".".to_string());
+    let cwd = state
+        .sftp
+        .canonicalize(&host_id, &start)
+        .await
+        .map_err(|e| e.to_string())?;
+    let entries = state
+        .sftp
+        .list_dir(&host_id, &cwd)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(Listing { cwd, entries })
+}
+
+#[tauri::command]
+pub async fn sftp_list(
+    host_id: String,
+    path: String,
+    state: State<'_, SshState>,
+) -> Result<Listing, String> {
+    let cwd = state
+        .sftp
+        .canonicalize(&host_id, &path)
+        .await
+        .map_err(|e| e.to_string())?;
+    let entries = state
+        .sftp
+        .list_dir(&host_id, &cwd)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(Listing { cwd, entries })
+}
+
+#[tauri::command]
+pub async fn sftp_disconnect(host_id: String, state: State<'_, SshState>) -> Result<(), String> {
+    state.sftp.disconnect(&host_id).await;
+    Ok(())
+}
+
+fn basename(path: &str) -> &str {
+    path.trim_end_matches('/')
+        .rsplit('/')
+        .next()
+        .unwrap_or(path)
+}
+
+/// 원격 파일을 로컬 디렉토리로 다운로드. 저장된 로컬 경로 반환.
+#[tauri::command]
+pub async fn sftp_download(
+    host_id: String,
+    remote_path: String,
+    local_dir: String,
+    state: State<'_, SshState>,
+) -> Result<String, String> {
+    let name = basename(&remote_path);
+    let local_path = PathBuf::from(&local_dir).join(name);
+    let local_str = local_path.to_string_lossy().to_string();
+    state
+        .sftp
+        .download(&host_id, &remote_path, &local_str)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(local_str)
+}
+
+/// 로컬 파일을 원격 디렉토리로 업로드. 업로드된 원격 경로 반환.
+#[tauri::command]
+pub async fn sftp_upload(
+    host_id: String,
+    local_path: String,
+    remote_dir: String,
+    state: State<'_, SshState>,
+) -> Result<String, String> {
+    let name = std::path::Path::new(&local_path)
+        .file_name()
+        .map(|s| s.to_string_lossy().to_string())
+        .ok_or_else(|| "invalid local path".to_string())?;
+    let remote_path = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
+    state
+        .sftp
+        .upload(&host_id, &local_path, &remote_path)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(remote_path)
+}
+
+#[tauri::command]
+pub async fn sftp_remove(
+    host_id: String,
+    path: String,
+    is_dir: bool,
+    state: State<'_, SshState>,
+) -> Result<(), String> {
+    state
+        .sftp
+        .remove(&host_id, &path, is_dir)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sftp_rename(
+    host_id: String,
+    from: String,
+    to: String,
+    state: State<'_, SshState>,
+) -> Result<(), String> {
+    state
+        .sftp
+        .rename(&host_id, &from, &to)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub async fn sftp_mkdir(
+    host_id: String,
+    path: String,
+    state: State<'_, SshState>,
+) -> Result<(), String> {
+    state.sftp.mkdir(&host_id, &path).await.map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn local_list_dir(path: Option<String>) -> Result<Listing, String> {
+    use std::time::UNIX_EPOCH;
+    let base = match path {
+        Some(p) => PathBuf::from(p),
+        None => dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")),
+    };
+    let canon = std::fs::canonicalize(&base).map_err(|e| e.to_string())?;
+    let mut entries = Vec::new();
+    for e in std::fs::read_dir(&canon).map_err(|e| e.to_string())? {
+        let e = match e {
+            Ok(e) => e,
+            Err(_) => continue,
+        };
+        let meta = match e.metadata() {
+            Ok(m) => m,
+            Err(_) => continue,
+        };
+        let modified = meta
+            .modified()
+            .ok()
+            .and_then(|t| t.duration_since(UNIX_EPOCH).ok())
+            .map(|d| d.as_secs() as i64);
+        #[cfg(unix)]
+        let permissions = {
+            use std::os::unix::fs::PermissionsExt;
+            Some(meta.permissions().mode())
+        };
+        #[cfg(not(unix))]
+        let permissions = None;
+        entries.push(FileEntry {
+            name: e.file_name().to_string_lossy().to_string(),
+            is_dir: meta.is_dir(),
+            size: meta.len(),
+            modified,
+            permissions,
+        });
+    }
+    Ok(Listing {
+        cwd: canon.to_string_lossy().to_string(),
+        entries,
+    })
 }
 
 // ---- 그룹 / 태그 (S-017) ----

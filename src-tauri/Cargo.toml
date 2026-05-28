@@ -36,6 +36,7 @@ portable-pty = "0.9"
 russh = "0.61"
 dirs = "5"
 tempfile = "3"
+russh-sftp = "2"
 
 [dev-dependencies]
 wiremock = "0.6"

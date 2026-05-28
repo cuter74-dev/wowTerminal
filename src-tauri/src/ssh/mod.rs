@@ -10,6 +10,7 @@ pub mod groups;
 pub mod known_hosts;
 pub mod manager;
 pub mod session;
+pub mod sftp;
 pub mod store;
 pub mod tags;
 pub mod types;

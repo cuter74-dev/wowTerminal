@@ -50,7 +50,7 @@ struct TofuShared {
 }
 
 /// TOFU 정책 핸들러.
-struct TofuHandler {
+pub struct TofuHandler {
     shared: TofuShared,
 }
 
@@ -114,19 +114,14 @@ pub struct SshSession {
 }
 
 impl SshSession {
-    /// 호스트에 연결하고 PTY 채널을 연 뒤 actor 태스크를 띄운다.
-    /// `known_hosts`는 TOFU 정책에 사용된다.
-    pub async fn connect(
+    /// SSH 핸드셰이크 + 인증까지 수행하고 연결 핸들을 반환. PTY 세션과 SFTP가 공유.
+    pub async fn establish(
         host: &str,
         port: u16,
         user: &str,
         auth: ResolvedAuth,
-        cols: u16,
-        rows: u16,
-        session_id: SessionId,
-        sink: DataSink,
         known_hosts: Arc<KnownHostsStore>,
-    ) -> Result<Self, SshError> {
+    ) -> Result<client::Handle<TofuHandler>, SshError> {
         let shared = TofuShared {
             store: known_hosts,
             host: host.to_string(),
@@ -139,9 +134,6 @@ impl SshSession {
 
         let config = Arc::new(client::Config::default());
 
-        // hostname을 명시적으로 resolve. tokio::TcpStream::connect((host, port))는
-        // 환경에 따라 IPv6 우선/IPv4 fallback이 깔끔하지 않아 ENETUNREACH가 자주 발생.
-        // IPv4를 먼저 시도하고 실패 시 IPv6로 폴백한다.
         // 일부 macOS 환경에서 hostname을 직접 받는 ToSocketAddrs 경로가 IPv6/IPv4 fallback을
         // 깔끔히 처리하지 못해 ENETUNREACH가 발생하는 케이스가 있었다. 명시적으로 resolve해
         // IPv4를 먼저 시도하도록 정렬한 뒤 SocketAddr slice를 전달.
@@ -190,6 +182,23 @@ impl SshSession {
         if !auth_ok {
             return Err(SshError::Auth("authentication rejected".into()));
         }
+        Ok(handle)
+    }
+
+    /// 호스트에 연결하고 PTY 채널을 연 뒤 actor 태스크를 띄운다.
+    /// `known_hosts`는 TOFU 정책에 사용된다.
+    pub async fn connect(
+        host: &str,
+        port: u16,
+        user: &str,
+        auth: ResolvedAuth,
+        cols: u16,
+        rows: u16,
+        session_id: SessionId,
+        sink: DataSink,
+        known_hosts: Arc<KnownHostsStore>,
+    ) -> Result<Self, SshError> {
+        let mut handle = Self::establish(host, port, user, auth, known_hosts).await?;
 
         let mut channel = handle
             .channel_open_session()

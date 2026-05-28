@@ -68,6 +68,21 @@ export interface ChatResponse {
   usage?: { prompt_tokens: number; completion_tokens: number } | null;
 }
 
+// --- SFTP / 파일 브라우저 -------------------------------------------------
+
+export interface FileEntry {
+  name: string;
+  is_dir: boolean;
+  size: number;
+  modified?: number | null;
+  permissions?: number | null;
+}
+
+export interface Listing {
+  cwd: string;
+  entries: FileEntry[];
+}
+
 export type TerminalSource =
   | { kind: "local" }
   | { kind: "ssh"; hostId: string };

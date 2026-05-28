@@ -23,7 +23,8 @@ impl OpenAiCompatibleBackend {
     pub fn new(id: impl Into<String>, api_base: impl Into<String>, api_key: Option<String>) -> Self {
         Self {
             id: id.into(),
-            api_base: api_base.into().trim_end_matches('/').to_string(),
+            // 앞뒤 공백 + 끝 슬래시 제거 (사용자 입력에 trailing space가 흔함).
+            api_base: api_base.into().trim().trim_end_matches('/').to_string(),
             api_key,
             http: Client::new(),
         }
