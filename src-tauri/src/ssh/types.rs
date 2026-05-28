@@ -36,6 +36,23 @@ pub struct Tag {
     pub color: String,
 }
 
+/// SSH 키 메타데이터 (S-019~024). 개인키 원문은 keyring에 `id`로 저장되고,
+/// 여기에는 공개 정보만. `auth = PrivateKey{key_id}`에서 key_id = 이 id.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SshKeyEntry {
+    pub id: String,
+    pub name: String,
+    /// 예: "ssh-ed25519", "ssh-rsa".
+    pub algorithm: String,
+    /// SHA256 fingerprint (`SHA256:...`).
+    pub fingerprint: String,
+    /// OpenSSH 공개키 한 줄.
+    pub public_key: String,
+    /// 개인키가 패스프레이즈로 암호화되어 keyring에 저장됐는지.
+    #[serde(default)]
+    pub encrypted: bool,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum SshAuthMethod {

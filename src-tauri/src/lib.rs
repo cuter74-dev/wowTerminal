@@ -46,12 +46,14 @@ pub fn run() {
             let known_hosts_path = config_dir.join("known_hosts.toml");
             let groups_path = config_dir.join("groups.toml");
             let tags_path = config_dir.join("tags.toml");
+            let keys_path = config_dir.join("keys.toml");
             let mut ssh_state = ssh::commands::build_state(
                 &app.handle(),
                 hosts_path,
                 known_hosts_path,
                 groups_path,
                 tags_path,
+                keys_path,
             );
             // OS 키링을 기본 secret store로 활성화. macOS는 Keychain, Linux는 Secret Service,
             // Windows는 Credential Manager. KeyringStore::save 시 OS가 사용자에게 권한 prompt 가능.
@@ -89,6 +91,10 @@ pub fn run() {
             ssh::commands::ssh_list_tags,
             ssh::commands::ssh_save_tag,
             ssh::commands::ssh_delete_tag,
+            ssh::commands::ssh_list_keys,
+            ssh::commands::ssh_generate_key,
+            ssh::commands::ssh_import_key,
+            ssh::commands::ssh_delete_key,
             ssh::commands::sftp_open,
             ssh::commands::sftp_list,
             ssh::commands::sftp_disconnect,

@@ -4,6 +4,7 @@ import { Group, SshHost, Tag } from "../types";
 import { HostForm } from "./HostForm";
 import { DeleteHostModal } from "./DeleteHostModal";
 import { GroupTagManager } from "./GroupTagManager";
+import { SshKeyManager } from "./SshKeyManager";
 
 interface Props {
   activeHostId: string | null;
@@ -32,6 +33,7 @@ export function HostList({
   const [editing, setEditing] = useState<SshHost | "new" | null>(null);
   const [deleting, setDeleting] = useState<SshHost | null>(null);
   const [showManager, setShowManager] = useState(false);
+  const [showKeys, setShowKeys] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("name");
@@ -140,6 +142,13 @@ export function HostList({
       >
         <span>SSH Hosts ({hosts.length})</span>
         <div style={{ display: "flex", gap: 4 }}>
+          <button
+            onClick={() => setShowKeys(true)}
+            style={addBtnStyle}
+            title="SSH 키 관리 (S-019)"
+          >
+            🔑
+          </button>
           <button
             onClick={() => setShowManager(true)}
             style={addBtnStyle}
@@ -294,6 +303,8 @@ export function HostList({
           onChanged={() => void reload()}
         />
       )}
+
+      {showKeys && <SshKeyManager onClose={() => setShowKeys(false)} />}
     </div>
   );
 }

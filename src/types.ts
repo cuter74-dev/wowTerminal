@@ -29,6 +29,15 @@ export interface Tag {
   color: string;
 }
 
+export interface SshKeyEntry {
+  id: string;
+  name: string;
+  algorithm: string;
+  fingerprint: string;
+  public_key: string;
+  encrypted: boolean;
+}
+
 export const TAG_PALETTE = [
   "#4a9eff",
   "#52c41a",

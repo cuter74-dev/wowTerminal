@@ -11,13 +11,14 @@ use crate::pty::manager::DataSink;
 use crate::secrets::{EncryptedFileStore, SecretStore};
 
 use super::groups::GroupStore;
+use super::keys::{self, KeyStore};
 use super::known_hosts::{KnownHostEntry, KnownHostsStore};
 use super::manager::{SshError, SshManager};
 use super::session::{ResolvedAuth, SessionId};
 use super::sftp::{FileEntry, SftpManager};
 use super::store::HostStore;
 use super::tags::TagStore;
-use super::types::{Group, SshAuthMethod, SshHost, Tag};
+use super::types::{Group, SshAuthMethod, SshHost, SshKeyEntry, Tag};
 
 /// 프론트엔드가 패턴 매칭으로 구분할 수 있도록 직렬화된 에러.
 /// 단순 `String` 대신 이 enum을 쓰면 UI가 HostKeyMismatch / FirstContact를
@@ -101,6 +102,7 @@ pub struct SshState {
     pub store: HostStore,
     pub groups: GroupStore,
     pub tags: TagStore,
+    pub keys: KeyStore,
     pub known_hosts: Arc<KnownHostsStore>,
     /// 시크릿 저장소 핸들. 앱 시작 시 사용자 패스프레이즈로 열린 핸들이 들어간다.
     /// v1에서는 일단 옵션으로 두고, 없으면 password/key auth는 사용 불가.
@@ -113,6 +115,7 @@ pub fn build_state(
     known_hosts_path: PathBuf,
     groups_path: PathBuf,
     tags_path: PathBuf,
+    keys_path: PathBuf,
 ) -> SshState {
     let handle = app.clone();
     let sink: DataSink = Arc::new(move |session_id, data| {
@@ -131,6 +134,7 @@ pub fn build_state(
         store: HostStore::new(hosts_path),
         groups: GroupStore::new(groups_path),
         tags: TagStore::new(tags_path),
+        keys: KeyStore::new(keys_path),
         known_hosts,
         secrets: None,
     }
@@ -314,6 +318,92 @@ pub fn ssh_remember_password(
     };
     state.store.upsert(host).map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// ---- SSH 키 관리 (S-019~024) ----
+
+#[tauri::command]
+pub fn ssh_list_keys(state: State<'_, SshState>) -> Result<Vec<SshKeyEntry>, String> {
+    state.keys.list().map_err(|e| e.to_string())
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GenerateKeyArgs {
+    pub name: String,
+    /// "ed25519" 또는 "rsa".
+    pub algorithm: String,
+}
+
+#[tauri::command]
+pub fn ssh_generate_key(
+    args: GenerateKeyArgs,
+    state: State<'_, SshState>,
+) -> Result<SshKeyEntry, String> {
+    let secrets = state
+        .secrets
+        .as_ref()
+        .ok_or_else(|| "secret store not configured".to_string())?;
+    let (pem, meta) =
+        keys::generate(&args.algorithm, &args.name).map_err(|e| e.to_string())?;
+    let id = uuid::Uuid::new_v4().to_string();
+    secrets.save(&id, pem.as_bytes()).map_err(|e| e.to_string())?;
+    let entry = SshKeyEntry {
+        id,
+        name: args.name,
+        algorithm: meta.algorithm,
+        fingerprint: meta.fingerprint,
+        public_key: meta.public_key,
+        encrypted: meta.encrypted,
+    };
+    state.keys.upsert(entry.clone()).map_err(|e| e.to_string())?;
+    Ok(entry)
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ImportKeyArgs {
+    pub name: String,
+    /// OpenSSH 개인키 PEM 원문.
+    pub pem: String,
+    /// 암호화된 키면 복호화에 사용 (메타 추출 검증용). 저장은 PEM 원문 그대로.
+    pub passphrase: Option<String>,
+}
+
+#[tauri::command]
+pub fn ssh_import_key(
+    args: ImportKeyArgs,
+    state: State<'_, SshState>,
+) -> Result<SshKeyEntry, String> {
+    let secrets = state
+        .secrets
+        .as_ref()
+        .ok_or_else(|| "secret store not configured".to_string())?;
+    let meta = keys::parse_imported(&args.pem, args.passphrase.as_deref())
+        .map_err(|e| e.to_string())?;
+    let id = uuid::Uuid::new_v4().to_string();
+    // PEM 원문(암호화 상태 그대로)을 keyring에 저장. 접속 시 passphrase는 별도 secret.
+    secrets
+        .save(&id, args.pem.as_bytes())
+        .map_err(|e| e.to_string())?;
+    let entry = SshKeyEntry {
+        id,
+        name: args.name,
+        algorithm: meta.algorithm,
+        fingerprint: meta.fingerprint,
+        public_key: meta.public_key,
+        encrypted: meta.encrypted,
+    };
+    state.keys.upsert(entry.clone()).map_err(|e| e.to_string())?;
+    Ok(entry)
+}
+
+#[tauri::command]
+pub fn ssh_delete_key(id: String, state: State<'_, SshState>) -> Result<(), String> {
+    if let Some(secrets) = state.secrets.as_ref() {
+        let _ = secrets.delete(&id);
+    }
+    state.keys.delete(&id).map_err(|e| e.to_string())
 }
 
 // ---- SFTP 파일 브라우저 (S-025~) ----

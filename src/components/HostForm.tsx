@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Group, SshAuthMethod, SshHost, Tag } from "../types";
+import { Group, SshAuthMethod, SshHost, SshKeyEntry, Tag } from "../types";
 
 interface Props {
   initial: SshHost | null;
@@ -34,18 +34,21 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
   const [hostTags, setHostTags] = useState<string[]>(initial?.tags ?? []);
   const [groups, setGroups] = useState<Group[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [sshKeys, setSshKeys] = useState<SshKeyEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     void (async () => {
       try {
-        const [g, t] = await Promise.all([
+        const [g, t, k] = await Promise.all([
           invoke<Group[]>("ssh_list_groups"),
           invoke<Tag[]>("ssh_list_tags"),
+          invoke<SshKeyEntry[]>("ssh_list_keys"),
         ]);
         setGroups(g);
         setTags(t);
+        setSshKeys(k);
       } catch (e) {
         // 비치명적
         console.error("load groups/tags failed", e);
@@ -207,20 +210,35 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
 
         {authKind === "private_key" && (
           <>
-            <Field label="Private Key Secret ID">
-              <input
-                value={secretId}
-                onChange={(e) => setSecretId(e.target.value)}
-                style={inputStyle}
-                placeholder="secret store에 등록된 키 ID"
-              />
+            <Field label="Private Key (🔑 키 관리에서 등록)">
+              {sshKeys.length > 0 ? (
+                <select
+                  value={secretId}
+                  onChange={(e) => setSecretId(e.target.value)}
+                  style={inputStyle}
+                >
+                  <option value="">키 선택...</option>
+                  {sshKeys.map((k) => (
+                    <option key={k.id} value={k.id}>
+                      {k.name} ({k.algorithm})
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  value={secretId}
+                  onChange={(e) => setSecretId(e.target.value)}
+                  style={inputStyle}
+                  placeholder="등록된 키 없음 — 키 ID 직접 입력 또는 🔑에서 생성"
+                />
+              )}
             </Field>
             <Field label="Passphrase Secret ID (optional)">
               <input
                 value={passphraseSecretId}
                 onChange={(e) => setPassphraseSecretId(e.target.value)}
                 style={inputStyle}
-                placeholder="패스프레이즈가 있다면"
+                placeholder="암호화된 키의 패스프레이즈 secret_id"
               />
             </Field>
           </>
