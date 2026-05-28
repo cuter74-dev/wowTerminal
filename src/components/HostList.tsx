@@ -106,13 +106,16 @@ export function HostList({
   return (
     <div
       style={{
-        width: 280,
+        width: "100%",
+        height: "100%",
         background: "#252526",
         color: "#cccccc",
         display: "flex",
         flexDirection: "column",
         borderRight: "1px solid #111",
         fontSize: 13,
+        boxSizing: "border-box",
+        overflow: "hidden",
       }}
     >
       <button

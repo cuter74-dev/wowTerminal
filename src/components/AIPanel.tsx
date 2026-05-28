@@ -250,7 +250,8 @@ export function AIPanel({
   return (
     <aside
       style={{
-        width: 320,
+        width: "100%",
+        height: "100%",
         background: "#1a1a20",
         color: "#cccccc",
         borderLeft: "1px solid #111",
@@ -258,6 +259,8 @@ export function AIPanel({
         flexDirection: "column",
         fontSize: 13,
         minWidth: 0,
+        boxSizing: "border-box",
+        overflow: "hidden",
       }}
     >
       <header

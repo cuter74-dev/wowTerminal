@@ -13,10 +13,26 @@ export interface GeneralSettings {
   restoreTabs: boolean;
 }
 
+export interface LayoutSettings {
+  /** 좌측 호스트 패널 표시 여부. */
+  showHostPanel: boolean;
+  /** 우측 AI 패널 표시 여부. */
+  showAiPanel: boolean;
+  /** 좌측 호스트 패널 폭(px). */
+  hostPanelWidth: number;
+  /** 우측 AI 패널 폭(px). */
+  aiPanelWidth: number;
+}
+
 export interface AppSettings {
   general: GeneralSettings;
   terminal: TerminalSettings;
+  layout: LayoutSettings;
 }
+
+/** 패널 폭 허용 범위(px). */
+export const PANEL_MIN_WIDTH = 180;
+export const PANEL_MAX_WIDTH = 560;
 
 export const TERMINAL_THEMES: Record<
   TerminalSettings["theme"],
@@ -35,6 +51,12 @@ export const DEFAULT_SETTINGS: AppSettings = {
     theme: "dark",
     scrollback: 1000,
   },
+  layout: {
+    showHostPanel: true,
+    showAiPanel: true,
+    hostPanelWidth: 280,
+    aiPanelWidth: 320,
+  },
 };
 
 const KEY = "wowterminal-settings";
@@ -48,6 +70,7 @@ export function loadSettings(): AppSettings {
     return {
       general: { ...DEFAULT_SETTINGS.general, ...(parsed.general ?? {}) },
       terminal: { ...DEFAULT_SETTINGS.terminal, ...(parsed.terminal ?? {}) },
+      layout: { ...DEFAULT_SETTINGS.layout, ...(parsed.layout ?? {}) },
     };
   } catch {
     return DEFAULT_SETTINGS;

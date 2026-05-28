@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { TitleBar } from "./components/TitleBar";
@@ -11,7 +12,13 @@ import { FileBrowser } from "./components/FileBrowser";
 import { SettingsModal } from "./components/SettingsModal";
 import { SplashScreen } from "./components/SplashScreen";
 import { OnboardingFlow } from "./components/OnboardingFlow";
-import { AppSettings, loadSettings, saveSettings } from "./settings";
+import {
+  AppSettings,
+  loadSettings,
+  saveSettings,
+  PANEL_MIN_WIDTH,
+  PANEL_MAX_WIDTH,
+} from "./settings";
 import { isOnboarded, setOnboarded } from "./onboarding";
 import {
   HostKeyMismatchModal,
@@ -66,6 +73,105 @@ function newId(): string {
     return crypto.randomUUID();
   }
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
+}
+
+// 좌/우 패널 너비 조절용 구분선 (#21). 좌우 분할 divider와 동일 룩 + 접기 버튼을 얹는다.
+const panelDividerStyle: CSSProperties = {
+  position: "relative",
+  flex: "0 0 4px",
+  background: "#0a0a10",
+  cursor: "col-resize",
+  userSelect: "none",
+};
+
+const dividerToggleStyle: CSSProperties = {
+  position: "absolute",
+  top: "50%",
+  left: "50%",
+  transform: "translate(-50%, -50%)",
+  width: 16,
+  height: 44,
+  borderRadius: 8,
+  border: "1px solid #2a3a4a",
+  background: "#202a38",
+  color: "#9cf",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 12,
+  padding: 0,
+  zIndex: 5,
+};
+
+const collapsedHandleStyle: CSSProperties = {
+  flexShrink: 0,
+  width: 14,
+  border: "none",
+  background: "#202028",
+  color: "#9aa",
+  cursor: "pointer",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  fontSize: 13,
+  padding: 0,
+};
+
+/**
+ * 패널과 터미널 사이의 경계 (#21).
+ * - 펴진 상태: 너비 조절 구분선 + 중앙에 접기 화살표 버튼.
+ * - 접힌 상태: 화면 가장자리의 얇은 펴기 핸들(화살표).
+ * 화살표는 패널이 움직이는 방향을 가리킨다(host 접기=‹, ai 접기=›).
+ */
+function PanelEdge({
+  side,
+  collapsed,
+  onToggle,
+  onResizeStart,
+}: {
+  side: "host" | "ai";
+  collapsed: boolean;
+  onToggle: () => void;
+  onResizeStart: (e: React.MouseEvent) => void;
+}) {
+  const arrow = collapsed
+    ? side === "host"
+      ? "›"
+      : "‹"
+    : side === "host"
+      ? "‹"
+      : "›";
+  if (collapsed) {
+    return (
+      <button
+        onClick={onToggle}
+        title={side === "host" ? "호스트 패널 펴기" : "AI 패널 펴기"}
+        style={{
+          ...collapsedHandleStyle,
+          [side === "host" ? "borderRight" : "borderLeft"]: "1px solid #111",
+        }}
+      >
+        {arrow}
+      </button>
+    );
+  }
+  return (
+    <div
+      onMouseDown={onResizeStart}
+      style={panelDividerStyle}
+      title="너비 조절 (드래그)"
+    >
+      <button
+        onMouseDown={(e) => e.stopPropagation()}
+        onClick={onToggle}
+        title={side === "host" ? "호스트 패널 접기" : "AI 패널 접기"}
+        style={dividerToggleStyle}
+      >
+        {arrow}
+      </button>
+    </div>
+  );
 }
 
 function makeLocalTab(label: string): Tab {
@@ -149,6 +255,53 @@ function App() {
   function updateSettings(s: AppSettings) {
     setSettings(s);
     saveSettings(s);
+  }
+
+  // 좌/우 패널 토글 + 너비 리사이즈 (#21). 상태는 settings.layout에 영속화.
+  const layout = settings.layout;
+  const layoutRowRef = useRef<HTMLDivElement>(null);
+  function toggleHostPanel() {
+    updateSettings({
+      ...settings,
+      layout: { ...layout, showHostPanel: !layout.showHostPanel },
+    });
+  }
+  function toggleAiPanel() {
+    updateSettings({
+      ...settings,
+      layout: { ...layout, showAiPanel: !layout.showAiPanel },
+    });
+  }
+  function startPanelResize(side: "host" | "ai", e: React.MouseEvent) {
+    e.preventDefault();
+    const rect = layoutRowRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const clamp = (w: number) =>
+      Math.max(PANEL_MIN_WIDTH, Math.min(PANEL_MAX_WIDTH, w));
+    const onMove = (ev: MouseEvent) => {
+      const w =
+        side === "host"
+          ? clamp(ev.clientX - rect.left)
+          : clamp(rect.right - ev.clientX);
+      setSettings((prev) => ({
+        ...prev,
+        layout: {
+          ...prev.layout,
+          [side === "host" ? "hostPanelWidth" : "aiPanelWidth"]: w,
+        },
+      }));
+    };
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      // 드래그 종료 시 최신 상태를 localStorage에 영속화.
+      setSettings((prev) => {
+        saveSettings(prev);
+        return prev;
+      });
+    };
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   }
 
   const [hosts, setHosts] = useState<SshHost[]>([]);
@@ -846,22 +999,52 @@ function App() {
         }}
       />
 
-      <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-        <HostList
-          activeHostId={activeHostId}
-          isLocalActive={!!isLocalActive}
-          onSelect={selectHostForActive}
-          onOpenInNewTab={(id) => {
-            void reloadHosts();
-            newSshTab(id);
-          }}
-          onSelectLocal={selectLocalForActive}
-          activeSessionCountForHost={activeSessionCountForHost}
-          onHostDeleted={(id) => {
-            detachHostFromAllTabs(id);
-            void reloadHosts();
-          }}
-        />
+      <div
+        ref={layoutRowRef}
+        style={{ flex: 1, display: "flex", minHeight: 0 }}
+      >
+        {layout.showHostPanel && (
+          <>
+            <div
+              style={{
+                width: layout.hostPanelWidth,
+                flexShrink: 0,
+                minWidth: 0,
+                display: "flex",
+              }}
+            >
+              <HostList
+                activeHostId={activeHostId}
+                isLocalActive={!!isLocalActive}
+                onSelect={selectHostForActive}
+                onOpenInNewTab={(id) => {
+                  void reloadHosts();
+                  newSshTab(id);
+                }}
+                onSelectLocal={selectLocalForActive}
+                activeSessionCountForHost={activeSessionCountForHost}
+                onHostDeleted={(id) => {
+                  detachHostFromAllTabs(id);
+                  void reloadHosts();
+                }}
+              />
+            </div>
+            <PanelEdge
+              side="host"
+              collapsed={false}
+              onToggle={toggleHostPanel}
+              onResizeStart={(e) => startPanelResize("host", e)}
+            />
+          </>
+        )}
+        {!layout.showHostPanel && (
+          <PanelEdge
+            side="host"
+            collapsed
+            onToggle={toggleHostPanel}
+            onResizeStart={() => {}}
+          />
+        )}
 
         <div
           style={{
@@ -908,34 +1091,66 @@ function App() {
           ))}
         </div>
 
-        {/* AI 패널도 탭별로 mount (display 토글) — 탭마다 대화/컨텍스트 독립. */}
-        {tabs.map((tab) => {
-          const fLeaf = findLeaf(tab.root, tab.focusedPaneId);
-          const fSource =
-            fLeaf && fLeaf.kind === "leaf" ? fLeaf.source : null;
-          return (
+        {/* 우측 AI 패널 — 탭별로 mount(display 토글)하고 고정폭 컨테이너로 감싼다. */}
+        {!layout.showAiPanel && (
+          <PanelEdge
+            side="ai"
+            collapsed
+            onToggle={toggleAiPanel}
+            onResizeStart={() => {}}
+          />
+        )}
+        {layout.showAiPanel && (
+          <>
+            <PanelEdge
+              side="ai"
+              collapsed={false}
+              onToggle={toggleAiPanel}
+              onResizeStart={(e) => startPanelResize("ai", e)}
+            />
             <div
-              key={tab.id}
-              style={{ display: tab.id === activeTabId ? "flex" : "none" }}
+              style={{
+                width: layout.aiPanelWidth,
+                flexShrink: 0,
+                minWidth: 0,
+                display: "flex",
+                flexDirection: "column",
+              }}
             >
-              <AIPanel
-                activeTab={tab}
-                focusedSource={fSource}
-                focusedPaneId={tab.focusedPaneId}
-                paneCount={collectLeaves(tab.root).length}
-                contextLabel={
-                  fSource && fSource.kind === "ssh"
-                    ? labelForHost(fSource.hostId)
-                    : undefined
-                }
-                onActiveSession={(sid) => {
-                  aiSessionByTab.current[tab.id] = sid;
-                }}
-                initialSessionId={attachAiByTab[tab.id]}
-              />
+              {tabs.map((tab) => {
+                const fLeaf = findLeaf(tab.root, tab.focusedPaneId);
+                const fSource =
+                  fLeaf && fLeaf.kind === "leaf" ? fLeaf.source : null;
+                return (
+                  <div
+                    key={tab.id}
+                    style={{
+                      display: tab.id === activeTabId ? "flex" : "none",
+                      flex: 1,
+                      minHeight: 0,
+                    }}
+                  >
+                    <AIPanel
+                      activeTab={tab}
+                      focusedSource={fSource}
+                      focusedPaneId={tab.focusedPaneId}
+                      paneCount={collectLeaves(tab.root).length}
+                      contextLabel={
+                        fSource && fSource.kind === "ssh"
+                          ? labelForHost(fSource.hostId)
+                          : undefined
+                      }
+                      onActiveSession={(sid) => {
+                        aiSessionByTab.current[tab.id] = sid;
+                      }}
+                      initialSessionId={attachAiByTab[tab.id]}
+                    />
+                  </div>
+                );
+              })}
             </div>
-          );
-        })}
+          </>
+        )}
       </div>
 
       {fileBrowser && (
