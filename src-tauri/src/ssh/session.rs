@@ -280,6 +280,10 @@ impl SshSession {
 
 /// $SSH_AUTH_SOCK의 ssh-agent에 위임해 인증을 시도한다. 등록된 키를 차례로 시도하고
 /// 첫 성공이면 통과.
+///
+/// ssh-agent 위임은 Unix 도메인 소켓($SSH_AUTH_SOCK) 기반이라 Unix 전용이다.
+/// Windows에서는 named pipe 기반 agent를 후속에서 다루고, 지금은 미지원 에러를 반환한다.
+#[cfg(unix)]
 async fn authenticate_with_agent(
     handle: &mut client::Handle<TofuHandler>,
     user: &str,
@@ -320,6 +324,17 @@ async fn authenticate_with_agent(
         }
     }
     Ok(false)
+}
+
+/// Windows 등 비-Unix 플랫폼: ssh-agent(UnixStream) 미지원 → 키/비밀번호 인증을 쓰도록 안내.
+#[cfg(not(unix))]
+async fn authenticate_with_agent(
+    _handle: &mut client::Handle<TofuHandler>,
+    _user: &str,
+) -> Result<bool, SshError> {
+    Err(SshError::Auth(
+        "ssh-agent delegation is not supported on this platform yet — use a key or password".into(),
+    ))
 }
 
 fn map_outcome_to_error(host: &str, port: u16, outcome: TofuOutcome) -> Option<SshError> {
