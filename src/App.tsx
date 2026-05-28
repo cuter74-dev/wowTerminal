@@ -9,7 +9,10 @@ import { AIPanel } from "./components/AIPanel";
 import { PaneView } from "./components/PaneView";
 import { FileBrowser } from "./components/FileBrowser";
 import { SettingsModal } from "./components/SettingsModal";
+import { SplashScreen } from "./components/SplashScreen";
+import { OnboardingFlow } from "./components/OnboardingFlow";
 import { AppSettings, loadSettings, saveSettings } from "./settings";
+import { isOnboarded, setOnboarded } from "./onboarding";
 import {
   HostKeyMismatchModal,
   MismatchInfo,
@@ -101,6 +104,17 @@ function App() {
     IS_DETACHED_WINDOW ? null : tabs[0].id,
   );
   const [bootstrapped, setBootstrapped] = useState<boolean>(!IS_DETACHED_WINDOW);
+  // 메인 윈도우 시작 흐름: 스플래시 → (첫 실행이면) 온보딩 → 준비. detached는 바로 준비.
+  const [phase, setPhase] = useState<"splash" | "onboarding" | "ready">(() =>
+    IS_DETACHED_WINDOW ? "ready" : "splash",
+  );
+  useEffect(() => {
+    if (phase !== "splash") return;
+    const t = setTimeout(() => {
+      setPhase(isOnboarded() ? "ready" : "onboarding");
+    }, 900);
+    return () => clearTimeout(t);
+  }, [phase]);
   const [retryByLeaf, setRetryByLeaf] = useState<Record<string, number>>({});
   const [passwordByLeaf, setPasswordByLeaf] = useState<Record<string, string>>({});
   /** leaf id → 사용자가 모달에서 "Keychain에 저장"을 체크했는지. 접속 성공 후 처리. */
@@ -683,6 +697,18 @@ function App() {
       >
         분리된 창 초기화 중…
       </main>
+    );
+  }
+
+  if (phase === "splash") return <SplashScreen />;
+  if (phase === "onboarding") {
+    return (
+      <OnboardingFlow
+        onComplete={() => {
+          setOnboarded();
+          setPhase("ready");
+        }}
+      />
     );
   }
 
