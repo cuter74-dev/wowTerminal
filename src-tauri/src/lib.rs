@@ -103,6 +103,8 @@ pub fn run() {
             ssh::commands::sftp_remove,
             ssh::commands::sftp_rename,
             ssh::commands::sftp_mkdir,
+            ssh::commands::sftp_touch,
+            ssh::commands::sftp_read_text,
             ssh::commands::local_list_dir,
             windows::open_detached_window,
             windows::detached_init,

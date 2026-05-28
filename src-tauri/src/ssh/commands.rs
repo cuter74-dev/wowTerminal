@@ -559,6 +559,29 @@ pub async fn sftp_mkdir(
 }
 
 #[tauri::command]
+pub async fn sftp_touch(
+    host_id: String,
+    path: String,
+    state: State<'_, SshState>,
+) -> Result<(), String> {
+    state.sftp.touch(&host_id, &path).await.map_err(|e| e.to_string())
+}
+
+/// 텍스트 미리보기. 최대 256KB까지 읽어 반환.
+#[tauri::command]
+pub async fn sftp_read_text(
+    host_id: String,
+    path: String,
+    state: State<'_, SshState>,
+) -> Result<String, String> {
+    state
+        .sftp
+        .read_text(&host_id, &path, 256 * 1024)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 pub fn local_list_dir(path: Option<String>) -> Result<Listing, String> {
     use std::time::UNIX_EPOCH;
     let base = match path {

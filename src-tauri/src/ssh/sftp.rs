@@ -226,6 +226,42 @@ impl SftpManager {
             .map_err(|e| SshError::Channel(format!("mkdir {path}: {e}")))
     }
 
+    /// 빈 파일 생성 (touch). 이미 있으면 truncate.
+    pub async fn touch(&self, host_id: &str, path: &str) -> Result<(), SshError> {
+        use tokio::io::AsyncWriteExt;
+        let conn = self.conn(host_id).await?;
+        let mut f = conn
+            .sftp
+            .create(path)
+            .await
+            .map_err(|e| SshError::Channel(format!("touch {path}: {e}")))?;
+        let _ = f.flush().await;
+        let _ = f.shutdown().await;
+        Ok(())
+    }
+
+    /// 텍스트 미리보기용. 최대 max_bytes까지 읽어 UTF-8(lossy)로 반환 (바이너리도 안전).
+    pub async fn read_text(
+        &self,
+        host_id: &str,
+        path: &str,
+        max_bytes: u64,
+    ) -> Result<String, SshError> {
+        use tokio::io::AsyncReadExt;
+        let conn = self.conn(host_id).await?;
+        let rf = conn
+            .sftp
+            .open(path)
+            .await
+            .map_err(|e| SshError::Channel(format!("open {path}: {e}")))?;
+        let mut buf = Vec::new();
+        rf.take(max_bytes)
+            .read_to_end(&mut buf)
+            .await
+            .map_err(|e| SshError::Io(format!("read {path}: {e}")))?;
+        Ok(String::from_utf8_lossy(&buf).to_string())
+    }
+
     pub async fn disconnect(&self, host_id: &str) {
         self.conns.lock().await.remove(host_id);
     }

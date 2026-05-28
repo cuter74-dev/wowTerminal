@@ -37,6 +37,15 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
   const [error, setError] = useState<string | null>(null);
   const [remoteBusy, setRemoteBusy] = useState(true);
   const [transfer, setTransfer] = useState<string | null>(null);
+  const [menu, setMenu] = useState<{
+    entry: FileEntry;
+    x: number;
+    y: number;
+    side: "local" | "remote";
+  } | null>(null);
+  const [preview, setPreview] = useState<{ name: string; content: string } | null>(
+    null,
+  );
 
   const loadLocal = useCallback(async (path?: string) => {
     try {
@@ -138,6 +147,96 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     }
   }
 
+  async function touchRemote() {
+    if (!remote) return;
+    const name = prompt("새 원격 파일 이름:");
+    if (!name) return;
+    try {
+      await invoke("sftp_touch", { hostId, path: joinPosix(remote.cwd, name) });
+      await loadRemote(remote.cwd);
+    } catch (e) {
+      setError(`새 파일: ${String(e)}`);
+    }
+  }
+
+  async function renameRemote(entry: FileEntry) {
+    if (!remote) return;
+    const next = prompt("새 이름:", entry.name);
+    if (!next || next === entry.name) return;
+    try {
+      await invoke("sftp_rename", {
+        hostId,
+        from: joinPosix(remote.cwd, entry.name),
+        to: joinPosix(remote.cwd, next),
+      });
+      await loadRemote(remote.cwd);
+    } catch (e) {
+      setError(`이름 변경: ${String(e)}`);
+    }
+  }
+
+  async function previewRemote(entry: FileEntry) {
+    if (!remote || entry.is_dir) return;
+    try {
+      const content = await invoke<string>("sftp_read_text", {
+        hostId,
+        path: joinPosix(remote.cwd, entry.name),
+      });
+      setPreview({ name: entry.name, content });
+    } catch (e) {
+      setError(`미리보기: ${String(e)}`);
+    }
+  }
+
+  async function deleteRemoteEntry(entry: FileEntry) {
+    if (!remote) return;
+    if (!confirm(`원격 '${entry.name}'을(를) 삭제할까요?`)) return;
+    try {
+      await invoke("sftp_remove", {
+        hostId,
+        path: joinPosix(remote.cwd, entry.name),
+        isDir: entry.is_dir,
+      });
+      await loadRemote(remote.cwd);
+    } catch (e) {
+      setError(`삭제: ${String(e)}`);
+    }
+  }
+
+  async function uploadEntry(entry: FileEntry) {
+    if (entry.is_dir || !local || !remote) return;
+    setTransfer(`↑ ${entry.name}`);
+    try {
+      await invoke("sftp_upload", {
+        hostId,
+        localPath: joinPosix(local.cwd, entry.name),
+        remoteDir: remote.cwd,
+      });
+      await loadRemote(remote.cwd);
+    } catch (e) {
+      setError(`업로드: ${String(e)}`);
+    } finally {
+      setTransfer(null);
+    }
+  }
+
+  async function downloadEntry(entry: FileEntry) {
+    if (entry.is_dir || !local || !remote) return;
+    setTransfer(`↓ ${entry.name}`);
+    try {
+      await invoke("sftp_download", {
+        hostId,
+        remotePath: joinPosix(remote.cwd, entry.name),
+        localDir: local.cwd,
+      });
+      await loadLocal(local.cwd);
+    } catch (e) {
+      setError(`다운로드: ${String(e)}`);
+    } finally {
+      setTransfer(null);
+    }
+  }
+
   return (
     <div
       onClick={onClose}
@@ -184,6 +283,9 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             <button onClick={() => void mkdirRemote()} style={toolBtnStyle} title="원격 새 폴더">
               + 폴더(원격)
             </button>
+            <button onClick={() => void touchRemote()} style={toolBtnStyle} title="원격 새 파일">
+              + 파일(원격)
+            </button>
             <button
               onClick={() => void removeRemote()}
               disabled={!remoteSel}
@@ -224,6 +326,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
               setLocalSel(null);
               void loadLocal(p);
             }}
+            onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "local" })}
             joinPath={(cwd, name) => joinPosix(cwd, name)}
           />
           <div
@@ -272,8 +375,210 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
               setRemoteSel(null);
               void loadRemote(p);
             }}
+            onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "remote" })}
             joinPath={(cwd, name) => joinPosix(cwd, name)}
           />
+        </div>
+
+        {menu && (
+          <ContextMenu
+            x={menu.x}
+            y={menu.y}
+            side={menu.side}
+            entry={menu.entry}
+            onDismiss={() => setMenu(null)}
+            onPreview={() => void previewRemote(menu.entry)}
+            onDownload={() => void downloadEntry(menu.entry)}
+            onUpload={() => void uploadEntry(menu.entry)}
+            onRename={() => void renameRemote(menu.entry)}
+            onDelete={() => void deleteRemoteEntry(menu.entry)}
+          />
+        )}
+
+        {preview && (
+          <PreviewModal
+            name={preview.name}
+            content={preview.content}
+            onClose={() => setPreview(null)}
+          />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ContextMenu({
+  x,
+  y,
+  side,
+  entry,
+  onDismiss,
+  onPreview,
+  onDownload,
+  onUpload,
+  onRename,
+  onDelete,
+}: {
+  x: number;
+  y: number;
+  side: "local" | "remote";
+  entry: FileEntry;
+  onDismiss: () => void;
+  onPreview: () => void;
+  onDownload: () => void;
+  onUpload: () => void;
+  onRename: () => void;
+  onDelete: () => void;
+}) {
+  useEffect(() => {
+    const close = () => onDismiss();
+    const t = setTimeout(() => {
+      window.addEventListener("mousedown", close);
+      window.addEventListener("keydown", close);
+    }, 0);
+    return () => {
+      clearTimeout(t);
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", close);
+    };
+  }, [onDismiss]);
+
+  const items: Array<{ label: string; action: () => void; disabled?: boolean }> = [];
+  if (side === "remote") {
+    items.push({ label: "미리보기", action: onPreview, disabled: entry.is_dir });
+    items.push({ label: "← 다운로드", action: onDownload, disabled: entry.is_dir });
+    items.push({ label: "이름 변경", action: onRename });
+    items.push({ label: "삭제", action: onDelete });
+  } else {
+    items.push({ label: "→ 업로드", action: onUpload, disabled: entry.is_dir });
+  }
+
+  const mx = Math.min(x, window.innerWidth - 180);
+  const my = Math.min(y, window.innerHeight - 160);
+  return (
+    <div
+      style={{
+        position: "fixed",
+        left: mx,
+        top: my,
+        width: 160,
+        background: "#26262d",
+        border: "1px solid #111",
+        borderRadius: 4,
+        boxShadow: "0 6px 20px rgba(0,0,0,0.45)",
+        padding: "4px 0",
+        zIndex: 1100,
+        fontSize: 12,
+      }}
+    >
+      {items.map((it, i) => (
+        <button
+          key={i}
+          disabled={it.disabled}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            if (!it.disabled) {
+              it.action();
+              onDismiss();
+            }
+          }}
+          style={{
+            display: "block",
+            width: "100%",
+            textAlign: "left",
+            padding: "6px 12px",
+            background: "transparent",
+            border: "none",
+            color: it.disabled ? "#666" : "#dcdcdc",
+            cursor: it.disabled ? "not-allowed" : "pointer",
+            fontSize: 12,
+          }}
+          onMouseEnter={(e) => {
+            if (!it.disabled)
+              (e.currentTarget as HTMLButtonElement).style.background = "#094771";
+          }}
+          onMouseLeave={(e) =>
+            ((e.currentTarget as HTMLButtonElement).style.background = "transparent")
+          }
+        >
+          {it.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function PreviewModal({
+  name,
+  content,
+  onClose,
+}: {
+  name: string;
+  content: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "70vw",
+          height: "75vh",
+          background: "#1e1e24",
+          border: "1px solid #333",
+          borderRadius: 8,
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        <header
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "8px 14px",
+            borderBottom: "1px solid #2a2a30",
+            background: "#23232a",
+            color: "#e6e6e6",
+          }}
+        >
+          <strong style={{ fontSize: 13 }}>📄 {name}</strong>
+          <button
+            onClick={onClose}
+            style={{ background: "transparent", border: "none", color: "#ccc", cursor: "pointer", fontSize: 15 }}
+          >
+            ×
+          </button>
+        </header>
+        <pre
+          style={{
+            flex: 1,
+            margin: 0,
+            padding: 14,
+            overflow: "auto",
+            fontFamily: "Menlo, Consolas, monospace",
+            fontSize: 12,
+            color: "#dcdcdc",
+            whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+          }}
+        >
+          {content || "(빈 파일)"}
+        </pre>
+        <div style={{ padding: "4px 14px", fontSize: 10, color: "#789", borderTop: "1px solid #2a2a30" }}>
+          최대 256KB 미리보기 · 바이너리는 깨져 보일 수 있음
         </div>
       </div>
     </div>
@@ -287,6 +592,7 @@ function Panel({
   selected,
   onSelect,
   onNavigate,
+  onContextMenu,
   joinPath,
 }: {
   title: string;
@@ -295,6 +601,7 @@ function Panel({
   selected: FileEntry | null;
   onSelect: (e: FileEntry) => void;
   onNavigate: (path: string) => void;
+  onContextMenu: (e: FileEntry, x: number, y: number) => void;
   joinPath: (cwd: string, name: string) => string;
 }) {
   const entries = listing
@@ -360,6 +667,11 @@ function Panel({
                   <tr
                     key={e.name}
                     onClick={() => onSelect(e)}
+                    onContextMenu={(ev) => {
+                      ev.preventDefault();
+                      onSelect(e);
+                      onContextMenu(e, ev.clientX, ev.clientY);
+                    }}
                     onDoubleClick={() =>
                       e.is_dir && onNavigate(joinPath(listing.cwd, e.name))
                     }
