@@ -92,6 +92,13 @@ export interface Listing {
   entries: FileEntry[];
 }
 
+export interface SearchHit {
+  path: string;
+  name: string;
+  is_dir: boolean;
+  size: number;
+}
+
 export type TerminalSource =
   | { kind: "local" }
   | { kind: "ssh"; hostId: string };

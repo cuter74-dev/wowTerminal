@@ -106,6 +106,7 @@ pub fn run() {
             ssh::commands::sftp_touch,
             ssh::commands::sftp_read_text,
             ssh::commands::sftp_chmod,
+            ssh::commands::sftp_search,
             ssh::commands::local_list_dir,
             windows::open_detached_window,
             windows::detached_init,

@@ -26,6 +26,14 @@ pub struct FileEntry {
     pub permissions: Option<u32>,
 }
 
+#[derive(Serialize, Clone)]
+pub struct SearchHit {
+    pub path: String,
+    pub name: String,
+    pub is_dir: bool,
+    pub size: u64,
+}
+
 struct SftpConn {
     sftp: SftpSession,
     /// 연결 유지용 — drop되면 SSH 세션이 닫힌다.
@@ -278,5 +286,60 @@ impl SftpManager {
 
     pub async fn disconnect(&self, host_id: &str) {
         self.conns.lock().await.remove(host_id);
+    }
+
+    /// root에서 이름에 query(대소문자 무시 substring)가 포함된 항목을 검색.
+    /// recursive면 하위 디렉토리도 BFS로 탐색 (깊이/결과 수 제한). 권한 없는 디렉토리는 skip.
+    pub async fn search(
+        &self,
+        host_id: &str,
+        root: &str,
+        query: &str,
+        recursive: bool,
+        max_results: usize,
+    ) -> Result<Vec<SearchHit>, SshError> {
+        let conn = self.conn(host_id).await?;
+        let q = query.to_lowercase();
+        let max_depth = if recursive { 8 } else { 0 };
+        let mut hits: Vec<SearchHit> = Vec::new();
+        let mut queue: Vec<(String, usize)> = vec![(root.to_string(), 0)];
+
+        while let Some((dir, depth)) = queue.pop() {
+            if hits.len() >= max_results {
+                break;
+            }
+            let entries = match conn.sftp.read_dir(&dir).await {
+                Ok(e) => e,
+                Err(_) => continue, // 권한 없는 디렉토리 등은 건너뜀
+            };
+            for entry in entries {
+                let name = entry.file_name();
+                if name == "." || name == ".." {
+                    continue;
+                }
+                let meta = entry.metadata();
+                let is_dir = meta.is_dir();
+                let path = if dir.ends_with('/') {
+                    format!("{dir}{name}")
+                } else {
+                    format!("{dir}/{name}")
+                };
+                if !q.is_empty() && name.to_lowercase().contains(&q) {
+                    hits.push(SearchHit {
+                        path: path.clone(),
+                        name: name.clone(),
+                        is_dir,
+                        size: meta.size.unwrap_or(0),
+                    });
+                    if hits.len() >= max_results {
+                        break;
+                    }
+                }
+                if is_dir && depth < max_depth {
+                    queue.push((path, depth + 1));
+                }
+            }
+        }
+        Ok(hits)
     }
 }

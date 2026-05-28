@@ -15,7 +15,7 @@ use super::keys::{self, KeyStore};
 use super::known_hosts::{KnownHostEntry, KnownHostsStore};
 use super::manager::{SshError, SshManager};
 use super::session::{ResolvedAuth, SessionId};
-use super::sftp::{FileEntry, SftpManager};
+use super::sftp::{FileEntry, SearchHit, SftpManager};
 use super::store::HostStore;
 use super::tags::TagStore;
 use super::types::{Group, SshAuthMethod, SshHost, SshKeyEntry, Tag};
@@ -577,6 +577,22 @@ pub async fn sftp_read_text(
     state
         .sftp
         .read_text(&host_id, &path, 256 * 1024)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 원격 파일 검색. root에서 이름에 query가 포함된 항목을 찾는다 (최대 500개).
+#[tauri::command]
+pub async fn sftp_search(
+    host_id: String,
+    root: String,
+    query: String,
+    recursive: bool,
+    state: State<'_, SshState>,
+) -> Result<Vec<SearchHit>, String> {
+    state
+        .sftp
+        .search(&host_id, &root, &query, recursive, 500)
         .await
         .map_err(|e| e.to_string())
 }

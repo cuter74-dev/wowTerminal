@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { FileEntry, Listing } from "../types";
+import { FileEntry, Listing, SearchHit } from "../types";
 
 interface Props {
   hostId: string;
@@ -51,6 +51,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     null,
   );
   const [permEdit, setPermEdit] = useState<FileEntry | null>(null);
+  const [showSearch, setShowSearch] = useState(false);
 
   const loadLocal = useCallback(async (path?: string) => {
     try {
@@ -326,6 +327,14 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
               + 파일(원격)
             </button>
             <button
+              onClick={() => setShowSearch(true)}
+              disabled={!remote}
+              style={toolBtnStyle}
+              title="원격 검색 (S-031)"
+            >
+              🔍 검색(원격)
+            </button>
+            <button
               onClick={() => void removeRemote()}
               disabled={!remoteSel}
               style={{ ...toolBtnStyle, opacity: remoteSel ? 1 : 0.5 }}
@@ -442,6 +451,20 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             onApply={(mode) => {
               void applyChmod(permEdit, mode);
               setPermEdit(null);
+            }}
+          />
+        )}
+
+        {showSearch && remote && (
+          <SearchModal
+            hostId={hostId}
+            root={remote.cwd}
+            onClose={() => setShowSearch(false)}
+            onNavigate={(path, isDir) => {
+              const target = isDir ? path : joinPosix(path, "..");
+              setRemoteSel(null);
+              void loadRemote(target);
+              setShowSearch(false);
             }}
           />
         )}
@@ -855,6 +878,163 @@ function PermissionsModal({
             적용 (chmod {octal})
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function SearchModal({
+  hostId,
+  root,
+  onClose,
+  onNavigate,
+}: {
+  hostId: string;
+  root: string;
+  onClose: () => void;
+  onNavigate: (path: string, isDir: boolean) => void;
+}) {
+  const [query, setQuery] = useState("");
+  const [recursive, setRecursive] = useState(true);
+  const [hits, setHits] = useState<SearchHit[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function run() {
+    if (!query.trim()) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const r = await invoke<SearchHit[]>("sftp_search", {
+        hostId,
+        root,
+        query: query.trim(),
+        recursive,
+      });
+      setHits(r);
+    } catch (e) {
+      setErr(String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: "60vw",
+          height: "70vh",
+          background: "#1e1e24",
+          border: "1px solid #333",
+          borderRadius: 8,
+          color: "#e6e6e6",
+          display: "flex",
+          flexDirection: "column",
+          overflow: "hidden",
+        }}
+      >
+        <header style={{ padding: "10px 14px", borderBottom: "1px solid #2a2a30", background: "#23232a" }}>
+          <strong style={{ fontSize: 13 }}>🔍 원격 검색</strong>
+          <span style={{ fontSize: 11, color: "#789", marginLeft: 8 }}>{root} 이하</span>
+        </header>
+        <div style={{ display: "flex", gap: 6, padding: 10, alignItems: "center" }}>
+          <input
+            autoFocus
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void run();
+            }}
+            placeholder="파일 이름 (대소문자 무시)"
+            style={{
+              flex: 1,
+              background: "#101015",
+              border: "1px solid #444",
+              color: "#fff",
+              borderRadius: 4,
+              padding: "6px 8px",
+              fontSize: 12,
+            }}
+          />
+          <label style={{ fontSize: 11, color: "#9aa", display: "flex", alignItems: "center", gap: 4 }}>
+            <input
+              type="checkbox"
+              checked={recursive}
+              onChange={(e) => setRecursive(e.target.checked)}
+            />
+            하위 포함
+          </label>
+          <button onClick={() => void run()} disabled={busy || !query.trim()} style={toolBtnStyle}>
+            {busy ? "검색 중..." : "검색"}
+          </button>
+        </div>
+        {err && <div style={{ padding: "0 14px 6px", color: "#fdd", fontSize: 11 }}>{err}</div>}
+        <div style={{ flex: 1, overflowY: "auto", padding: "0 6px 8px" }}>
+          {hits === null && (
+            <div style={{ color: "#789", textAlign: "center", padding: 24, fontSize: 12 }}>
+              검색어를 입력하고 Enter를 누르세요.
+            </div>
+          )}
+          {hits !== null && hits.length === 0 && (
+            <div style={{ color: "#789", textAlign: "center", padding: 24, fontSize: 12 }}>
+              결과 없음
+            </div>
+          )}
+          {hits?.map((h) => (
+            <div
+              key={h.path}
+              onDoubleClick={() => onNavigate(h.path, h.is_dir)}
+              title={`더블클릭: 위치 열기\n${h.path}`}
+              style={{
+                display: "flex",
+                gap: 8,
+                padding: "5px 10px",
+                cursor: "pointer",
+                borderRadius: 3,
+              }}
+              onMouseEnter={(e) =>
+                ((e.currentTarget as HTMLDivElement).style.background = "#26262e")
+              }
+              onMouseLeave={(e) =>
+                ((e.currentTarget as HTMLDivElement).style.background = "transparent")
+              }
+            >
+              <span>{h.is_dir ? "📁" : "📄"}</span>
+              <span style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 12 }}>{h.name}</div>
+                <div
+                  style={{
+                    fontSize: 10,
+                    color: "#789",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {h.path}
+                </div>
+              </span>
+            </div>
+          ))}
+        </div>
+        {hits !== null && hits.length >= 500 && (
+          <div style={{ padding: "4px 14px", fontSize: 10, color: "#fa8", borderTop: "1px solid #2a2a30" }}>
+            결과가 500개로 잘렸습니다. 검색어를 더 구체적으로.
+          </div>
+        )}
       </div>
     </div>
   );
