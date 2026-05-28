@@ -36,7 +36,12 @@ impl OpenAiCompatibleBackend {
     }
 
     fn chat_url(&self) -> String {
-        format!("{}/chat/completions", self.api_base)
+        // 사용자가 api_base에 `/chat/completions`까지 넣어둔 경우 중복 부착 방지.
+        if self.api_base.ends_with("/chat/completions") {
+            self.api_base.clone()
+        } else {
+            format!("{}/chat/completions", self.api_base)
+        }
     }
 }
 

@@ -6,10 +6,12 @@
 //! - 자세한 설계는 `docs/design/ssh-manager.md` 참고.
 
 pub mod commands;
+pub mod groups;
 pub mod known_hosts;
 pub mod manager;
 pub mod session;
 pub mod store;
+pub mod tags;
 pub mod types;
 
 pub use known_hosts::{KnownHostEntry, KnownHostsStore};

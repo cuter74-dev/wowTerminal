@@ -138,7 +138,25 @@ impl SshSession {
         };
 
         let config = Arc::new(client::Config::default());
-        let connect_result = client::connect(config, (host, port), handler).await;
+
+        // hostname을 명시적으로 resolve. tokio::TcpStream::connect((host, port))는
+        // 환경에 따라 IPv6 우선/IPv4 fallback이 깔끔하지 않아 ENETUNREACH가 자주 발생.
+        // IPv4를 먼저 시도하고 실패 시 IPv6로 폴백한다.
+        // 일부 macOS 환경에서 hostname을 직접 받는 ToSocketAddrs 경로가 IPv6/IPv4 fallback을
+        // 깔끔히 처리하지 못해 ENETUNREACH가 발생하는 케이스가 있었다. 명시적으로 resolve해
+        // IPv4를 먼저 시도하도록 정렬한 뒤 SocketAddr slice를 전달.
+        let mut all_addrs: Vec<std::net::SocketAddr> = tokio::net::lookup_host((host, port))
+            .await
+            .map_err(|e| SshError::Connect(format!("resolve {host}:{port}: {e}")))?
+            .collect();
+        if all_addrs.is_empty() {
+            return Err(SshError::Connect(format!(
+                "no addresses resolved for {host}:{port}"
+            )));
+        }
+        all_addrs.sort_by_key(|a| if a.is_ipv4() { 0 } else { 1 });
+
+        let connect_result = client::connect(config, &all_addrs[..], handler).await;
 
         let mut handle = match connect_result {
             Ok(h) => h,
@@ -167,6 +185,7 @@ impl SshSession {
                     .map_err(|e| SshError::Auth(e.to_string()))?
                     .success()
             }
+            ResolvedAuth::Agent => authenticate_with_agent(&mut handle, user).await?,
         };
         if !auth_ok {
             return Err(SshError::Auth("authentication rejected".into()));
@@ -250,6 +269,50 @@ impl SshSession {
     }
 }
 
+/// $SSH_AUTH_SOCK의 ssh-agent에 위임해 인증을 시도한다. 등록된 키를 차례로 시도하고
+/// 첫 성공이면 통과.
+async fn authenticate_with_agent(
+    handle: &mut client::Handle<TofuHandler>,
+    user: &str,
+) -> Result<bool, SshError> {
+    use russh::keys::agent::client::AgentClient;
+    use russh::keys::agent::AgentIdentity;
+
+    let sock_path = std::env::var("SSH_AUTH_SOCK")
+        .map_err(|_| SshError::Auth("SSH_AUTH_SOCK not set — ssh-agent unavailable".into()))?;
+    let stream = tokio::net::UnixStream::connect(&sock_path)
+        .await
+        .map_err(|e| SshError::Auth(format!("agent connect: {e}")))?;
+    let mut agent = AgentClient::connect(stream);
+
+    let identities = agent
+        .request_identities()
+        .await
+        .map_err(|e| SshError::Auth(format!("agent identities: {e}")))?;
+
+    if identities.is_empty() {
+        return Err(SshError::Auth(
+            "ssh-agent has no identities — run `ssh-add` to load a key".into(),
+        ));
+    }
+
+    for identity in identities {
+        let pubkey = match identity {
+            AgentIdentity::PublicKey { key, .. } => key,
+            // 인증서 자격증명은 v1에서 미지원 — 건너뛰고 다음 identity 시도.
+            AgentIdentity::Certificate { .. } => continue,
+        };
+        let result = handle
+            .authenticate_publickey_with(user, pubkey, None, &mut agent)
+            .await
+            .map_err(|e| SshError::Auth(format!("agent auth: {e}")))?;
+        if result.success() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 fn map_outcome_to_error(host: &str, port: u16, outcome: TofuOutcome) -> Option<SshError> {
     match outcome {
         TofuOutcome::Mismatch {
@@ -278,10 +341,12 @@ fn map_outcome_to_error(host: &str, port: u16, outcome: TofuOutcome) -> Option<S
 }
 
 /// `SshAuthMethod` + 비밀(`SecretStore`에서 조회한 평문) 조합으로 만들어지는
-/// "실제로 russh가 받아먹는" 인증 자료.
+/// "실제로 russh가 받아먹는" 인증 자료. Agent variant는 connect 단계에서 $SSH_AUTH_SOCK 통해
+/// ssh-agent에 위임된다 — secret store unlock 없이도 동작.
 pub enum ResolvedAuth {
     Password(String),
     PrivateKey(PrivateKey),
+    Agent,
 }
 
 impl std::fmt::Debug for ResolvedAuth {
@@ -289,6 +354,7 @@ impl std::fmt::Debug for ResolvedAuth {
         match self {
             ResolvedAuth::Password(_) => f.write_str("ResolvedAuth::Password(<redacted>)"),
             ResolvedAuth::PrivateKey(_) => f.write_str("ResolvedAuth::PrivateKey(<redacted>)"),
+            ResolvedAuth::Agent => f.write_str("ResolvedAuth::Agent"),
         }
     }
 }
@@ -323,8 +389,10 @@ impl ResolvedAuth {
                 };
                 Ok(ResolvedAuth::PrivateKey(key))
             }
-            SshAuthMethod::Agent => Err(SshError::Auth(
-                "ssh-agent delegation not yet implemented".into(),
+            SshAuthMethod::Agent => Ok(ResolvedAuth::Agent),
+            SshAuthMethod::PasswordPrompt => Err(SshError::Auth(
+                "PasswordPrompt must be resolved with explicit password via ssh_connect args"
+                    .into(),
             )),
         }
     }
@@ -547,13 +615,10 @@ mod tests {
     }
 
     #[test]
-    fn resolved_auth_agent_not_implemented() {
+    fn resolved_auth_agent_returns_agent_variant() {
         let m = SshAuthMethod::Agent;
-        let err = ResolvedAuth::from_method(&m, None, None, None).unwrap_err();
-        match err {
-            SshError::Auth(msg) => assert!(msg.contains("not yet implemented")),
-            other => panic!("expected Auth, got {:?}", other),
-        }
+        let auth = ResolvedAuth::from_method(&m, None, None, None).unwrap();
+        assert!(matches!(auth, ResolvedAuth::Agent));
     }
 
     #[test]

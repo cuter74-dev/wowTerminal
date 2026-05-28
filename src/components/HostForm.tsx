@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { SshAuthMethod, SshHost } from "../types";
+import { Group, SshAuthMethod, SshHost, Tag } from "../types";
 
 interface Props {
   initial: SshHost | null;
@@ -8,7 +8,7 @@ interface Props {
   onSaved: () => void;
 }
 
-type AuthKind = "agent" | "password" | "private_key";
+type AuthKind = "agent" | "password" | "password_prompt" | "private_key";
 
 export function HostForm({ initial, onCancel, onSaved }: Props) {
   const [name, setName] = useState(initial?.name ?? "");
@@ -30,8 +30,34 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
       ? (initial.auth.passphrase_secret_id ?? "")
       : "",
   );
+  const [groupId, setGroupId] = useState<string | null>(initial?.group_id ?? null);
+  const [hostTags, setHostTags] = useState<string[]>(initial?.tags ?? []);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [tags, setTags] = useState<Tag[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        const [g, t] = await Promise.all([
+          invoke<Group[]>("ssh_list_groups"),
+          invoke<Tag[]>("ssh_list_tags"),
+        ]);
+        setGroups(g);
+        setTags(t);
+      } catch (e) {
+        // 비치명적
+        console.error("load groups/tags failed", e);
+      }
+    })();
+  }, []);
+
+  function toggleTag(name: string) {
+    setHostTags((prev) =>
+      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
+    );
+  }
 
   async function handleSave() {
     setError(null);
@@ -42,6 +68,8 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
     let auth: SshAuthMethod;
     if (authKind === "agent") {
       auth = { type: "agent" };
+    } else if (authKind === "password_prompt") {
+      auth = { type: "password_prompt" };
     } else if (authKind === "password") {
       if (!secretId) {
         setError("password secret id가 필요합니다.");
@@ -68,7 +96,8 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
       port,
       user,
       auth,
-      tags: initial?.tags ?? [],
+      tags: hostTags,
+      group_id: groupId,
     };
 
     try {
@@ -98,7 +127,9 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          width: 380,
+          width: 420,
+          maxHeight: "92vh",
+          overflowY: "auto",
           background: "#2d2d30",
           color: "#cccccc",
           padding: 20,
@@ -157,7 +188,8 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
             style={inputStyle}
           >
             <option value="agent">SSH Agent (위임)</option>
-            <option value="password">Password</option>
+            <option value="password_prompt">Password (접속 시 입력)</option>
+            <option value="password">Password (Secret Store)</option>
             <option value="private_key">Private Key</option>
           </select>
         </Field>
@@ -193,6 +225,54 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
             </Field>
           </>
         )}
+
+        <Field label="Group">
+          <select
+            value={groupId ?? ""}
+            onChange={(e) =>
+              setGroupId(e.target.value === "" ? null : e.target.value)
+            }
+            style={inputStyle}
+          >
+            <option value="">(미분류)</option>
+            {groups.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+
+        <Field label="Tags">
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {tags.length === 0 && (
+              <span style={{ color: "#666", fontSize: 11 }}>
+                등록된 태그 없음 — 사이드바의 그룹/태그 관리로 추가
+              </span>
+            )}
+            {tags.map((t) => {
+              const active = hostTags.includes(t.name);
+              return (
+                <button
+                  key={t.id}
+                  type="button"
+                  onClick={() => toggleTag(t.name)}
+                  style={{
+                    background: active ? t.color : "transparent",
+                    color: active ? "#fff" : t.color,
+                    border: `1px solid ${t.color}`,
+                    borderRadius: 12,
+                    padding: "2px 10px",
+                    fontSize: 11,
+                    cursor: "pointer",
+                  }}
+                >
+                  #{t.name}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
 
         {error && (
           <div style={{ color: "#fdd", fontSize: 12 }}>{error}</div>

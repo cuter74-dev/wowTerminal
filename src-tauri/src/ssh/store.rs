@@ -108,6 +108,7 @@ mod tests {
             user: "root".into(),
             auth: SshAuthMethod::Agent,
             tags: vec!["prod".into()],
+            group_id: None,
         }
     }
 

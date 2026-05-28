@@ -5,6 +5,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
+import { registerTerminal, unregisterTerminal } from "../terminalRegistry";
 
 type OutputPayload = {
   session_id: string;
@@ -33,7 +34,7 @@ type Commands = {
   spawnArgs: (cols: number, rows: number) => Record<string, unknown>;
 };
 
-function commandsFor(source: TerminalSource): Commands {
+function commandsFor(source: TerminalSource, password?: string): Commands {
   if (source.kind === "local") {
     return {
       spawnCmd: "pty_spawn",
@@ -51,7 +52,12 @@ function commandsFor(source: TerminalSource): Commands {
     killCmd: "ssh_kill",
     outputEvent: "ssh:output",
     spawnArgs: (cols, rows) => ({
-      args: { hostId: source.hostId, cols, rows },
+      args: {
+        hostId: source.hostId,
+        cols,
+        rows,
+        ...(password !== undefined ? { password } : {}),
+      },
     }),
   };
 }
@@ -60,11 +66,24 @@ interface Props {
   source: TerminalSource;
   /** SSH spawn에서 구조화된 에러를 받으면 호출. 모달 띄우는 용도. */
   onSshError?: (err: SshConnectError) => void;
+  /** SSH 연결 성공 시 한 번 호출. App이 password 저장 여부 결정 등에 사용. */
+  onSshConnected?: () => void;
   /** 재시도 트리거. 값이 바뀌면 effect가 다시 실행되어 새로 spawn. */
   retryNonce?: number;
+  /** PasswordPrompt 인증의 즉석 password. 모달 입력 후 retryNonce와 함께 전달. */
+  password?: string;
+  /** 이 터미널이 속한 pane(leaf) id. terminalRegistry 등록 키로 사용. */
+  paneId?: string;
 }
 
-export function Terminal({ source, onSshError, retryNonce = 0 }: Props) {
+export function Terminal({
+  source,
+  onSshError,
+  onSshConnected,
+  retryNonce = 0,
+  password,
+  paneId,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const sourceKey =
@@ -84,7 +103,7 @@ export function Terminal({ source, onSshError, retryNonce = 0 }: Props) {
     term.open(containerRef.current);
     fit.fit();
 
-    const cmds = commandsFor(source);
+    const cmds = commandsFor(source, password);
     let sessionId: string | null = null;
     let unlistenOutput: UnlistenFn | null = null;
     let disposed = false;
@@ -110,6 +129,29 @@ export function Terminal({ source, onSshError, retryNonce = 0 }: Props) {
     });
     ro.observe(containerRef.current);
 
+    // AIPanel이 이 패널의 출력을 컨텍스트로 가져가거나 명령을 주입할 수 있도록 등록.
+    if (paneId) {
+      registerTerminal(paneId, {
+        getRecentText: (maxLines = 50) => {
+          const buf = term.buffer.active;
+          const lines: string[] = [];
+          const start = Math.max(0, buf.length - maxLines);
+          for (let i = start; i < buf.length; i++) {
+            const line = buf.getLine(i);
+            if (line) lines.push(line.translateToString(true));
+          }
+          return lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+        },
+        sendInput: (text) => {
+          if (!sessionId) return;
+          void invoke(cmds.writeCmd, {
+            sessionId,
+            dataB64: bytesToBase64(encoder.encode(text)),
+          });
+        },
+      });
+    }
+
     (async () => {
       try {
         unlistenOutput = await listen<OutputPayload>(cmds.outputEvent, (event) => {
@@ -123,6 +165,9 @@ export function Terminal({ source, onSshError, retryNonce = 0 }: Props) {
           cmds.spawnCmd,
           cmds.spawnArgs(term.cols, term.rows),
         );
+        if (source.kind === "ssh") {
+          onSshConnected?.();
+        }
       } catch (err) {
         if (source.kind === "ssh" && isSshConnectError(err)) {
           if (err.kind === "host_key_mismatch") {
@@ -139,6 +184,13 @@ export function Terminal({ source, onSshError, retryNonce = 0 }: Props) {
             onSshError?.(err);
             return;
           }
+          if (err.kind === "password_required") {
+            term.writeln(
+              `\r\n\x1b[33m[ssh] password required for ${err.user}@${err.host}:${err.port} — enter password in dialog\x1b[0m`,
+            );
+            onSshError?.(err);
+            return;
+          }
           term.writeln(`\r\n[ssh] ${err.message}`);
           onSshError?.(err);
           return;
@@ -149,6 +201,7 @@ export function Terminal({ source, onSshError, retryNonce = 0 }: Props) {
 
     return () => {
       disposed = true;
+      if (paneId) unregisterTerminal(paneId);
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();

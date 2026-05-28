@@ -45,6 +45,14 @@ pub enum SshError {
         algorithm: String,
         fingerprint: String,
     },
+
+    /// password 즉석 입력이 필요. UI가 모달로 받아 retry로 다시 ssh_connect 호출.
+    #[error("password required for {user}@{host}:{port}")]
+    PasswordRequired {
+        host: String,
+        port: u16,
+        user: String,
+    },
 }
 
 pub struct SshManager {

@@ -2,10 +2,15 @@ pub mod ai;
 pub mod pty;
 pub mod secrets;
 pub mod ssh;
+pub mod windows;
+
+use std::sync::Arc;
 
 use ai::registry::AiRegistry;
 use pty::commands::PtyState;
+use secrets::{KeyringStore, SecretStore};
 use tauri::Manager;
+use windows::DetachedRegistry;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -17,6 +22,7 @@ pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(AiRegistry::new())
+        .manage(DetachedRegistry::default())
         .setup(|app| {
             let pty_manager = pty::commands::build_manager(&app.handle());
             app.manage(PtyState(pty_manager));
@@ -24,10 +30,33 @@ pub fn run() {
             let config_dir = dirs::config_dir()
                 .map(|p| p.join("wowterminal"))
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
+
+            // AI backends.toml 로드 후 registry에 등록.
+            let ai_state = ai::commands::build_state(config_dir.join("backends.toml"));
+            let registry = app.state::<AiRegistry>().inner().clone();
+            let state_for_bootstrap = ai::commands::AiState {
+                backends: ai::store::BackendsStore::new(config_dir.join("backends.toml")),
+                secrets: ai_state.secrets.clone(),
+            };
+            tauri::async_runtime::spawn(async move {
+                ai::commands::bootstrap_registry(&state_for_bootstrap, &registry).await;
+            });
+            app.manage(ai_state);
             let hosts_path = config_dir.join("hosts.toml");
             let known_hosts_path = config_dir.join("known_hosts.toml");
-            let ssh_state =
-                ssh::commands::build_state(&app.handle(), hosts_path, known_hosts_path);
+            let groups_path = config_dir.join("groups.toml");
+            let tags_path = config_dir.join("tags.toml");
+            let mut ssh_state = ssh::commands::build_state(
+                &app.handle(),
+                hosts_path,
+                known_hosts_path,
+                groups_path,
+                tags_path,
+            );
+            // OS 키링을 기본 secret store로 활성화. macOS는 Keychain, Linux는 Secret Service,
+            // Windows는 Credential Manager. KeyringStore::save 시 OS가 사용자에게 권한 prompt 가능.
+            let keyring: Arc<dyn SecretStore> = Arc::new(KeyringStore::new("wowterminal"));
+            ssh_state.secrets = Some(keyring);
             app.manage(ssh_state);
             Ok(())
         })
@@ -35,6 +64,9 @@ pub fn run() {
             greet,
             ai::commands::ai_list_backends,
             ai::commands::ai_complete,
+            ai::commands::ai_list_backend_configs,
+            ai::commands::ai_save_backend,
+            ai::commands::ai_delete_backend,
             pty::commands::pty_spawn,
             pty::commands::pty_write,
             pty::commands::pty_resize,
@@ -50,6 +82,15 @@ pub fn run() {
             ssh::commands::ssh_forget_known_host,
             ssh::commands::ssh_trust_known_host,
             ssh::commands::secrets_unlock,
+            ssh::commands::ssh_remember_password,
+            ssh::commands::ssh_list_groups,
+            ssh::commands::ssh_save_group,
+            ssh::commands::ssh_delete_group,
+            ssh::commands::ssh_list_tags,
+            ssh::commands::ssh_save_tag,
+            ssh::commands::ssh_delete_tag,
+            windows::open_detached_window,
+            windows::detached_init,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -10,11 +10,13 @@ use tauri::{AppHandle, Emitter, State};
 use crate::pty::manager::DataSink;
 use crate::secrets::{EncryptedFileStore, SecretStore};
 
+use super::groups::GroupStore;
 use super::known_hosts::{KnownHostEntry, KnownHostsStore};
 use super::manager::{SshError, SshManager};
 use super::session::{ResolvedAuth, SessionId};
 use super::store::HostStore;
-use super::types::{SshAuthMethod, SshHost};
+use super::tags::TagStore;
+use super::types::{Group, SshAuthMethod, SshHost, Tag};
 
 /// 프론트엔드가 패턴 매칭으로 구분할 수 있도록 직렬화된 에러.
 /// 단순 `String` 대신 이 enum을 쓰면 UI가 HostKeyMismatch / FirstContact를
@@ -34,6 +36,11 @@ pub enum SshConnectError {
         port: u16,
         algorithm: String,
         fingerprint: String,
+    },
+    PasswordRequired {
+        host: String,
+        port: u16,
+        user: String,
     },
     Other {
         message: String,
@@ -67,6 +74,11 @@ impl From<SshError> for SshConnectError {
                 algorithm,
                 fingerprint,
             },
+            SshError::PasswordRequired { host, port, user } => Self::PasswordRequired {
+                host,
+                port,
+                user,
+            },
             other => Self::Other {
                 message: other.to_string(),
             },
@@ -85,6 +97,8 @@ impl SshConnectError {
 pub struct SshState {
     pub manager: Arc<SshManager>,
     pub store: HostStore,
+    pub groups: GroupStore,
+    pub tags: TagStore,
     pub known_hosts: Arc<KnownHostsStore>,
     /// 시크릿 저장소 핸들. 앱 시작 시 사용자 패스프레이즈로 열린 핸들이 들어간다.
     /// v1에서는 일단 옵션으로 두고, 없으면 password/key auth는 사용 불가.
@@ -95,6 +109,8 @@ pub fn build_state(
     app: &AppHandle,
     hosts_path: PathBuf,
     known_hosts_path: PathBuf,
+    groups_path: PathBuf,
+    tags_path: PathBuf,
 ) -> SshState {
     let handle = app.clone();
     let sink: DataSink = Arc::new(move |session_id, data| {
@@ -110,6 +126,8 @@ pub fn build_state(
     SshState {
         manager: Arc::new(SshManager::new(sink, Arc::clone(&known_hosts))),
         store: HostStore::new(hosts_path),
+        groups: GroupStore::new(groups_path),
+        tags: TagStore::new(tags_path),
         known_hosts,
         secrets: None,
     }
@@ -137,10 +155,13 @@ pub fn ssh_delete_host(id: String, state: State<'_, SshState>) -> Result<(), Str
 }
 
 #[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct SshConnectArgs {
     pub host_id: String,
     pub cols: Option<u16>,
     pub rows: Option<u16>,
+    /// PasswordPrompt 인증 시 사용자가 모달에서 입력한 password. 메모리에서만 사용, 저장 안 함.
+    pub password: Option<String>,
 }
 
 #[tauri::command]
@@ -155,8 +176,15 @@ pub async fn ssh_connect(
     let cols = args.cols.unwrap_or(80);
     let rows = args.rows.unwrap_or(24);
 
-    let auth = resolve_auth(&host.auth, state.secrets.as_deref())
-        .map_err(SshConnectError::from_string)?;
+    let auth = resolve_auth(
+        &host.auth,
+        state.secrets.as_deref(),
+        args.password.as_deref(),
+        &host.host,
+        host.port,
+        &host.user,
+    )
+    .map_err(SshConnectError::from)?;
 
     state
         .manager
@@ -205,21 +233,33 @@ pub async fn ssh_kill(session_id: String, state: State<'_, SshState>) -> Result<
 fn resolve_auth(
     method: &SshAuthMethod,
     secrets: Option<&dyn SecretStore>,
-) -> Result<ResolvedAuth, String> {
+    prompted_password: Option<&str>,
+    host: &str,
+    port: u16,
+    user: &str,
+) -> Result<ResolvedAuth, SshError> {
     match method {
         SshAuthMethod::Password { secret_id } => {
-            let store = secrets.ok_or_else(|| "secret store not unlocked".to_string())?;
-            let pw = store.load(secret_id).map_err(|e| e.to_string())?;
-            ResolvedAuth::from_method(method, Some(pw.as_slice()), None, None).map_err(|e| e.to_string())
+            let store = secrets.ok_or_else(|| SshError::Auth("secret store not unlocked".into()))?;
+            let pw = store.load(secret_id).map_err(|e| SshError::Auth(e.to_string()))?;
+            ResolvedAuth::from_method(method, Some(pw.as_slice()), None, None)
+        }
+        SshAuthMethod::PasswordPrompt => {
+            let pw = prompted_password.ok_or_else(|| SshError::PasswordRequired {
+                host: host.to_string(),
+                port,
+                user: user.to_string(),
+            })?;
+            Ok(ResolvedAuth::Password(pw.to_string()))
         }
         SshAuthMethod::PrivateKey {
             key_id,
             passphrase_secret_id,
         } => {
-            let store = secrets.ok_or_else(|| "secret store not unlocked".to_string())?;
-            let key_pem = store.load(key_id).map_err(|e| e.to_string())?;
+            let store = secrets.ok_or_else(|| SshError::Auth("secret store not unlocked".into()))?;
+            let key_pem = store.load(key_id).map_err(|e| SshError::Auth(e.to_string()))?;
             let passphrase = if let Some(pid) = passphrase_secret_id {
-                Some(store.load(pid).map_err(|e| e.to_string())?)
+                Some(store.load(pid).map_err(|e| SshError::Auth(e.to_string()))?)
             } else {
                 None
             };
@@ -229,9 +269,8 @@ fn resolve_auth(
                 Some(key_pem.as_slice()),
                 passphrase.as_ref().map(|p| p.as_slice()),
             )
-            .map_err(|e| e.to_string())
         }
-        SshAuthMethod::Agent => ResolvedAuth::from_method(method, None, None, None).map_err(|e| e.to_string()),
+        SshAuthMethod::Agent => ResolvedAuth::from_method(method, None, None, None),
     }
 }
 
@@ -242,6 +281,90 @@ pub fn secrets_unlock(_passphrase: String, _state: State<'_, SshState>) -> Resul
     // 실제 unlock 흐름은 후속 이슈에서 구체화 (State를 Mutex로 감싸야 함).
     // 지금은 호출 가능 여부만 노출.
     Err("not implemented yet — use direct EncryptedFileStore for now".into())
+}
+
+/// PasswordPrompt로 입력받은 password를 OS 키링에 저장하고, 해당 호스트의 auth를
+/// `Password{secret_id=hostId}`로 갱신해 다음 접속부터 자동 인증되게 한다.
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct RememberPasswordArgs {
+    pub host_id: String,
+    pub password: String,
+}
+
+#[tauri::command]
+pub fn ssh_remember_password(
+    args: RememberPasswordArgs,
+    state: State<'_, SshState>,
+) -> Result<(), String> {
+    let secrets = state
+        .secrets
+        .as_ref()
+        .ok_or_else(|| "secret store not configured".to_string())?;
+    secrets
+        .save(&args.host_id, args.password.as_bytes())
+        .map_err(|e| e.to_string())?;
+
+    let mut host = state.store.get(&args.host_id).map_err(|e| e.to_string())?;
+    host.auth = SshAuthMethod::Password {
+        secret_id: args.host_id.clone(),
+    };
+    state.store.upsert(host).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+// ---- 그룹 / 태그 (S-017) ----
+
+#[tauri::command]
+pub fn ssh_list_groups(state: State<'_, SshState>) -> Result<Vec<Group>, String> {
+    state.groups.list().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn ssh_save_group(group: Group, state: State<'_, SshState>) -> Result<(), String> {
+    state.groups.upsert(group).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn ssh_delete_group(id: String, state: State<'_, SshState>) -> Result<(), String> {
+    // 이 그룹에 속한 호스트들의 group_id를 비워준다 (호스트 자체는 보존).
+    let hosts = state.store.list().map_err(|e| e.to_string())?;
+    for mut h in hosts {
+        if h.group_id.as_deref() == Some(&id) {
+            h.group_id = None;
+            state.store.upsert(h).map_err(|e| e.to_string())?;
+        }
+    }
+    state.groups.delete(&id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn ssh_list_tags(state: State<'_, SshState>) -> Result<Vec<Tag>, String> {
+    state.tags.list().map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn ssh_save_tag(tag: Tag, state: State<'_, SshState>) -> Result<(), String> {
+    state.tags.upsert(tag).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+pub fn ssh_delete_tag(id: String, state: State<'_, SshState>) -> Result<(), String> {
+    // 호스트의 tags 배열에서 이 태그 이름을 제거.
+    // (v1에서는 tag id를 SshHost.tags에 직접 안 넣고 이름을 넣고 있어 이름으로 매칭.)
+    let target = state.tags.list().map_err(|e| e.to_string())?;
+    let removed_name = target.iter().find(|t| t.id == id).map(|t| t.name.clone());
+    if let Some(name) = removed_name {
+        let hosts = state.store.list().map_err(|e| e.to_string())?;
+        for mut h in hosts {
+            let before = h.tags.len();
+            h.tags.retain(|t| t != &name);
+            if h.tags.len() != before {
+                state.store.upsert(h).map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    state.tags.delete(&id).map_err(|e| e.to_string())
 }
 
 // ---- known_hosts (TOFU) ----
