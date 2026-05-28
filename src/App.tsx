@@ -11,6 +11,7 @@ import { PaneView } from "./components/PaneView";
 import { FileBrowser } from "./components/FileBrowser";
 import { SettingsModal } from "./components/SettingsModal";
 import { SplashScreen } from "./components/SplashScreen";
+import { LangDict, LangProvider, useT } from "./i18n";
 import { OnboardingFlow } from "./components/OnboardingFlow";
 import {
   AppSettings,
@@ -75,6 +76,189 @@ function newId(): string {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+const STR: LangDict<{
+    localShell: string;
+    localShellN: (n: number) => string;
+    dup: (label: string) => string;
+    keychainSaveFail: (e: string) => string;
+    detachWindowFail: (e: string) => string;
+    initDetached: string;
+    dropToDetach: string;
+    escCancel: string;
+    hostExpand: string;
+    hostCollapse: string;
+    aiExpand: string;
+    aiCollapse: string;
+    resizeWidth: string;
+  }
+> = {
+  en: {
+    localShell: "Local shell",
+    localShellN: (n) => `Local shell ${n}`,
+    dup: (label) => `${label} (copy)`,
+    keychainSaveFail: (e) => `Keychain save failed: ${e}`,
+    detachWindowFail: (e) => `Failed to open new window: ${e}`,
+    initDetached: "Initializing detached window…",
+    dropToDetach: "Drop here to detach into a new window",
+    escCancel: "ESC: cancel",
+    hostExpand: "Expand host panel",
+    hostCollapse: "Collapse host panel",
+    aiExpand: "Expand AI panel",
+    aiCollapse: "Collapse AI panel",
+    resizeWidth: "Drag to resize width",
+  },
+  ko: {
+    localShell: "로컬 셸",
+    localShellN: (n) => `로컬 셸 ${n}`,
+    dup: (label) => `${label} (복제)`,
+    keychainSaveFail: (e) => `Keychain 저장 실패: ${e}`,
+    detachWindowFail: (e) => `새 창 생성 실패: ${e}`,
+    initDetached: "분리된 창 초기화 중…",
+    dropToDetach: "여기서 떼면 새 창으로 분리",
+    escCancel: "ESC: 취소",
+    hostExpand: "호스트 패널 펴기",
+    hostCollapse: "호스트 패널 접기",
+    aiExpand: "AI 패널 펴기",
+    aiCollapse: "AI 패널 접기",
+    resizeWidth: "너비 조절 (드래그)",
+  },
+  es: {
+    localShell: "Shell local",
+    localShellN: (n) => `Shell local ${n}`,
+    dup: (label) => `${label} (copia)`,
+    keychainSaveFail: (e) => `Error al guardar en Keychain: ${e}`,
+    detachWindowFail: (e) => `No se pudo abrir la nueva ventana: ${e}`,
+    initDetached: "Inicializando ventana separada…",
+    dropToDetach: "Suelta aquí para separar en una nueva ventana",
+    escCancel: "ESC: cancelar",
+    hostExpand: "Expandir panel de hosts",
+    hostCollapse: "Contraer panel de hosts",
+    aiExpand: "Expandir panel de IA",
+    aiCollapse: "Contraer panel de IA",
+    resizeWidth: "Arrastra para ajustar el ancho",
+  },
+  zh: {
+    localShell: "本地终端",
+    localShellN: (n) => `本地终端 ${n}`,
+    dup: (label) => `${label}（副本）`,
+    keychainSaveFail: (e) => `Keychain 保存失败：${e}`,
+    detachWindowFail: (e) => `无法打开新窗口：${e}`,
+    initDetached: "正在初始化分离窗口…",
+    dropToDetach: "拖放到此处以分离为新窗口",
+    escCancel: "ESC：取消",
+    hostExpand: "展开主机面板",
+    hostCollapse: "收起主机面板",
+    aiExpand: "展开 AI 面板",
+    aiCollapse: "收起 AI 面板",
+    resizeWidth: "拖动以调整宽度",
+  },
+  ja: {
+    localShell: "ローカルシェル",
+    localShellN: (n) => `ローカルシェル ${n}`,
+    dup: (label) => `${label}（コピー）`,
+    keychainSaveFail: (e) => `Keychain への保存に失敗しました: ${e}`,
+    detachWindowFail: (e) => `新しいウィンドウを開けませんでした: ${e}`,
+    initDetached: "分離ウィンドウを初期化中…",
+    dropToDetach: "ここにドロップして新しいウィンドウに分離",
+    escCancel: "ESC: キャンセル",
+    hostExpand: "ホストパネルを開く",
+    hostCollapse: "ホストパネルを閉じる",
+    aiExpand: "AI パネルを開く",
+    aiCollapse: "AI パネルを閉じる",
+    resizeWidth: "ドラッグして幅を調整",
+  },
+  ru: {
+    localShell: "Локальная оболочка",
+    localShellN: (n) => `Локальная оболочка ${n}`,
+    dup: (label) => `${label} (копия)`,
+    keychainSaveFail: (e) => `Не удалось сохранить в Keychain: ${e}`,
+    detachWindowFail: (e) => `Не удалось открыть новое окно: ${e}`,
+    initDetached: "Инициализация отдельного окна…",
+    dropToDetach: "Отпустите здесь, чтобы открепить в новое окно",
+    escCancel: "ESC: отмена",
+    hostExpand: "Развернуть панель хостов",
+    hostCollapse: "Свернуть панель хостов",
+    aiExpand: "Развернуть панель ИИ",
+    aiCollapse: "Свернуть панель ИИ",
+    resizeWidth: "Перетащите, чтобы изменить ширину",
+  },
+  fr: {
+    localShell: "Shell local",
+    localShellN: (n) => `Shell local ${n}`,
+    dup: (label) => `${label} (copie)`,
+    keychainSaveFail: (e) => `Échec de l'enregistrement dans Keychain : ${e}`,
+    detachWindowFail: (e) => `Impossible d'ouvrir la nouvelle fenêtre : ${e}`,
+    initDetached: "Initialisation de la fenêtre détachée…",
+    dropToDetach: "Déposez ici pour détacher dans une nouvelle fenêtre",
+    escCancel: "ESC : annuler",
+    hostExpand: "Développer le panneau des hôtes",
+    hostCollapse: "Réduire le panneau des hôtes",
+    aiExpand: "Développer le panneau IA",
+    aiCollapse: "Réduire le panneau IA",
+    resizeWidth: "Faites glisser pour ajuster la largeur",
+  },
+  de: {
+    localShell: "Lokale Shell",
+    localShellN: (n) => `Lokale Shell ${n}`,
+    dup: (label) => `${label} (Kopie)`,
+    keychainSaveFail: (e) => `Speichern im Keychain fehlgeschlagen: ${e}`,
+    detachWindowFail: (e) => `Neues Fenster konnte nicht geöffnet werden: ${e}`,
+    initDetached: "Abgetrenntes Fenster wird initialisiert…",
+    dropToDetach: "Hier ablegen, um in ein neues Fenster abzutrennen",
+    escCancel: "ESC: abbrechen",
+    hostExpand: "Host-Panel ausklappen",
+    hostCollapse: "Host-Panel einklappen",
+    aiExpand: "KI-Panel ausklappen",
+    aiCollapse: "KI-Panel einklappen",
+    resizeWidth: "Zum Anpassen der Breite ziehen",
+  },
+  vi: {
+    localShell: "Shell cục bộ",
+    localShellN: (n) => `Shell cục bộ ${n}`,
+    dup: (label) => `${label} (bản sao)`,
+    keychainSaveFail: (e) => `Lưu vào Keychain thất bại: ${e}`,
+    detachWindowFail: (e) => `Không thể mở cửa sổ mới: ${e}`,
+    initDetached: "Đang khởi tạo cửa sổ tách rời…",
+    dropToDetach: "Thả vào đây để tách thành cửa sổ mới",
+    escCancel: "ESC: hủy",
+    hostExpand: "Mở rộng bảng host",
+    hostCollapse: "Thu gọn bảng host",
+    aiExpand: "Mở rộng bảng AI",
+    aiCollapse: "Thu gọn bảng AI",
+    resizeWidth: "Kéo để chỉnh chiều rộng",
+  },
+  id: {
+    localShell: "Shell lokal",
+    localShellN: (n) => `Shell lokal ${n}`,
+    dup: (label) => `${label} (salinan)`,
+    keychainSaveFail: (e) => `Gagal menyimpan ke Keychain: ${e}`,
+    detachWindowFail: (e) => `Gagal membuka jendela baru: ${e}`,
+    initDetached: "Menginisialisasi jendela terpisah…",
+    dropToDetach: "Lepaskan di sini untuk memisahkan ke jendela baru",
+    escCancel: "ESC: batal",
+    hostExpand: "Perluas panel host",
+    hostCollapse: "Ciutkan panel host",
+    aiExpand: "Perluas panel AI",
+    aiCollapse: "Ciutkan panel AI",
+    resizeWidth: "Seret untuk mengubah lebar",
+  },
+  hi: {
+    localShell: "लोकल शेल",
+    localShellN: (n) => `लोकल शेल ${n}`,
+    dup: (label) => `${label} (प्रतिलिपि)`,
+    keychainSaveFail: (e) => `Keychain में सहेजना विफल: ${e}`,
+    detachWindowFail: (e) => `नई विंडो खोलने में विफल: ${e}`,
+    initDetached: "अलग की गई विंडो प्रारंभ हो रही है…",
+    dropToDetach: "नई विंडो में अलग करने के लिए यहाँ छोड़ें",
+    escCancel: "ESC: रद्द करें",
+    hostExpand: "होस्ट पैनल विस्तृत करें",
+    hostCollapse: "होस्ट पैनल संक्षिप्त करें",
+    aiExpand: "AI पैनल विस्तृत करें",
+    aiCollapse: "AI पैनल संक्षिप्त करें",
+    resizeWidth: "चौड़ाई बदलने के लिए खींचें",
+  },
+};
+
 // 좌/우 패널 너비 조절용 구분선 (#21). 좌우 분할 divider와 동일 룩 + 접기 버튼을 얹는다.
 const panelDividerStyle: CSSProperties = {
   position: "relative",
@@ -135,6 +319,7 @@ function PanelEdge({
   onToggle: () => void;
   onResizeStart: (e: React.MouseEvent) => void;
 }) {
+  const t = useT(STR);
   const arrow = collapsed
     ? side === "host"
       ? "›"
@@ -146,7 +331,7 @@ function PanelEdge({
     return (
       <button
         onClick={onToggle}
-        title={side === "host" ? "호스트 패널 펴기" : "AI 패널 펴기"}
+        title={side === "host" ? t.hostExpand : t.aiExpand}
         style={{
           ...collapsedHandleStyle,
           [side === "host" ? "borderRight" : "borderLeft"]: "1px solid #111",
@@ -160,12 +345,12 @@ function PanelEdge({
     <div
       onMouseDown={onResizeStart}
       style={panelDividerStyle}
-      title="너비 조절 (드래그)"
+      title={t.resizeWidth}
     >
       <button
         onMouseDown={(e) => e.stopPropagation()}
         onClick={onToggle}
-        title={side === "host" ? "호스트 패널 접기" : "AI 패널 접기"}
+        title={side === "host" ? t.hostCollapse : t.aiCollapse}
         style={dividerToggleStyle}
       >
         {arrow}
@@ -207,9 +392,10 @@ function cloneRootWithNewIds(root: Pane): Pane {
 }
 
 function App() {
+  const tr = useT(STR);
   // detached 윈도우는 백엔드 registry에서 source를 받기 전까지 빈 상태로 시작 — 메인은 즉시 로컬셸.
   const [tabs, setTabs] = useState<Tab[]>(() =>
-    IS_DETACHED_WINDOW ? [] : [makeLocalTab("로컬 셸 1")],
+    IS_DETACHED_WINDOW ? [] : [makeLocalTab(tr.localShellN(1))],
   );
   const [activeTabId, setActiveTabId] = useState<string | null>(() =>
     IS_DETACHED_WINDOW ? null : tabs[0].id,
@@ -257,6 +443,7 @@ function App() {
     saveSettings(s);
   }
 
+  const lang = settings.general.language;
   // 좌/우 패널 토글 + 너비 리사이즈 (#21). 상태는 settings.layout에 영속화.
   const layout = settings.layout;
   const layoutRowRef = useRef<HTMLDivElement>(null);
@@ -347,13 +534,13 @@ function App() {
           }
         } else {
           // 라벨이 detached-*인데 registry 항목이 없는 비정상 케이스 — 기본 로컬셸로 폴백.
-          const fallback = makeLocalTab("로컬 셸 1");
+          const fallback = makeLocalTab(tr.localShellN(1));
           setTabs([fallback]);
           setActiveTabId(fallback.id);
         }
       } catch (e) {
         console.error("detached_init failed", e);
-        const fallback = makeLocalTab("로컬 셸 1");
+        const fallback = makeLocalTab(tr.localShellN(1));
         setTabs([fallback]);
         setActiveTabId(fallback.id);
       }
@@ -373,7 +560,7 @@ function App() {
 
   const labelForSource = useCallback(
     (source: TerminalSource): string =>
-      source.kind === "local" ? "로컬 셸" : labelForHost(source.hostId),
+      source.kind === "local" ? tr.localShell : labelForHost(source.hostId),
     [labelForHost],
   );
 
@@ -513,13 +700,13 @@ function App() {
       await reloadHosts();
     } catch (e) {
       console.error("ssh_remember_password failed", e);
-      alert(`Keychain 저장 실패: ${e}`);
+      alert(tr.keychainSaveFail(String(e)));
     }
   }
 
   function newLocalTab() {
     const n = ++localSeq.current;
-    const tab = makeLocalTab(`로컬 셸 ${n}`);
+    const tab = makeLocalTab(tr.localShellN(n));
     setTabs((prev) => [...prev, tab]);
     setActiveTabId(tab.id);
   }
@@ -537,7 +724,7 @@ function App() {
       const next = prev.filter((t) => t.id !== id);
       if (next.length === 0) {
         const n = ++localSeq.current;
-        const fresh = makeLocalTab(`로컬 셸 ${n}`);
+        const fresh = makeLocalTab(tr.localShellN(n));
         setActiveTabId(fresh.id);
         return [fresh];
       }
@@ -561,7 +748,7 @@ function App() {
     const root = cloneRootWithNewIds(orig.root);
     const dup: Tab = {
       id: newId(),
-      label: `${orig.label} (복제)`,
+      label: tr.dup(orig.label),
       root,
       focusedPaneId: firstLeafId(root),
     };
@@ -627,7 +814,7 @@ function App() {
         closePane(tab.id, leaf.id);
       }
     } catch (e) {
-      alert(`새 창 생성 실패: ${e}`);
+      alert(tr.detachWindowFail(String(e)));
     }
   }
 
@@ -640,7 +827,7 @@ function App() {
         // 단일 leaf 탭이 변경된 경우 라벨도 갱신
         if (newRoot.kind === "leaf" && t.root.kind === "leaf") {
           const n = ++localSeq.current;
-          return { ...t, root: newRoot, label: `로컬 셸 ${n}` };
+          return { ...t, root: newRoot, label: tr.localShellN(n) };
         }
         return { ...t, root: newRoot };
       }),
@@ -688,7 +875,7 @@ function App() {
           ...t,
           root: replaceLeafSource(t.root, leafId, { kind: "local" }),
           // 단일 leaf인 경우엔 탭 라벨도 자동 갱신
-          label: t.root.kind === "leaf" ? `로컬 셸 ${n}` : t.label,
+          label: t.root.kind === "leaf" ? tr.localShellN(n) : t.label,
         };
       }),
     );
@@ -927,36 +1114,46 @@ function App() {
 
   if (!bootstrapped) {
     return (
-      <main
-        style={{
-          width: "100vw",
-          height: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background: "#1e1e1e",
-          color: "#9aa",
-          fontSize: 13,
-        }}
-      >
-        분리된 창 초기화 중…
-      </main>
+      <LangProvider lang={lang}>
+        <main
+          style={{
+            width: "100vw",
+            height: "100vh",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            background: "#1e1e1e",
+            color: "#9aa",
+            fontSize: 13,
+          }}
+        >
+          {tr.initDetached}
+        </main>
+      </LangProvider>
     );
   }
 
-  if (phase === "splash") return <SplashScreen />;
+  if (phase === "splash")
+    return (
+      <LangProvider lang={lang}>
+        <SplashScreen />
+      </LangProvider>
+    );
   if (phase === "onboarding") {
     return (
-      <OnboardingFlow
-        onComplete={() => {
-          setOnboarded();
-          setPhase("ready");
-        }}
-      />
+      <LangProvider lang={lang}>
+        <OnboardingFlow
+          onComplete={() => {
+            setOnboarded();
+            setPhase("ready");
+          }}
+        />
+      </LangProvider>
     );
   }
 
   return (
+    <LangProvider lang={lang}>
     <main
       style={{
         width: "100vw",
@@ -1272,11 +1469,13 @@ function App() {
         />
       )}
     </main>
+    </LangProvider>
   );
 }
 
 /** 드래그 분리 드롭존: 탭바 아래 영역을 덮는 안내 오버레이. mouseup은 App이 window에서 처리. */
 function DropZoneOverlay() {
+  const t = useT(STR);
   return (
     <div
       style={{
@@ -1297,8 +1496,8 @@ function DropZoneOverlay() {
       }}
     >
       <div style={{ fontSize: 32 }}>🔲</div>
-      <div style={{ fontSize: 16 }}>여기서 떼면 새 창으로 분리</div>
-      <div style={{ fontSize: 12, color: "#bcd" }}>ESC: 취소</div>
+      <div style={{ fontSize: 16 }}>{t.dropToDetach}</div>
+      <div style={{ fontSize: 12, color: "#bcd" }}>{t.escCancel}</div>
     </div>
   );
 }

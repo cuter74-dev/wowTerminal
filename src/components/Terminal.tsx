@@ -9,6 +9,163 @@ import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
 import { registerTerminal, unregisterTerminal } from "../terminalRegistry";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
+import { LangDict, useT } from "../i18n";
+
+const STR: LangDict<{
+    sessionHandover: string;
+    hostKeyMismatch: (host: string, port: number) => string;
+    firstContact: (host: string, port: number) => string;
+    passwordRequired: (user: string, host: string, port: number) => string;
+    sshError: (msg: string) => string;
+    failedToStart: (err: string) => string;
+    historyPlaceholder: string;
+    noHistoryMatch: string;
+  }
+> = {
+  en: {
+    sessionHandover: "\r\n\x1b[36m[session handed over — continue in the new window]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — see warning dialog\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — verify fingerprint in dialog\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — enter password in dialog\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "Search command history (Enter to select, ESC to cancel)",
+    noHistoryMatch: "No matching history",
+  },
+  ko: {
+    sessionHandover: "\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — 경고 대화상자를 확인하세요\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — 대화상자에서 지문을 확인하세요\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — 대화상자에 비밀번호를 입력하세요\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "명령 히스토리 검색 (Enter 선택, ESC 취소)",
+    noHistoryMatch: "일치하는 히스토리 없음",
+  },
+  es: {
+    sessionHandover: "\r\n\x1b[36m[sesión transferida — continúa en la nueva ventana]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — consulta el diálogo de advertencia\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — verifica la huella en el diálogo\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — introduce la contraseña en el diálogo\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "Buscar en el historial de comandos (Enter para seleccionar, ESC para cancelar)",
+    noHistoryMatch: "No hay coincidencias en el historial",
+  },
+  zh: {
+    sessionHandover: "\r\n\x1b[36m[会话已交接 — 在新窗口中继续]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — 请查看警告对话框\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — 请在对话框中验证指纹\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — 请在对话框中输入密码\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "搜索命令历史（Enter 选择，ESC 取消）",
+    noHistoryMatch: "没有匹配的历史记录",
+  },
+  ja: {
+    sessionHandover: "\r\n\x1b[36m[セッションを引き継ぎました — 新しいウィンドウで続行]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — 警告ダイアログを確認してください\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — ダイアログでフィンガープリントを確認してください\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — ダイアログにパスワードを入力してください\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "コマンド履歴を検索（Enter で選択、ESC でキャンセル）",
+    noHistoryMatch: "一致する履歴がありません",
+  },
+  ru: {
+    sessionHandover: "\r\n\x1b[36m[сессия передана — продолжите в новом окне]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — см. диалог предупреждения\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — проверьте отпечаток в диалоге\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — введите пароль в диалоге\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "Поиск по истории команд (Enter — выбрать, ESC — отменить)",
+    noHistoryMatch: "Нет совпадений в истории",
+  },
+  fr: {
+    sessionHandover: "\r\n\x1b[36m[session transférée — continuez dans la nouvelle fenêtre]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — voir la boîte de dialogue d'avertissement\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — vérifiez l'empreinte dans la boîte de dialogue\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — saisissez le mot de passe dans la boîte de dialogue\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "Rechercher dans l'historique des commandes (Entrée pour sélectionner, ESC pour annuler)",
+    noHistoryMatch: "Aucune correspondance dans l'historique",
+  },
+  de: {
+    sessionHandover: "\r\n\x1b[36m[Sitzung übergeben — im neuen Fenster fortfahren]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — siehe Warndialog\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — Fingerabdruck im Dialog überprüfen\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — Passwort im Dialog eingeben\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "Befehlsverlauf durchsuchen (Enter zum Auswählen, ESC zum Abbrechen)",
+    noHistoryMatch: "Keine passenden Verlaufseinträge",
+  },
+  vi: {
+    sessionHandover: "\r\n\x1b[36m[phiên đã được bàn giao — tiếp tục trong cửa sổ mới]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — xem hộp thoại cảnh báo\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — xác minh dấu vân tay trong hộp thoại\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — nhập mật khẩu trong hộp thoại\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "Tìm trong lịch sử lệnh (Enter để chọn, ESC để hủy)",
+    noHistoryMatch: "Không có lịch sử khớp",
+  },
+  id: {
+    sessionHandover: "\r\n\x1b[36m[sesi diserahkan — lanjutkan di jendela baru]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — lihat dialog peringatan\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — verifikasi sidik jari di dialog\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — masukkan kata sandi di dialog\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "Cari riwayat perintah (Enter untuk memilih, ESC untuk membatalkan)",
+    noHistoryMatch: "Tidak ada riwayat yang cocok",
+  },
+  hi: {
+    sessionHandover: "\r\n\x1b[36m[सत्र सौंप दिया गया — नई विंडो में जारी रखें]\x1b[0m",
+    hostKeyMismatch: (host, port) =>
+      `\r\n\x1b[31m[ssh] host key mismatch for ${host}:${port} — चेतावनी संवाद देखें\x1b[0m`,
+    firstContact: (host, port) =>
+      `\r\n\x1b[33m[ssh] first contact with ${host}:${port} — संवाद में फ़िंगरप्रिंट सत्यापित करें\x1b[0m`,
+    passwordRequired: (user, host, port) =>
+      `\r\n\x1b[33m[ssh] password required for ${user}@${host}:${port} — संवाद में पासवर्ड दर्ज करें\x1b[0m`,
+    sshError: (msg) => `\r\n[ssh] ${msg}`,
+    failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
+    historyPlaceholder: "कमांड इतिहास खोजें (चुनने के लिए Enter, रद्द करने के लिए ESC)",
+    noHistoryMatch: "कोई मेल खाता इतिहास नहीं",
+  },
+};
 
 type OutputPayload = {
   session_id: string;
@@ -99,6 +256,10 @@ export function Terminal({
   attachSessionId,
   attachScreen,
 }: Props) {
+  const t = useT(STR);
+  // effect 의존성을 바꾸지 않도록 현재 언어 문자열을 ref로 들고 다닌다.
+  const tRef = useRef(t);
+  tRef.current = t;
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
@@ -263,7 +424,7 @@ export function Terminal({
           if (attachScreen) {
             term.write(attachScreen);
           } else {
-            term.writeln("\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m");
+            term.writeln(tRef.current.sessionHandover);
           }
           const finishAttach = () => {
             if (disposed) return;
@@ -293,31 +454,27 @@ export function Terminal({
       } catch (err) {
         if (source.kind === "ssh" && isSshConnectError(err)) {
           if (err.kind === "host_key_mismatch") {
-            term.writeln(
-              `\r\n\x1b[31m[ssh] host key mismatch for ${err.host}:${err.port} — see warning dialog\x1b[0m`,
-            );
+            term.writeln(tRef.current.hostKeyMismatch(err.host, err.port));
             onSshError?.(err);
             return;
           }
           if (err.kind === "first_contact") {
-            term.writeln(
-              `\r\n\x1b[33m[ssh] first contact with ${err.host}:${err.port} — verify fingerprint in dialog\x1b[0m`,
-            );
+            term.writeln(tRef.current.firstContact(err.host, err.port));
             onSshError?.(err);
             return;
           }
           if (err.kind === "password_required") {
             term.writeln(
-              `\r\n\x1b[33m[ssh] password required for ${err.user}@${err.host}:${err.port} — enter password in dialog\x1b[0m`,
+              tRef.current.passwordRequired(err.user, err.host, err.port),
             );
             onSshError?.(err);
             return;
           }
-          term.writeln(`\r\n[ssh] ${err.message}`);
+          term.writeln(tRef.current.sshError(err.message));
           onSshError?.(err);
           return;
         }
-        term.writeln(`\r\n[session] failed to start: ${String(err)}`);
+        term.writeln(tRef.current.failedToStart(String(err)));
       }
     })();
 
@@ -412,6 +569,7 @@ function HistorySearchOverlay({
   onClose: () => void;
   onPick: (cmd: string) => void;
 }) {
+  const t = useT(STR);
   const [q, setQ] = useState("");
   const [sel, setSel] = useState(0);
   const results = searchHistory(q);
@@ -465,7 +623,7 @@ function HistorySearchOverlay({
                 setSel((s) => Math.max(s - 1, 0));
               }
             }}
-            placeholder="명령 히스토리 검색 (Enter 선택, ESC 취소)"
+            placeholder={t.historyPlaceholder}
             style={{
               flex: 1,
               background: "#101015",
@@ -480,7 +638,7 @@ function HistorySearchOverlay({
         </div>
         <div style={{ overflowY: "auto" }}>
           {results.length === 0 && (
-            <div style={{ color: "#789", fontSize: 12, padding: 8 }}>일치하는 히스토리 없음</div>
+            <div style={{ color: "#789", fontSize: 12, padding: 8 }}>{t.noHistoryMatch}</div>
           )}
           {results.map((cmd, i) => (
             <div

@@ -10,6 +10,7 @@ import {
 } from "../types";
 import { LlmSetupModal } from "./LlmSetupModal";
 import { getTerminal } from "../terminalRegistry";
+import { LangDict, useT } from "../i18n";
 import {
   ChatSession,
   loadSessions,
@@ -17,6 +18,474 @@ import {
   saveSessions,
   titleFromMessages,
 } from "../chatSessions";
+
+const STR: LangDict<{
+    assistant: string;
+    noBackend: string;
+    backendSettings: string;
+    history: string;
+    newChat: string;
+    paneSplit: (n: number) => string;
+    askAnything: (name: string) => string;
+    autoContextLater: string;
+    generating: string;
+    inputPlaceholder: string;
+    setupFirst: string;
+    includeContext: string;
+    send: string;
+    localShell: string;
+    noActiveTab: string;
+    sshContext: (label: string) => string;
+    errorPrefix: (e: string) => string;
+    noPaneToInput: string;
+    runInTerminal: string;
+    runInTerminalTitle: string;
+    copied: string;
+    copy: string;
+    noBackendConfigured: string;
+    addBackend: string;
+    supportedEndpoints: string;
+    newChatPlus: string;
+    noSavedChats: string;
+    messageCount: (n: number) => string;
+    delete: string;
+    ctxAssistantSys: (where: string, ctx: string) => string;
+    ctxSshHost: (label: string) => string;
+    ctxLocalShell: string;
+    ctxTerminal: string;
+    ctxRemote: string;
+  }
+> = {
+  en: {
+    assistant: "AI Assistant",
+    noBackend: "No backend",
+    backendSettings: "LLM backend settings (S-038)",
+    history: "Chat history (S-049)",
+    newChat: "New chat",
+    paneSplit: (n) => ` · split ${n} panes`,
+    askAnything: (name) => `Ask ${name} anything.`,
+    autoContextLater: "Auto context attachment coming later (S-048).",
+    generating: "Generating response…",
+    inputPlaceholder: "Enter to send, Shift+Enter for newline",
+    setupFirst: "Please set up a backend first",
+    includeContext: "Include active pane output as context (S-048)",
+    send: "Send",
+    localShell: "Local shell",
+    noActiveTab: "No active tab",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[Error] ${e}`,
+    noPaneToInput: "No terminal pane to input into.",
+    runInTerminal: "▶ Send to terminal",
+    runInTerminalTitle: "Send to active terminal pane (press Enter yourself)",
+    copied: "Copied",
+    copy: "Copy",
+    noBackendConfigured: "No LLM backend has been configured yet.",
+    addBackend: "+ Add LLM backend",
+    supportedEndpoints: "Supports OpenAI / Ollama / compatible endpoints",
+    newChatPlus: "＋ New chat",
+    noSavedChats: "No saved chats",
+    messageCount: (n) => `${n} messages`,
+    delete: "Delete",
+    ctxAssistantSys: (where, ctx) =>
+      `You are an assistant helping with terminal work. The current ${where} screen output is below. ` +
+      "When suggesting commands, present them in a code block wrapped in ```.\n\n--- Terminal output ---\n" +
+      `${ctx}\n--- End ---`,
+    ctxSshHost: (label) => `SSH host: ${label}`,
+    ctxLocalShell: "local shell",
+    ctxTerminal: "terminal",
+    ctxRemote: "remote",
+  },
+  ko: {
+    assistant: "AI 어시스턴트",
+    noBackend: "백엔드 없음",
+    backendSettings: "LLM 백엔드 설정 (S-038)",
+    history: "대화 이력 (S-049)",
+    newChat: "새 대화",
+    paneSplit: (n) => ` · 분할 ${n}패널`,
+    askAnything: (name) => `${name}에 무엇이든 물어보세요.`,
+    autoContextLater: "컨텍스트 자동 첨부는 후속 (S-048).",
+    generating: "응답 생성 중…",
+    inputPlaceholder: "Enter로 전송, Shift+Enter 줄바꿈",
+    setupFirst: "백엔드를 먼저 설정해주세요",
+    includeContext: "활성 패널 출력을 컨텍스트로 포함 (S-048)",
+    send: "전송",
+    localShell: "로컬 셸",
+    noActiveTab: "활성 탭 없음",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[에러] ${e}`,
+    noPaneToInput: "입력할 터미널 패널이 없습니다.",
+    runInTerminal: "▶ 터미널에 입력",
+    runInTerminalTitle: "활성 터미널 패널에 입력 (Enter는 직접)",
+    copied: "복사됨",
+    copy: "복사",
+    noBackendConfigured: "LLM 백엔드가 아직 설정되지 않았습니다.",
+    addBackend: "+ LLM 백엔드 추가",
+    supportedEndpoints: "OpenAI / Ollama / 호환 엔드포인트 지원",
+    newChatPlus: "＋ 새 대화",
+    noSavedChats: "저장된 대화 없음",
+    messageCount: (n) => `${n}개 메시지`,
+    delete: "삭제",
+    ctxAssistantSys: (where, ctx) =>
+      `너는 터미널 작업을 돕는 어시스턴트다. 사용자의 현재 ${where} 화면 출력은 다음과 같다. ` +
+      "명령을 제안할 땐 ```로 감싼 코드블록으로 제시하라.\n\n--- 터미널 출력 ---\n" +
+      `${ctx}\n--- 끝 ---`,
+    ctxSshHost: (label) => `SSH 호스트: ${label}`,
+    ctxLocalShell: "로컬 셸",
+    ctxTerminal: "터미널",
+    ctxRemote: "원격",
+  },
+  es: {
+    assistant: "Asistente de IA",
+    noBackend: "Sin backend",
+    backendSettings: "Configuración del backend LLM (S-038)",
+    history: "Historial de chat (S-049)",
+    newChat: "Nuevo chat",
+    paneSplit: (n) => ` · ${n} paneles divididos`,
+    askAnything: (name) => `Pregúntale lo que quieras a ${name}.`,
+    autoContextLater: "La inclusión automática de contexto llegará más adelante (S-048).",
+    generating: "Generando respuesta…",
+    inputPlaceholder: "Enter para enviar, Shift+Enter para nueva línea",
+    setupFirst: "Configura un backend primero",
+    includeContext: "Incluir la salida del panel activo como contexto (S-048)",
+    send: "Enviar",
+    localShell: "Shell local",
+    noActiveTab: "Sin pestaña activa",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[Error] ${e}`,
+    noPaneToInput: "No hay panel de terminal donde escribir.",
+    runInTerminal: "▶ Enviar a la terminal",
+    runInTerminalTitle: "Enviar al panel de terminal activo (pulsa Enter tú mismo)",
+    copied: "Copiado",
+    copy: "Copiar",
+    noBackendConfigured: "Aún no se ha configurado ningún backend LLM.",
+    addBackend: "+ Agregar backend LLM",
+    supportedEndpoints: "Compatible con OpenAI / Ollama / endpoints compatibles",
+    newChatPlus: "＋ Nuevo chat",
+    noSavedChats: "No hay chats guardados",
+    messageCount: (n) => `${n} mensajes`,
+    delete: "Eliminar",
+    ctxAssistantSys: (where, ctx) =>
+      `Eres un asistente que ayuda con tareas de terminal. La salida actual de la pantalla ${where} está abajo. ` +
+      "Cuando sugieras comandos, preséntalos en un bloque de código envuelto en ```.\n\n--- Salida de terminal ---\n" +
+      `${ctx}\n--- Fin ---`,
+    ctxSshHost: (label) => `Host SSH: ${label}`,
+    ctxLocalShell: "shell local",
+    ctxTerminal: "terminal",
+    ctxRemote: "remoto",
+  },
+  zh: {
+    assistant: "AI 助手",
+    noBackend: "无后端",
+    backendSettings: "LLM 后端设置 (S-038)",
+    history: "聊天记录 (S-049)",
+    newChat: "新对话",
+    paneSplit: (n) => ` · 分割 ${n} 个面板`,
+    askAnything: (name) => `向 ${name} 提任何问题。`,
+    autoContextLater: "上下文自动附加功能稍后推出 (S-048)。",
+    generating: "正在生成回复…",
+    inputPlaceholder: "Enter 发送，Shift+Enter 换行",
+    setupFirst: "请先设置一个后端",
+    includeContext: "将活动面板的输出作为上下文包含 (S-048)",
+    send: "发送",
+    localShell: "本地 shell",
+    noActiveTab: "无活动标签页",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[错误] ${e}`,
+    noPaneToInput: "没有可输入的终端面板。",
+    runInTerminal: "▶ 发送到终端",
+    runInTerminalTitle: "发送到活动终端面板（请自行按 Enter）",
+    copied: "已复制",
+    copy: "复制",
+    noBackendConfigured: "尚未配置任何 LLM 后端。",
+    addBackend: "+ 添加 LLM 后端",
+    supportedEndpoints: "支持 OpenAI / Ollama / 兼容端点",
+    newChatPlus: "＋ 新对话",
+    noSavedChats: "没有已保存的对话",
+    messageCount: (n) => `${n} 条消息`,
+    delete: "删除",
+    ctxAssistantSys: (where, ctx) =>
+      `你是一个帮助处理终端工作的助手。当前 ${where} 屏幕输出如下。` +
+      "建议命令时，请用 ``` 包裹的代码块来呈现。\n\n--- 终端输出 ---\n" +
+      `${ctx}\n--- 结束 ---`,
+    ctxSshHost: (label) => `SSH 主机: ${label}`,
+    ctxLocalShell: "本地 shell",
+    ctxTerminal: "终端",
+    ctxRemote: "远程",
+  },
+  ja: {
+    assistant: "AI アシスタント",
+    noBackend: "バックエンドなし",
+    backendSettings: "LLM バックエンド設定 (S-038)",
+    history: "チャット履歴 (S-049)",
+    newChat: "新規チャット",
+    paneSplit: (n) => ` · ${n} ペイン分割`,
+    askAnything: (name) => `${name} に何でも質問してください。`,
+    autoContextLater: "コンテキストの自動添付は後日対応 (S-048)。",
+    generating: "応答を生成中…",
+    inputPlaceholder: "Enter で送信、Shift+Enter で改行",
+    setupFirst: "先にバックエンドを設定してください",
+    includeContext: "アクティブなペインの出力をコンテキストとして含める (S-048)",
+    send: "送信",
+    localShell: "ローカルシェル",
+    noActiveTab: "アクティブなタブなし",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[エラー] ${e}`,
+    noPaneToInput: "入力できる端末ペインがありません。",
+    runInTerminal: "▶ 端末に送信",
+    runInTerminalTitle: "アクティブな端末ペインに送信（Enter はご自身で）",
+    copied: "コピーしました",
+    copy: "コピー",
+    noBackendConfigured: "LLM バックエンドはまだ設定されていません。",
+    addBackend: "+ LLM バックエンドを追加",
+    supportedEndpoints: "OpenAI / Ollama / 互換エンドポイントに対応",
+    newChatPlus: "＋ 新規チャット",
+    noSavedChats: "保存されたチャットなし",
+    messageCount: (n) => `${n} 件のメッセージ`,
+    delete: "削除",
+    ctxAssistantSys: (where, ctx) =>
+      `あなたは端末作業を支援するアシスタントです。現在の ${where} 画面の出力は以下のとおりです。` +
+      "コマンドを提案するときは、``` で囲んだコードブロックで提示してください。\n\n--- 端末出力 ---\n" +
+      `${ctx}\n--- 終わり ---`,
+    ctxSshHost: (label) => `SSH ホスト: ${label}`,
+    ctxLocalShell: "ローカルシェル",
+    ctxTerminal: "端末",
+    ctxRemote: "リモート",
+  },
+  ru: {
+    assistant: "ИИ-ассистент",
+    noBackend: "Нет бэкенда",
+    backendSettings: "Настройки бэкенда LLM (S-038)",
+    history: "История чата (S-049)",
+    newChat: "Новый чат",
+    paneSplit: (n) => ` · разделение на ${n} панелей`,
+    askAnything: (name) => `Спросите ${name} о чём угодно.`,
+    autoContextLater: "Автоматическое прикрепление контекста появится позже (S-048).",
+    generating: "Генерация ответа…",
+    inputPlaceholder: "Enter — отправить, Shift+Enter — новая строка",
+    setupFirst: "Сначала настройте бэкенд",
+    includeContext: "Включить вывод активной панели как контекст (S-048)",
+    send: "Отправить",
+    localShell: "Локальная оболочка",
+    noActiveTab: "Нет активной вкладки",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[Ошибка] ${e}`,
+    noPaneToInput: "Нет панели терминала для ввода.",
+    runInTerminal: "▶ Отправить в терминал",
+    runInTerminalTitle: "Отправить в активную панель терминала (Enter нажмите сами)",
+    copied: "Скопировано",
+    copy: "Копировать",
+    noBackendConfigured: "Бэкенд LLM ещё не настроен.",
+    addBackend: "+ Добавить бэкенд LLM",
+    supportedEndpoints: "Поддержка OpenAI / Ollama / совместимых эндпоинтов",
+    newChatPlus: "＋ Новый чат",
+    noSavedChats: "Нет сохранённых чатов",
+    messageCount: (n) => `${n} сообщений`,
+    delete: "Удалить",
+    ctxAssistantSys: (where, ctx) =>
+      `Ты ассистент, помогающий с работой в терминале. Текущий вывод экрана ${where} приведён ниже. ` +
+      "Предлагая команды, оформляй их в блоке кода, обёрнутом в ```.\n\n--- Вывод терминала ---\n" +
+      `${ctx}\n--- Конец ---`,
+    ctxSshHost: (label) => `Хост SSH: ${label}`,
+    ctxLocalShell: "локальная оболочка",
+    ctxTerminal: "терминал",
+    ctxRemote: "удалённый",
+  },
+  fr: {
+    assistant: "Assistant IA",
+    noBackend: "Aucun backend",
+    backendSettings: "Paramètres du backend LLM (S-038)",
+    history: "Historique des conversations (S-049)",
+    newChat: "Nouvelle conversation",
+    paneSplit: (n) => ` · ${n} volets divisés`,
+    askAnything: (name) => `Posez n'importe quelle question à ${name}.`,
+    autoContextLater: "L'ajout automatique du contexte arrivera plus tard (S-048).",
+    generating: "Génération de la réponse…",
+    inputPlaceholder: "Entrée pour envoyer, Maj+Entrée pour un saut de ligne",
+    setupFirst: "Veuillez d'abord configurer un backend",
+    includeContext: "Inclure la sortie du volet actif comme contexte (S-048)",
+    send: "Envoyer",
+    localShell: "Shell local",
+    noActiveTab: "Aucun onglet actif",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[Erreur] ${e}`,
+    noPaneToInput: "Aucun volet de terminal où saisir.",
+    runInTerminal: "▶ Envoyer au terminal",
+    runInTerminalTitle: "Envoyer au volet de terminal actif (appuyez vous-même sur Entrée)",
+    copied: "Copié",
+    copy: "Copier",
+    noBackendConfigured: "Aucun backend LLM n'a encore été configuré.",
+    addBackend: "+ Ajouter un backend LLM",
+    supportedEndpoints: "Prend en charge OpenAI / Ollama / endpoints compatibles",
+    newChatPlus: "＋ Nouvelle conversation",
+    noSavedChats: "Aucune conversation enregistrée",
+    messageCount: (n) => `${n} messages`,
+    delete: "Supprimer",
+    ctxAssistantSys: (where, ctx) =>
+      `Tu es un assistant qui aide aux tâches de terminal. La sortie actuelle de l'écran ${where} est ci-dessous. ` +
+      "Lorsque tu suggères des commandes, présente-les dans un bloc de code entouré de ```.\n\n--- Sortie du terminal ---\n" +
+      `${ctx}\n--- Fin ---`,
+    ctxSshHost: (label) => `Hôte SSH : ${label}`,
+    ctxLocalShell: "shell local",
+    ctxTerminal: "terminal",
+    ctxRemote: "distant",
+  },
+  de: {
+    assistant: "KI-Assistent",
+    noBackend: "Kein Backend",
+    backendSettings: "LLM-Backend-Einstellungen (S-038)",
+    history: "Chatverlauf (S-049)",
+    newChat: "Neuer Chat",
+    paneSplit: (n) => ` · ${n} geteilte Bereiche`,
+    askAnything: (name) => `Frag ${name} alles.`,
+    autoContextLater: "Automatisches Anhängen von Kontext kommt später (S-048).",
+    generating: "Antwort wird generiert…",
+    inputPlaceholder: "Enter zum Senden, Shift+Enter für Zeilenumbruch",
+    setupFirst: "Bitte zuerst ein Backend einrichten",
+    includeContext: "Ausgabe des aktiven Bereichs als Kontext einbeziehen (S-048)",
+    send: "Senden",
+    localShell: "Lokale Shell",
+    noActiveTab: "Kein aktiver Tab",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[Fehler] ${e}`,
+    noPaneToInput: "Kein Terminalbereich zur Eingabe vorhanden.",
+    runInTerminal: "▶ An Terminal senden",
+    runInTerminalTitle: "An aktiven Terminalbereich senden (Enter selbst drücken)",
+    copied: "Kopiert",
+    copy: "Kopieren",
+    noBackendConfigured: "Es wurde noch kein LLM-Backend konfiguriert.",
+    addBackend: "+ LLM-Backend hinzufügen",
+    supportedEndpoints: "Unterstützt OpenAI / Ollama / kompatible Endpunkte",
+    newChatPlus: "＋ Neuer Chat",
+    noSavedChats: "Keine gespeicherten Chats",
+    messageCount: (n) => `${n} Nachrichten`,
+    delete: "Löschen",
+    ctxAssistantSys: (where, ctx) =>
+      `Du bist ein Assistent, der bei Terminalarbeit hilft. Die aktuelle Bildschirmausgabe von ${where} ist unten. ` +
+      "Wenn du Befehle vorschlägst, präsentiere sie in einem mit ``` umschlossenen Codeblock.\n\n--- Terminalausgabe ---\n" +
+      `${ctx}\n--- Ende ---`,
+    ctxSshHost: (label) => `SSH-Host: ${label}`,
+    ctxLocalShell: "lokale Shell",
+    ctxTerminal: "Terminal",
+    ctxRemote: "remote",
+  },
+  vi: {
+    assistant: "Trợ lý AI",
+    noBackend: "Không có backend",
+    backendSettings: "Cài đặt backend LLM (S-038)",
+    history: "Lịch sử trò chuyện (S-049)",
+    newChat: "Cuộc trò chuyện mới",
+    paneSplit: (n) => ` · chia ${n} khung`,
+    askAnything: (name) => `Hỏi ${name} bất cứ điều gì.`,
+    autoContextLater: "Tính năng tự động đính kèm ngữ cảnh sẽ có sau (S-048).",
+    generating: "Đang tạo phản hồi…",
+    inputPlaceholder: "Enter để gửi, Shift+Enter để xuống dòng",
+    setupFirst: "Vui lòng thiết lập backend trước",
+    includeContext: "Bao gồm đầu ra của khung đang hoạt động làm ngữ cảnh (S-048)",
+    send: "Gửi",
+    localShell: "Shell cục bộ",
+    noActiveTab: "Không có tab đang hoạt động",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[Lỗi] ${e}`,
+    noPaneToInput: "Không có khung terminal để nhập.",
+    runInTerminal: "▶ Gửi đến terminal",
+    runInTerminalTitle: "Gửi đến khung terminal đang hoạt động (tự nhấn Enter)",
+    copied: "Đã sao chép",
+    copy: "Sao chép",
+    noBackendConfigured: "Chưa có backend LLM nào được cấu hình.",
+    addBackend: "+ Thêm backend LLM",
+    supportedEndpoints: "Hỗ trợ OpenAI / Ollama / các endpoint tương thích",
+    newChatPlus: "＋ Cuộc trò chuyện mới",
+    noSavedChats: "Không có cuộc trò chuyện đã lưu",
+    messageCount: (n) => `${n} tin nhắn`,
+    delete: "Xóa",
+    ctxAssistantSys: (where, ctx) =>
+      `Bạn là trợ lý hỗ trợ công việc terminal. Đầu ra màn hình ${where} hiện tại ở bên dưới. ` +
+      "Khi đề xuất lệnh, hãy trình bày chúng trong khối mã được bao bằng ```.\n\n--- Đầu ra terminal ---\n" +
+      `${ctx}\n--- Kết thúc ---`,
+    ctxSshHost: (label) => `Host SSH: ${label}`,
+    ctxLocalShell: "shell cục bộ",
+    ctxTerminal: "terminal",
+    ctxRemote: "từ xa",
+  },
+  id: {
+    assistant: "Asisten AI",
+    noBackend: "Tidak ada backend",
+    backendSettings: "Pengaturan backend LLM (S-038)",
+    history: "Riwayat obrolan (S-049)",
+    newChat: "Obrolan baru",
+    paneSplit: (n) => ` · ${n} panel terbagi`,
+    askAnything: (name) => `Tanyakan apa saja kepada ${name}.`,
+    autoContextLater: "Pelampiran konteks otomatis akan hadir nanti (S-048).",
+    generating: "Membuat respons…",
+    inputPlaceholder: "Enter untuk kirim, Shift+Enter untuk baris baru",
+    setupFirst: "Silakan siapkan backend terlebih dahulu",
+    includeContext: "Sertakan keluaran panel aktif sebagai konteks (S-048)",
+    send: "Kirim",
+    localShell: "Shell lokal",
+    noActiveTab: "Tidak ada tab aktif",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[Kesalahan] ${e}`,
+    noPaneToInput: "Tidak ada panel terminal untuk diketik.",
+    runInTerminal: "▶ Kirim ke terminal",
+    runInTerminalTitle: "Kirim ke panel terminal aktif (tekan Enter sendiri)",
+    copied: "Tersalin",
+    copy: "Salin",
+    noBackendConfigured: "Belum ada backend LLM yang dikonfigurasi.",
+    addBackend: "+ Tambah backend LLM",
+    supportedEndpoints: "Mendukung OpenAI / Ollama / endpoint yang kompatibel",
+    newChatPlus: "＋ Obrolan baru",
+    noSavedChats: "Tidak ada obrolan tersimpan",
+    messageCount: (n) => `${n} pesan`,
+    delete: "Hapus",
+    ctxAssistantSys: (where, ctx) =>
+      `Anda adalah asisten yang membantu pekerjaan terminal. Keluaran layar ${where} saat ini ada di bawah. ` +
+      "Saat menyarankan perintah, sajikan dalam blok kode yang dibungkus dengan ```.\n\n--- Keluaran terminal ---\n" +
+      `${ctx}\n--- Selesai ---`,
+    ctxSshHost: (label) => `Host SSH: ${label}`,
+    ctxLocalShell: "shell lokal",
+    ctxTerminal: "terminal",
+    ctxRemote: "jarak jauh",
+  },
+  hi: {
+    assistant: "AI सहायक",
+    noBackend: "कोई बैकएंड नहीं",
+    backendSettings: "LLM बैकएंड सेटिंग्स (S-038)",
+    history: "चैट इतिहास (S-049)",
+    newChat: "नई चैट",
+    paneSplit: (n) => ` · ${n} पैनल विभाजित`,
+    askAnything: (name) => `${name} से कुछ भी पूछें।`,
+    autoContextLater: "संदर्भ का स्वतः संलग्न होना बाद में आएगा (S-048)।",
+    generating: "उत्तर तैयार किया जा रहा है…",
+    inputPlaceholder: "भेजने के लिए Enter, नई पंक्ति के लिए Shift+Enter",
+    setupFirst: "कृपया पहले एक बैकएंड सेट करें",
+    includeContext: "सक्रिय पैनल के आउटपुट को संदर्भ के रूप में शामिल करें (S-048)",
+    send: "भेजें",
+    localShell: "लोकल शेल",
+    noActiveTab: "कोई सक्रिय टैब नहीं",
+    sshContext: (label) => `SSH — ${label}`,
+    errorPrefix: (e) => `[त्रुटि] ${e}`,
+    noPaneToInput: "इनपुट करने के लिए कोई टर्मिनल पैनल नहीं है।",
+    runInTerminal: "▶ टर्मिनल में भेजें",
+    runInTerminalTitle: "सक्रिय टर्मिनल पैनल में भेजें (Enter स्वयं दबाएं)",
+    copied: "कॉपी किया गया",
+    copy: "कॉपी करें",
+    noBackendConfigured: "अभी तक कोई LLM बैकएंड कॉन्फ़िगर नहीं किया गया है।",
+    addBackend: "+ LLM बैकएंड जोड़ें",
+    supportedEndpoints: "OpenAI / Ollama / संगत एंडपॉइंट का समर्थन करता है",
+    newChatPlus: "＋ नई चैट",
+    noSavedChats: "कोई सहेजी गई चैट नहीं",
+    messageCount: (n) => `${n} संदेश`,
+    delete: "हटाएं",
+    ctxAssistantSys: (where, ctx) =>
+      `तुम एक सहायक हो जो टर्मिनल कार्य में मदद करता है। वर्तमान ${where} स्क्रीन का आउटपुट नीचे दिया गया है। ` +
+      "कमांड सुझाते समय, उन्हें ``` से लपेटे गए कोड ब्लॉक में प्रस्तुत करो।\n\n--- टर्मिनल आउटपुट ---\n" +
+      `${ctx}\n--- अंत ---`,
+    ctxSshHost: (label) => `SSH होस्ट: ${label}`,
+    ctxLocalShell: "लोकल शेल",
+    ctxTerminal: "टर्मिनल",
+    ctxRemote: "रिमोट",
+  },
+};
 
 interface Props {
   activeTab: Tab | null;
@@ -61,6 +530,7 @@ export function AIPanel({
   onActiveSession,
   initialSessionId,
 }: Props) {
+  const t = useT(STR);
   const [backends, setBackends] = useState<BackendInfo[]>([]);
   const [currentId, setCurrentId] = useState<string | null>(null);
   const [showSetup, setShowSetup] = useState(false);
@@ -181,14 +651,12 @@ export function AIPanel({
       if (ctx) {
         const where = focusedSource
           ? focusedSource.kind === "ssh"
-            ? `SSH 호스트: ${contextLabel ?? "원격"}`
-            : "로컬 셸"
-          : "터미널";
+            ? t.ctxSshHost(contextLabel ?? t.ctxRemote)
+            : t.ctxLocalShell
+          : t.ctxTerminal;
         reqMessages.push({
           role: "system",
-          content:
-            `너는 터미널 작업을 돕는 어시스턴트다. 사용자의 현재 ${where} 화면 출력은 다음과 같다. ` +
-            `명령을 제안할 땐 \`\`\`로 감싼 코드블록으로 제시하라.\n\n--- 터미널 출력 ---\n${ctx}\n--- 끝 ---`,
+          content: t.ctxAssistantSys(where, ctx),
         });
       }
     }
@@ -213,7 +681,7 @@ export function AIPanel({
       setError(String(e));
       const final = [
         ...display,
-        { role: "assistant" as const, content: `[에러] ${String(e)}` },
+        { role: "assistant" as const, content: t.errorPrefix(String(e)) },
       ];
       setMessages(final);
       persistSession(sid, final);
@@ -225,7 +693,7 @@ export function AIPanel({
   function runInTerminal(code: string) {
     const handle = getTerminal(focusedPaneId);
     if (!handle) {
-      setError("입력할 터미널 패널이 없습니다.");
+      setError(t.noPaneToInput);
       return;
     }
     // 개행 없이 입력만 — 사용자가 직접 Enter로 실행하도록 (안전).
@@ -242,10 +710,10 @@ export function AIPanel({
   const sourceCtx = activeTab
     ? focusedSource
       ? focusedSource.kind === "ssh"
-        ? `SSH — ${contextLabel ?? activeTab.label}`
-        : "로컬 셸"
+        ? t.sshContext(contextLabel ?? activeTab.label)
+        : t.localShell
       : activeTab.label
-    : "활성 탭 없음";
+    : t.noActiveTab;
 
   return (
     <aside
@@ -272,7 +740,7 @@ export function AIPanel({
           alignItems: "center",
         }}
       >
-        <strong style={{ color: "#fff", marginRight: "auto" }}>AI 어시스턴트</strong>
+        <strong style={{ color: "#fff", marginRight: "auto" }}>{t.assistant}</strong>
         {backends.length > 0 ? (
           <select
             value={currentId ?? ""}
@@ -294,23 +762,23 @@ export function AIPanel({
             ))}
           </select>
         ) : (
-          <span style={{ color: "#789", fontSize: 11 }}>백엔드 없음</span>
+          <span style={{ color: "#789", fontSize: 11 }}>{t.noBackend}</span>
         )}
         <button
           onClick={() => setShowSetup(true)}
           style={iconBtnStyle}
-          title="LLM 백엔드 설정 (S-038)"
+          title={t.backendSettings}
         >
           ⚙
         </button>
         <button
           onClick={() => setShowHistory((v) => !v)}
           style={{ ...iconBtnStyle, color: showHistory ? "#4a9eff" : "#888" }}
-          title="대화 이력 (S-049)"
+          title={t.history}
         >
           🕘
         </button>
-        <button onClick={newChat} style={iconBtnStyle} title="새 대화">
+        <button onClick={newChat} style={iconBtnStyle} title={t.newChat}>
           ＋
         </button>
       </header>
@@ -324,7 +792,7 @@ export function AIPanel({
         }}
       >
         📍 {sourceCtx}
-        {paneCount > 1 && ` · 분할 ${paneCount}패널`}
+        {paneCount > 1 && t.paneSplit(paneCount)}
       </div>
 
       {showHistory ? (
@@ -353,10 +821,10 @@ export function AIPanel({
           <div style={{ color: "#789", textAlign: "center", marginTop: 24 }}>
             <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
             <div style={{ fontSize: 12 }}>
-              {current.displayName}에 무엇이든 물어보세요.
+              {t.askAnything(current.displayName)}
             </div>
             <div style={{ fontSize: 10, marginTop: 6 }}>
-              컨텍스트 자동 첨부는 후속 (S-048).
+              {t.autoContextLater}
             </div>
           </div>
         )}
@@ -370,7 +838,7 @@ export function AIPanel({
         ))}
         {busy && (
           <div style={{ color: "#789", fontSize: 12, fontStyle: "italic" }}>
-            응답 생성 중…
+            {t.generating}
           </div>
         )}
       </div>
@@ -401,7 +869,7 @@ export function AIPanel({
           checked={includeContext}
           onChange={(e) => setIncludeContext(e.target.checked)}
         />
-        <span>활성 패널 출력을 컨텍스트로 포함 (S-048)</span>
+        <span>{t.includeContext}</span>
       </label>
 
       <div
@@ -421,11 +889,7 @@ export function AIPanel({
               void send();
             }
           }}
-          placeholder={
-            current
-              ? "Enter로 전송, Shift+Enter 줄바꿈"
-              : "백엔드를 먼저 설정해주세요"
-          }
+          placeholder={current ? t.inputPlaceholder : t.setupFirst}
           disabled={!current || busy}
           rows={2}
           style={{
@@ -454,7 +918,7 @@ export function AIPanel({
             cursor: current && input.trim() ? "pointer" : "not-allowed",
           }}
         >
-          전송
+          {t.send}
         </button>
       </div>
 
@@ -518,6 +982,7 @@ function CommandCard({
   code: string;
   onRun: (code: string) => void;
 }) {
+  const t = useT(STR);
   const [copied, setCopied] = useState(false);
   return (
     <div
@@ -555,9 +1020,9 @@ function CommandCard({
         <button
           onClick={() => onRun(code)}
           style={cardBtnStyle}
-          title="활성 터미널 패널에 입력 (Enter는 직접)"
+          title={t.runInTerminalTitle}
         >
-          ▶ 터미널에 입력
+          {t.runInTerminal}
         </button>
         <button
           onClick={() => {
@@ -567,7 +1032,7 @@ function CommandCard({
           }}
           style={cardBtnStyle}
         >
-          {copied ? "복사됨" : "복사"}
+          {copied ? t.copied : t.copy}
         </button>
       </div>
     </div>
@@ -585,6 +1050,7 @@ const cardBtnStyle: React.CSSProperties = {
 };
 
 function EmptyState({ onSetup }: { onSetup: () => void }) {
+  const t = useT(STR);
   return (
     <div
       style={{
@@ -594,7 +1060,7 @@ function EmptyState({ onSetup }: { onSetup: () => void }) {
       }}
     >
       <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
-      <div style={{ marginBottom: 8 }}>LLM 백엔드가 아직 설정되지 않았습니다.</div>
+      <div style={{ marginBottom: 8 }}>{t.noBackendConfigured}</div>
       <button
         onClick={onSetup}
         style={{
@@ -608,10 +1074,10 @@ function EmptyState({ onSetup }: { onSetup: () => void }) {
           fontWeight: 600,
         }}
       >
-        + LLM 백엔드 추가
+        {t.addBackend}
       </button>
       <div style={{ fontSize: 10, marginTop: 10, lineHeight: 1.5 }}>
-        OpenAI / Ollama / 호환 엔드포인트 지원
+        {t.supportedEndpoints}
       </div>
     </div>
   );
@@ -630,6 +1096,7 @@ function HistoryDrawer({
   onDelete: (id: string) => void;
   onNew: () => void;
 }) {
+  const t = useT(STR);
   const sorted = [...sessions].sort((a, b) => b.updatedAt - a.updatedAt);
   return (
     <div style={{ flex: 1, overflowY: "auto", padding: 8, minHeight: 0 }}>
@@ -647,11 +1114,11 @@ function HistoryDrawer({
           marginBottom: 8,
         }}
       >
-        ＋ 새 대화
+        {t.newChatPlus}
       </button>
       {sorted.length === 0 && (
         <div style={{ color: "#789", textAlign: "center", padding: 16, fontSize: 12 }}>
-          저장된 대화 없음
+          {t.noSavedChats}
         </div>
       )}
       {sorted.map((s) => {
@@ -684,7 +1151,7 @@ function HistoryDrawer({
                 {s.title}
               </div>
               <div style={{ fontSize: 10, color: "#789" }}>
-                {s.messages.length}개 메시지 ·{" "}
+                {t.messageCount(s.messages.length)} ·{" "}
                 {new Date(s.updatedAt).toLocaleString()}
               </div>
             </div>
@@ -694,7 +1161,7 @@ function HistoryDrawer({
                 onDelete(s.id);
               }}
               style={iconBtnStyle}
-              title="삭제"
+              title={t.delete}
             >
               ×
             </button>

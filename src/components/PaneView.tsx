@@ -2,6 +2,70 @@ import { useRef } from "react";
 import { Pane, SshConnectError, TerminalSource } from "../types";
 import { Terminal } from "./Terminal";
 import { TerminalSettings } from "../settings";
+import { LangDict, useT } from "../i18n";
+
+const STR: LangDict<{
+    closePane: string;
+    dragVertical: string;
+    dragHorizontal: string;
+  }
+> = {
+  en: {
+    closePane: "Close pane",
+    dragVertical: "Drag the left/right split divider",
+    dragHorizontal: "Drag the top/bottom split divider",
+  },
+  ko: {
+    closePane: "패널 닫기",
+    dragVertical: "좌우 분할 구분선 드래그",
+    dragHorizontal: "상하 분할 구분선 드래그",
+  },
+  es: {
+    closePane: "Cerrar panel",
+    dragVertical: "Arrastra el divisor de división izquierda/derecha",
+    dragHorizontal: "Arrastra el divisor de división superior/inferior",
+  },
+  zh: {
+    closePane: "关闭窗格",
+    dragVertical: "拖动左右分割分隔条",
+    dragHorizontal: "拖动上下分割分隔条",
+  },
+  ja: {
+    closePane: "ペインを閉じる",
+    dragVertical: "左右分割の仕切りをドラッグ",
+    dragHorizontal: "上下分割の仕切りをドラッグ",
+  },
+  ru: {
+    closePane: "Закрыть панель",
+    dragVertical: "Перетащите разделитель левого/правого разбиения",
+    dragHorizontal: "Перетащите разделитель верхнего/нижнего разбиения",
+  },
+  fr: {
+    closePane: "Fermer le panneau",
+    dragVertical: "Faites glisser le séparateur de division gauche/droite",
+    dragHorizontal: "Faites glisser le séparateur de division haut/bas",
+  },
+  de: {
+    closePane: "Bereich schließen",
+    dragVertical: "Trennlinie der Links-/Rechts-Teilung ziehen",
+    dragHorizontal: "Trennlinie der Oben-/Unten-Teilung ziehen",
+  },
+  vi: {
+    closePane: "Đóng khung",
+    dragVertical: "Kéo thanh chia tách trái/phải",
+    dragHorizontal: "Kéo thanh chia tách trên/dưới",
+  },
+  id: {
+    closePane: "Tutup panel",
+    dragVertical: "Seret pembagi split kiri/kanan",
+    dragHorizontal: "Seret pembagi split atas/bawah",
+  },
+  hi: {
+    closePane: "पैन बंद करें",
+    dragVertical: "बाएं/दाएं विभाजन विभाजक खींचें",
+    dragHorizontal: "ऊपर/नीचे विभाजन विभाजक खींचें",
+  },
+};
 
 interface Props {
   pane: Pane;
@@ -40,6 +104,7 @@ export function PaneView(props: Props) {
 function LeafPane(
   props: Omit<Props, "pane"> & { pane: Extract<Pane, { kind: "leaf" }> },
 ) {
+  const t = useT(STR);
   const { pane, focusedPaneId, showHeaders } = props;
   const isFocused = pane.id === focusedPaneId;
   return (
@@ -88,7 +153,7 @@ function LeafPane(
               lineHeight: 1,
               padding: "0 2px",
             }}
-            title="패널 닫기"
+            title={t.closePane}
           >
             ×
           </button>
@@ -115,6 +180,7 @@ function LeafPane(
 function SplitPane(
   props: Omit<Props, "pane"> & { pane: Extract<Pane, { kind: "split" }> },
 ) {
+  const t = useT(STR);
   const { pane, path = [] } = props;
   const containerRef = useRef<HTMLDivElement>(null);
   const isVertical = pane.direction === "vertical"; // 좌우 분할
@@ -172,7 +238,7 @@ function SplitPane(
           cursor: isVertical ? "col-resize" : "row-resize",
           userSelect: "none",
         }}
-        title={isVertical ? "좌우 분할 구분선 드래그" : "상하 분할 구분선 드래그"}
+        title={isVertical ? t.dragVertical : t.dragHorizontal}
       />
       <div
         style={{

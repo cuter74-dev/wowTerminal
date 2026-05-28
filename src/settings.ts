@@ -8,9 +8,48 @@ export interface TerminalSettings {
   scrollback: number;
 }
 
+export type Lang =
+  | "en"
+  | "ko"
+  | "es"
+  | "zh"
+  | "ja"
+  | "ru"
+  | "fr"
+  | "de"
+  | "vi"
+  | "id"
+  | "hi";
+
+/** 지원 언어 목록 + 자국어 표기 (설정 드롭다운용). */
+export const LANGS: ReadonlyArray<{ code: Lang; label: string }> = [
+  { code: "en", label: "English" },
+  { code: "ko", label: "한국어" },
+  { code: "es", label: "Español" },
+  { code: "zh", label: "中文" },
+  { code: "ja", label: "日本語" },
+  { code: "ru", label: "Русский" },
+  { code: "fr", label: "Français" },
+  { code: "de", label: "Deutsch" },
+  { code: "vi", label: "Tiếng Việt" },
+  { code: "id", label: "Bahasa Indonesia" },
+  { code: "hi", label: "हिन्दी" },
+];
+
+/** 저장된 언어가 없을 때 OS 로케일로 추정. 미지원이면 en. */
+export function detectLang(): Lang {
+  const raw =
+    typeof navigator !== "undefined" ? navigator.language ?? "en" : "en";
+  const code = raw.toLowerCase().split("-")[0];
+  const supported = LANGS.map((l) => l.code as string);
+  return supported.includes(code) ? (code as Lang) : "en";
+}
+
 export interface GeneralSettings {
   /** 앱 시작 시 마지막 탭 복원 (현재는 표시만 — 복원 로직 후속). */
   restoreTabs: boolean;
+  /** UI 언어 (#22). */
+  language: Lang;
 }
 
 export interface LayoutSettings {
@@ -43,7 +82,7 @@ export const TERMINAL_THEMES: Record<
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  general: { restoreTabs: false },
+  general: { restoreTabs: false, language: "en" },
   terminal: {
     fontSize: 14,
     fontFamily: "Menlo, Consolas, 'Courier New', monospace",
@@ -64,16 +103,24 @@ const KEY = "wowterminal-settings";
 export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(KEY);
-    if (!raw) return DEFAULT_SETTINGS;
+    if (!raw) {
+      return {
+        ...DEFAULT_SETTINGS,
+        general: { ...DEFAULT_SETTINGS.general, language: detectLang() },
+      };
+    }
     const parsed = JSON.parse(raw);
     // 누락 필드는 기본값으로 메움 (스키마 진화 대비).
+    const general = { ...DEFAULT_SETTINGS.general, ...(parsed.general ?? {}) };
+    // 저장된 언어가 없으면 OS 로케일로 추정.
+    if (!parsed.general?.language) general.language = detectLang();
     return {
-      general: { ...DEFAULT_SETTINGS.general, ...(parsed.general ?? {}) },
+      general,
       terminal: { ...DEFAULT_SETTINGS.terminal, ...(parsed.terminal ?? {}) },
       layout: { ...DEFAULT_SETTINGS.layout, ...(parsed.layout ?? {}) },
     };
   } catch {
-    return DEFAULT_SETTINGS;
+    return { ...DEFAULT_SETTINGS, general: { ...DEFAULT_SETTINGS.general, language: detectLang() } };
   }
 }
 

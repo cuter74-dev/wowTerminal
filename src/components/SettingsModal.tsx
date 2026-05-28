@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { AppSettings, SHORTCUTS } from "../settings";
+import { AppSettings, SHORTCUTS, Lang, LANGS } from "../settings";
+import { LangDict, useT } from "../i18n";
 import { Group, SshHost, Tag } from "../types";
 
 interface Props {
@@ -11,15 +12,412 @@ interface Props {
 
 type TabId = "general" | "terminal" | "shortcuts" | "backup";
 
-const TABS: Array<{ id: TabId; label: string }> = [
-  { id: "general", label: "일반" },
-  { id: "terminal", label: "터미널/테마" },
-  { id: "shortcuts", label: "단축키" },
-  { id: "backup", label: "가져오기/내보내기" },
-];
+const STR: LangDict<{
+    settings: string;
+    tabGeneral: string;
+    tabTerminal: string;
+    tabShortcuts: string;
+    tabBackup: string;
+    language: string;
+    restoreTabs: string;
+    aboutDesc: string;
+    checkUpdate: string;
+    upToDate: string;
+    fontSize: string;
+    fontFamily: string;
+    theme: string;
+    dark: string;
+    light: string;
+    cursorBlink: string;
+    scrollback: string;
+    applyNote: string;
+    readonlyNote: string;
+    export: string;
+    copy: string;
+    import: string;
+    backupPlaceholder: string;
+    secretsNote: string;
+    exportDone: string;
+    exportFail: (e: string) => string;
+    importDone: (h: number, g: number, t: number) => string;
+    importFail: (e: string) => string;
+  }
+> = {
+  en: {
+    settings: "Settings",
+    tabGeneral: "General",
+    tabTerminal: "Terminal/Theme",
+    tabShortcuts: "Shortcuts",
+    tabBackup: "Import/Export",
+    language: "Language",
+    restoreTabs: "Restore last tabs on startup (later)",
+    aboutDesc: "A context-aware AI terminal — LLM × SSH × SFTP.",
+    checkUpdate: "Check for updates",
+    upToDate: "You're on the latest version (v0.1.0-beta).",
+    fontSize: "Font size",
+    fontFamily: "Font family",
+    theme: "Theme",
+    dark: "Dark",
+    light: "Light",
+    cursorBlink: "Cursor blink",
+    scrollback: "Scrollback (lines)",
+    applyNote: "Applied to all terminals immediately.",
+    readonlyNote: "v1 is read-only. Custom key bindings later.",
+    export: "Export (hosts/groups/tags)",
+    copy: "Copy",
+    import: "Import",
+    backupPlaceholder:
+      "Exported JSON appears here. To import, paste JSON and click [Import].",
+    secretsNote:
+      "Secrets (passwords/keys) stay in the Keychain and are not included in the export.",
+    exportDone:
+      "Export complete — copy the JSON below to keep it. (Secrets are not included)",
+    exportFail: (e) => `Export failed: ${e}`,
+    importDone: (h, g, t) => `Import complete: hosts ${h} / groups ${g} / tags ${t}`,
+    importFail: (e) => `Import failed: ${e}`,
+  },
+  ko: {
+    settings: "설정",
+    tabGeneral: "일반",
+    tabTerminal: "터미널/테마",
+    tabShortcuts: "단축키",
+    tabBackup: "가져오기/내보내기",
+    language: "언어",
+    restoreTabs: "앱 시작 시 마지막 탭 복원 (후속)",
+    aboutDesc: "컨텍스트를 아는 AI 터미널 — LLM × SSH × SFTP.",
+    checkUpdate: "업데이트 확인",
+    upToDate: "현재 최신 버전입니다 (v0.1.0-beta).",
+    fontSize: "폰트 크기",
+    fontFamily: "폰트 패밀리",
+    theme: "테마",
+    dark: "다크",
+    light: "라이트",
+    cursorBlink: "커서 깜빡임",
+    scrollback: "스크롤백 (줄)",
+    applyNote: "변경 즉시 모든 터미널에 적용됩니다.",
+    readonlyNote: "v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.",
+    export: "내보내기 (호스트/그룹/태그)",
+    copy: "복사",
+    import: "가져오기",
+    backupPlaceholder:
+      "내보낸 JSON이 여기 표시됩니다. 가져오려면 JSON을 붙여넣고 [가져오기].",
+    secretsNote:
+      "시크릿(비밀번호/키)은 Keychain에 남고 export에 포함되지 않습니다.",
+    exportDone:
+      "내보내기 완료 — 아래 JSON을 복사해 보관하세요. (시크릿은 포함되지 않습니다)",
+    exportFail: (e) => `내보내기 실패: ${e}`,
+    importDone: (h, g, t) => `가져오기 완료: 호스트 ${h} / 그룹 ${g} / 태그 ${t}`,
+    importFail: (e) => `가져오기 실패: ${e}`,
+  },
+  es: {
+    settings: "Configuración",
+    tabGeneral: "General",
+    tabTerminal: "Terminal/Tema",
+    tabShortcuts: "Atajos",
+    tabBackup: "Importar/Exportar",
+    language: "Idioma",
+    restoreTabs: "Restaurar las últimas pestañas al iniciar (más adelante)",
+    aboutDesc: "Un terminal de IA con reconocimiento de contexto — LLM × SSH × SFTP.",
+    checkUpdate: "Buscar actualizaciones",
+    upToDate: "Estás en la última versión (v0.1.0-beta).",
+    fontSize: "Tamaño de fuente",
+    fontFamily: "Familia de fuente",
+    theme: "Tema",
+    dark: "Oscuro",
+    light: "Claro",
+    cursorBlink: "Parpadeo del cursor",
+    scrollback: "Desplazamiento (líneas)",
+    applyNote: "Aplicado a todas las terminales de inmediato.",
+    readonlyNote: "v1 es de solo lectura. Atajos personalizados más adelante.",
+    export: "Exportar (hosts/grupos/etiquetas)",
+    copy: "Copiar",
+    import: "Importar",
+    backupPlaceholder:
+      "El JSON exportado aparece aquí. Para importar, pega el JSON y haz clic en [Importar].",
+    secretsNote:
+      "Los secretos (contraseñas/claves) permanecen en el Keychain y no se incluyen en la exportación.",
+    exportDone:
+      "Exportación completa — copia el JSON de abajo para conservarlo. (Los secretos no se incluyen)",
+    exportFail: (e) => `Exportación fallida: ${e}`,
+    importDone: (h, g, t) => `Importación completa: hosts ${h} / grupos ${g} / etiquetas ${t}`,
+    importFail: (e) => `Importación fallida: ${e}`,
+  },
+  zh: {
+    settings: "设置",
+    tabGeneral: "常规",
+    tabTerminal: "终端/主题",
+    tabShortcuts: "快捷键",
+    tabBackup: "导入/导出",
+    language: "语言",
+    restoreTabs: "启动时恢复上次的标签页（稍后）",
+    aboutDesc: "一个具有上下文感知的 AI 终端 — LLM × SSH × SFTP.",
+    checkUpdate: "检查更新",
+    upToDate: "您使用的是最新版本 (v0.1.0-beta).",
+    fontSize: "字体大小",
+    fontFamily: "字体",
+    theme: "主题",
+    dark: "深色",
+    light: "浅色",
+    cursorBlink: "光标闪烁",
+    scrollback: "回滚（行数）",
+    applyNote: "立即应用到所有终端。",
+    readonlyNote: "v1 为只读。自定义按键绑定稍后推出。",
+    export: "导出（主机/分组/标签）",
+    copy: "复制",
+    import: "导入",
+    backupPlaceholder:
+      "导出的 JSON 显示在这里。要导入，请粘贴 JSON 并点击 [导入]。",
+    secretsNote:
+      "密钥（密码/密钥）保留在 Keychain 中，不包含在导出内容中。",
+    exportDone:
+      "导出完成 — 复制下方的 JSON 进行保存。（不包含密钥）",
+    exportFail: (e) => `导出失败: ${e}`,
+    importDone: (h, g, t) => `导入完成: 主机 ${h} / 分组 ${g} / 标签 ${t}`,
+    importFail: (e) => `导入失败: ${e}`,
+  },
+  ja: {
+    settings: "設定",
+    tabGeneral: "一般",
+    tabTerminal: "ターミナル/テーマ",
+    tabShortcuts: "ショートカット",
+    tabBackup: "インポート/エクスポート",
+    language: "言語",
+    restoreTabs: "起動時に前回のタブを復元（後日）",
+    aboutDesc: "コンテキストを理解する AI ターミナル — LLM × SSH × SFTP.",
+    checkUpdate: "更新を確認",
+    upToDate: "最新バージョンです (v0.1.0-beta).",
+    fontSize: "フォントサイズ",
+    fontFamily: "フォントファミリー",
+    theme: "テーマ",
+    dark: "ダーク",
+    light: "ライト",
+    cursorBlink: "カーソルの点滅",
+    scrollback: "スクロールバック（行）",
+    applyNote: "すべてのターミナルに即座に適用されます。",
+    readonlyNote: "v1 は読み取り専用です。カスタムキーバインドは後日。",
+    export: "エクスポート（ホスト/グループ/タグ）",
+    copy: "コピー",
+    import: "インポート",
+    backupPlaceholder:
+      "エクスポートした JSON がここに表示されます。インポートするには JSON を貼り付けて [インポート] をクリック。",
+    secretsNote:
+      "シークレット（パスワード/キー）は Keychain に残り、エクスポートには含まれません。",
+    exportDone:
+      "エクスポート完了 — 下の JSON をコピーして保管してください。（シークレットは含まれません）",
+    exportFail: (e) => `エクスポート失敗: ${e}`,
+    importDone: (h, g, t) => `インポート完了: ホスト ${h} / グループ ${g} / タグ ${t}`,
+    importFail: (e) => `インポート失敗: ${e}`,
+  },
+  ru: {
+    settings: "Настройки",
+    tabGeneral: "Общие",
+    tabTerminal: "Терминал/Тема",
+    tabShortcuts: "Сочетания клавиш",
+    tabBackup: "Импорт/Экспорт",
+    language: "Язык",
+    restoreTabs: "Восстанавливать последние вкладки при запуске (позже)",
+    aboutDesc: "Контекстно-зависимый ИИ-терминал — LLM × SSH × SFTP.",
+    checkUpdate: "Проверить обновления",
+    upToDate: "У вас последняя версия (v0.1.0-beta).",
+    fontSize: "Размер шрифта",
+    fontFamily: "Семейство шрифтов",
+    theme: "Тема",
+    dark: "Тёмная",
+    light: "Светлая",
+    cursorBlink: "Мигание курсора",
+    scrollback: "Прокрутка (строки)",
+    applyNote: "Применяется ко всем терминалам мгновенно.",
+    readonlyNote: "v1 только для чтения. Пользовательские сочетания клавиш позже.",
+    export: "Экспорт (хосты/группы/теги)",
+    copy: "Копировать",
+    import: "Импорт",
+    backupPlaceholder:
+      "Экспортированный JSON появится здесь. Чтобы импортировать, вставьте JSON и нажмите [Импорт].",
+    secretsNote:
+      "Секреты (пароли/ключи) остаются в Keychain и не включаются в экспорт.",
+    exportDone:
+      "Экспорт завершён — скопируйте JSON ниже, чтобы сохранить его. (Секреты не включены)",
+    exportFail: (e) => `Ошибка экспорта: ${e}`,
+    importDone: (h, g, t) => `Импорт завершён: хосты ${h} / группы ${g} / теги ${t}`,
+    importFail: (e) => `Ошибка импорта: ${e}`,
+  },
+  fr: {
+    settings: "Paramètres",
+    tabGeneral: "Général",
+    tabTerminal: "Terminal/Thème",
+    tabShortcuts: "Raccourcis",
+    tabBackup: "Importer/Exporter",
+    language: "Langue",
+    restoreTabs: "Restaurer les derniers onglets au démarrage (plus tard)",
+    aboutDesc: "Un terminal IA sensible au contexte — LLM × SSH × SFTP.",
+    checkUpdate: "Vérifier les mises à jour",
+    upToDate: "Vous utilisez la dernière version (v0.1.0-beta).",
+    fontSize: "Taille de police",
+    fontFamily: "Famille de police",
+    theme: "Thème",
+    dark: "Sombre",
+    light: "Clair",
+    cursorBlink: "Clignotement du curseur",
+    scrollback: "Défilement arrière (lignes)",
+    applyNote: "Appliqué immédiatement à tous les terminaux.",
+    readonlyNote: "v1 est en lecture seule. Raccourcis personnalisés plus tard.",
+    export: "Exporter (hôtes/groupes/étiquettes)",
+    copy: "Copier",
+    import: "Importer",
+    backupPlaceholder:
+      "Le JSON exporté apparaît ici. Pour importer, collez le JSON et cliquez sur [Importer].",
+    secretsNote:
+      "Les secrets (mots de passe/clés) restent dans le Keychain et ne sont pas inclus dans l'exportation.",
+    exportDone:
+      "Exportation terminée — copiez le JSON ci-dessous pour le conserver. (Les secrets ne sont pas inclus)",
+    exportFail: (e) => `Échec de l'exportation : ${e}`,
+    importDone: (h, g, t) => `Importation terminée : hôtes ${h} / groupes ${g} / étiquettes ${t}`,
+    importFail: (e) => `Échec de l'importation : ${e}`,
+  },
+  de: {
+    settings: "Einstellungen",
+    tabGeneral: "Allgemein",
+    tabTerminal: "Terminal/Design",
+    tabShortcuts: "Tastenkürzel",
+    tabBackup: "Importieren/Exportieren",
+    language: "Sprache",
+    restoreTabs: "Letzte Tabs beim Start wiederherstellen (später)",
+    aboutDesc: "Ein kontextbewusstes KI-Terminal — LLM × SSH × SFTP.",
+    checkUpdate: "Nach Updates suchen",
+    upToDate: "Sie haben die neueste Version (v0.1.0-beta).",
+    fontSize: "Schriftgröße",
+    fontFamily: "Schriftfamilie",
+    theme: "Design",
+    dark: "Dunkel",
+    light: "Hell",
+    cursorBlink: "Cursor-Blinken",
+    scrollback: "Rückblättern (Zeilen)",
+    applyNote: "Wird sofort auf alle Terminals angewendet.",
+    readonlyNote: "v1 ist schreibgeschützt. Benutzerdefinierte Tastenbelegungen später.",
+    export: "Exportieren (Hosts/Gruppen/Tags)",
+    copy: "Kopieren",
+    import: "Importieren",
+    backupPlaceholder:
+      "Exportiertes JSON erscheint hier. Zum Importieren JSON einfügen und auf [Importieren] klicken.",
+    secretsNote:
+      "Geheimnisse (Passwörter/Schlüssel) bleiben im Keychain und sind nicht im Export enthalten.",
+    exportDone:
+      "Export abgeschlossen — kopieren Sie das JSON unten, um es aufzubewahren. (Geheimnisse sind nicht enthalten)",
+    exportFail: (e) => `Export fehlgeschlagen: ${e}`,
+    importDone: (h, g, t) => `Import abgeschlossen: Hosts ${h} / Gruppen ${g} / Tags ${t}`,
+    importFail: (e) => `Import fehlgeschlagen: ${e}`,
+  },
+  vi: {
+    settings: "Cài đặt",
+    tabGeneral: "Chung",
+    tabTerminal: "Terminal/Giao diện",
+    tabShortcuts: "Phím tắt",
+    tabBackup: "Nhập/Xuất",
+    language: "Ngôn ngữ",
+    restoreTabs: "Khôi phục các tab gần nhất khi khởi động (sau này)",
+    aboutDesc: "Một terminal AI nhận biết ngữ cảnh — LLM × SSH × SFTP.",
+    checkUpdate: "Kiểm tra cập nhật",
+    upToDate: "Bạn đang dùng phiên bản mới nhất (v0.1.0-beta).",
+    fontSize: "Cỡ chữ",
+    fontFamily: "Phông chữ",
+    theme: "Giao diện",
+    dark: "Tối",
+    light: "Sáng",
+    cursorBlink: "Nhấp nháy con trỏ",
+    scrollback: "Cuộn lại (dòng)",
+    applyNote: "Áp dụng ngay cho tất cả các terminal.",
+    readonlyNote: "v1 chỉ đọc. Tùy chỉnh phím tắt sẽ có sau.",
+    export: "Xuất (máy chủ/nhóm/thẻ)",
+    copy: "Sao chép",
+    import: "Nhập",
+    backupPlaceholder:
+      "JSON đã xuất hiển thị ở đây. Để nhập, dán JSON và nhấp [Nhập].",
+    secretsNote:
+      "Các bí mật (mật khẩu/khóa) vẫn nằm trong Keychain và không được bao gồm trong bản xuất.",
+    exportDone:
+      "Xuất hoàn tất — sao chép JSON bên dưới để lưu giữ. (Không bao gồm bí mật)",
+    exportFail: (e) => `Xuất thất bại: ${e}`,
+    importDone: (h, g, t) => `Nhập hoàn tất: máy chủ ${h} / nhóm ${g} / thẻ ${t}`,
+    importFail: (e) => `Nhập thất bại: ${e}`,
+  },
+  id: {
+    settings: "Pengaturan",
+    tabGeneral: "Umum",
+    tabTerminal: "Terminal/Tema",
+    tabShortcuts: "Pintasan",
+    tabBackup: "Impor/Ekspor",
+    language: "Bahasa",
+    restoreTabs: "Pulihkan tab terakhir saat memulai (nanti)",
+    aboutDesc: "Terminal AI yang sadar konteks — LLM × SSH × SFTP.",
+    checkUpdate: "Periksa pembaruan",
+    upToDate: "Anda menggunakan versi terbaru (v0.1.0-beta).",
+    fontSize: "Ukuran font",
+    fontFamily: "Jenis font",
+    theme: "Tema",
+    dark: "Gelap",
+    light: "Terang",
+    cursorBlink: "Kedipan kursor",
+    scrollback: "Gulir balik (baris)",
+    applyNote: "Diterapkan ke semua terminal segera.",
+    readonlyNote: "v1 hanya-baca. Pengikatan tombol khusus nanti.",
+    export: "Ekspor (host/grup/tag)",
+    copy: "Salin",
+    import: "Impor",
+    backupPlaceholder:
+      "JSON yang diekspor muncul di sini. Untuk mengimpor, tempel JSON dan klik [Impor].",
+    secretsNote:
+      "Rahasia (kata sandi/kunci) tetap di Keychain dan tidak disertakan dalam ekspor.",
+    exportDone:
+      "Ekspor selesai — salin JSON di bawah untuk menyimpannya. (Rahasia tidak disertakan)",
+    exportFail: (e) => `Ekspor gagal: ${e}`,
+    importDone: (h, g, t) => `Impor selesai: host ${h} / grup ${g} / tag ${t}`,
+    importFail: (e) => `Impor gagal: ${e}`,
+  },
+  hi: {
+    settings: "सेटिंग्स",
+    tabGeneral: "सामान्य",
+    tabTerminal: "टर्मिनल/थीम",
+    tabShortcuts: "शॉर्टकट",
+    tabBackup: "आयात/निर्यात",
+    language: "भाषा",
+    restoreTabs: "शुरू होने पर अंतिम टैब पुनर्स्थापित करें (बाद में)",
+    aboutDesc: "एक संदर्भ-जागरूक AI टर्मिनल — LLM × SSH × SFTP.",
+    checkUpdate: "अपडेट जाँचें",
+    upToDate: "आप नवीनतम संस्करण पर हैं (v0.1.0-beta).",
+    fontSize: "फ़ॉन्ट आकार",
+    fontFamily: "फ़ॉन्ट परिवार",
+    theme: "थीम",
+    dark: "गहरा",
+    light: "हल्का",
+    cursorBlink: "कर्सर ब्लिंक",
+    scrollback: "स्क्रॉलबैक (पंक्तियाँ)",
+    applyNote: "सभी टर्मिनलों पर तुरंत लागू।",
+    readonlyNote: "v1 केवल-पढ़ने के लिए है। कस्टम की बाइंडिंग बाद में।",
+    export: "निर्यात (होस्ट/समूह/टैग)",
+    copy: "कॉपी करें",
+    import: "आयात",
+    backupPlaceholder:
+      "निर्यात किया गया JSON यहाँ दिखता है। आयात करने के लिए, JSON पेस्ट करें और [आयात] पर क्लिक करें।",
+    secretsNote:
+      "रहस्य (पासवर्ड/कुंजियाँ) Keychain में रहते हैं और निर्यात में शामिल नहीं होते।",
+    exportDone:
+      "निर्यात पूर्ण — इसे रखने के लिए नीचे का JSON कॉपी करें। (रहस्य शामिल नहीं हैं)",
+    exportFail: (e) => `निर्यात विफल: ${e}`,
+    importDone: (h, g, t) => `आयात पूर्ण: होस्ट ${h} / समूह ${g} / टैग ${t}`,
+    importFail: (e) => `आयात विफल: ${e}`,
+  },
+};
 
 export function SettingsModal({ settings, onChange, onClose }: Props) {
+  const t = useT(STR);
   const [tab, setTab] = useState<TabId>("general");
+
+  const TABS: Array<{ id: TabId; label: string }> = [
+    { id: "general", label: t.tabGeneral },
+    { id: "terminal", label: t.tabTerminal },
+    { id: "shortcuts", label: t.tabShortcuts },
+    { id: "backup", label: t.tabBackup },
+  ];
 
   function patchTerminal(p: Partial<AppSettings["terminal"]>) {
     onChange({ ...settings, terminal: { ...settings.terminal, ...p } });
@@ -32,18 +430,18 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
     <div onClick={onClose} style={overlayStyle}>
       <div onClick={(e) => e.stopPropagation()} style={modalStyle} role="dialog" aria-modal="true">
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <strong style={{ fontSize: 15 }}>⚙ 설정</strong>
+          <strong style={{ fontSize: 15 }}>⚙ {t.settings}</strong>
           <button onClick={onClose} style={iconBtnStyle}>×</button>
         </header>
 
         <div style={{ display: "flex", gap: 6, borderBottom: "1px solid #2a2a30", paddingBottom: 8 }}>
-          {TABS.map((t) => (
+          {TABS.map((tb) => (
             <button
-              key={t.id}
-              onClick={() => setTab(t.id)}
+              key={tb.id}
+              onClick={() => setTab(tb.id)}
               style={{
-                background: tab === t.id ? "#094771" : "transparent",
-                color: tab === t.id ? "#fff" : "#aaa",
+                background: tab === tb.id ? "#094771" : "transparent",
+                color: tab === tb.id ? "#fff" : "#aaa",
                 border: "none",
                 borderRadius: 4,
                 padding: "5px 10px",
@@ -51,7 +449,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                 fontSize: 12,
               }}
             >
-              {t.label}
+              {tb.label}
             </button>
           ))}
         </div>
@@ -59,7 +457,20 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
         <div style={{ minHeight: 280 }}>
           {tab === "general" && (
             <Section>
-              <Row label="앱 시작 시 마지막 탭 복원 (후속)">
+              <Row label={t.language}>
+                <select
+                  value={settings.general.language}
+                  onChange={(e) => patchGeneral({ language: e.target.value as Lang })}
+                  style={inputStyle}
+                >
+                  {LANGS.map((l) => (
+                    <option key={l.code} value={l.code}>
+                      {l.label}
+                    </option>
+                  ))}
+                </select>
+              </Row>
+              <Row label={t.restoreTabs}>
                 <input
                   type="checkbox"
                   checked={settings.general.restoreTabs}
@@ -89,13 +500,13 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: "#9aa", lineHeight: 1.6 }}>
-                  컨텍스트를 아는 AI 터미널 — LLM × SSH × SFTP.
+                  {t.aboutDesc}
                   <br />
                   Tauri 2 (Rust) · React 19 · xterm.js · russh · russh-sftp
                 </div>
                 <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
                   <button
-                    onClick={() => alert("현재 최신 버전입니다 (v0.1.0-beta).")}
+                    onClick={() => alert(t.upToDate)}
                     style={{
                       background: "#2a2a35",
                       color: "#ddd",
@@ -106,7 +517,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                       fontSize: 12,
                     }}
                   >
-                    업데이트 확인
+                    {t.checkUpdate}
                   </button>
                   <span style={{ fontSize: 11, color: "#566" }}>
                     github.com/cuter74-dev/wowTerminal
@@ -118,7 +529,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
 
           {tab === "terminal" && (
             <Section>
-              <Row label="폰트 크기">
+              <Row label={t.fontSize}>
                 <input
                   type="number"
                   min={8}
@@ -130,14 +541,14 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   style={inputStyle}
                 />
               </Row>
-              <Row label="폰트 패밀리">
+              <Row label={t.fontFamily}>
                 <input
                   value={settings.terminal.fontFamily}
                   onChange={(e) => patchTerminal({ fontFamily: e.target.value })}
                   style={{ ...inputStyle, width: 240 }}
                 />
               </Row>
-              <Row label="테마">
+              <Row label={t.theme}>
                 <select
                   value={settings.terminal.theme}
                   onChange={(e) =>
@@ -145,18 +556,18 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   }
                   style={inputStyle}
                 >
-                  <option value="dark">다크</option>
-                  <option value="light">라이트</option>
+                  <option value="dark">{t.dark}</option>
+                  <option value="light">{t.light}</option>
                 </select>
               </Row>
-              <Row label="커서 깜빡임">
+              <Row label={t.cursorBlink}>
                 <input
                   type="checkbox"
                   checked={settings.terminal.cursorBlink}
                   onChange={(e) => patchTerminal({ cursorBlink: e.target.checked })}
                 />
               </Row>
-              <Row label="스크롤백 (줄)">
+              <Row label={t.scrollback}>
                 <input
                   type="number"
                   min={100}
@@ -170,7 +581,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                 />
               </Row>
               <div style={{ color: "#789", fontSize: 11, marginTop: 6 }}>
-                변경 즉시 모든 터미널에 적용됩니다.
+                {t.applyNote}
               </div>
             </Section>
           )}
@@ -190,7 +601,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                 </tbody>
               </table>
               <div style={{ color: "#789", fontSize: 11, marginTop: 8 }}>
-                v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.
+                {t.readonlyNote}
               </div>
             </Section>
           )}
@@ -203,6 +614,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
 }
 
 function BackupTab() {
+  const t = useT(STR);
   const [text, setText] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
@@ -216,9 +628,9 @@ function BackupTab() {
       ]);
       const payload = { version: 1, hosts, groups, tags };
       setText(JSON.stringify(payload, null, 2));
-      setMsg("내보내기 완료 — 아래 JSON을 복사해 보관하세요. (시크릿은 포함되지 않습니다)");
+      setMsg(t.exportDone);
     } catch (e) {
-      setMsg(`내보내기 실패: ${String(e)}`);
+      setMsg(t.exportFail(String(e)));
     }
   }
 
@@ -230,13 +642,11 @@ function BackupTab() {
       const tags: Tag[] = parsed.tags ?? [];
       const hosts: SshHost[] = parsed.hosts ?? [];
       for (const g of groups) await invoke("ssh_save_group", { group: g });
-      for (const t of tags) await invoke("ssh_save_tag", { tag: t });
+      for (const t2 of tags) await invoke("ssh_save_tag", { tag: t2 });
       for (const h of hosts) await invoke("ssh_save_host", { host: h });
-      setMsg(
-        `가져오기 완료: 호스트 ${hosts.length} / 그룹 ${groups.length} / 태그 ${tags.length}`,
-      );
+      setMsg(t.importDone(hosts.length, groups.length, tags.length));
     } catch (e) {
-      setMsg(`가져오기 실패: ${String(e)}`);
+      setMsg(t.importFail(String(e)));
     }
   }
 
@@ -244,7 +654,7 @@ function BackupTab() {
     <Section>
       <div style={{ display: "flex", gap: 8 }}>
         <button onClick={() => void doExport()} style={primaryBtnStyle}>
-          내보내기 (호스트/그룹/태그)
+          {t.export}
         </button>
         <button
           onClick={() => {
@@ -253,17 +663,17 @@ function BackupTab() {
           disabled={!text}
           style={btnStyle}
         >
-          복사
+          {t.copy}
         </button>
         <button onClick={() => void doImport()} disabled={!text.trim()} style={btnStyle}>
-          가져오기
+          {t.import}
         </button>
       </div>
       <textarea
         value={text}
         onChange={(e) => setText(e.target.value)}
         rows={12}
-        placeholder="내보낸 JSON이 여기 표시됩니다. 가져오려면 JSON을 붙여넣고 [가져오기]."
+        placeholder={t.backupPlaceholder}
         style={{
           ...inputStyle,
           width: "100%",
@@ -275,7 +685,7 @@ function BackupTab() {
       />
       {msg && <div style={{ color: "#9cf", fontSize: 11, marginTop: 6 }}>{msg}</div>}
       <div style={{ color: "#789", fontSize: 11, marginTop: 4 }}>
-        시크릿(비밀번호/키)은 Keychain에 남고 export에 포함되지 않습니다.
+        {t.secretsNote}
       </div>
     </Section>
   );

@@ -1,5 +1,57 @@
 import { useEffect, useRef } from "react";
 import { Tab } from "../types";
+import { LangDict, useT } from "../i18n";
+
+const STR: LangDict<{
+    closeTab: string;
+    newTab: string;
+  }
+> = {
+  en: {
+    closeTab: "Close tab (Ctrl+W)",
+    newTab: "New local shell tab (Ctrl+T)",
+  },
+  ko: {
+    closeTab: "탭 닫기 (Ctrl+W)",
+    newTab: "새 로컬 셸 탭 (Ctrl+T)",
+  },
+  es: {
+    closeTab: "Cerrar pestaña (Ctrl+W)",
+    newTab: "Nueva pestaña de shell local (Ctrl+T)",
+  },
+  zh: {
+    closeTab: "关闭标签页 (Ctrl+W)",
+    newTab: "新建本地 shell 标签页 (Ctrl+T)",
+  },
+  ja: {
+    closeTab: "タブを閉じる (Ctrl+W)",
+    newTab: "新しいローカルシェルタブ (Ctrl+T)",
+  },
+  ru: {
+    closeTab: "Закрыть вкладку (Ctrl+W)",
+    newTab: "Новая вкладка локального shell (Ctrl+T)",
+  },
+  fr: {
+    closeTab: "Fermer l'onglet (Ctrl+W)",
+    newTab: "Nouvel onglet shell local (Ctrl+T)",
+  },
+  de: {
+    closeTab: "Tab schließen (Ctrl+W)",
+    newTab: "Neuer lokaler Shell-Tab (Ctrl+T)",
+  },
+  vi: {
+    closeTab: "Đóng tab (Ctrl+W)",
+    newTab: "Tab shell cục bộ mới (Ctrl+T)",
+  },
+  id: {
+    closeTab: "Tutup tab (Ctrl+W)",
+    newTab: "Tab shell lokal baru (Ctrl+T)",
+  },
+  hi: {
+    closeTab: "टैब बंद करें (Ctrl+W)",
+    newTab: "नया लोकल shell टैब (Ctrl+T)",
+  },
+};
 
 function tabIcon(t: Tab): string {
   if (t.root.kind === "split") return "⊟";
@@ -33,6 +85,7 @@ export function TabBar({
   onRenameCancel,
   onTabPointerDown,
 }: Props) {
+  const tr = useT(STR);
   return (
     <div
       style={{
@@ -113,7 +166,7 @@ export function TabBar({
                 padding: "0 2px",
                 lineHeight: 1,
               }}
-              title="탭 닫기 (Ctrl+W)"
+              title={tr.closeTab}
             >
               ×
             </button>
@@ -131,7 +184,7 @@ export function TabBar({
           padding: "0 14px",
           lineHeight: 1,
         }}
-        title="새 로컬 셸 탭 (Ctrl+T)"
+        title={tr.newTab}
       >
         +
       </button>

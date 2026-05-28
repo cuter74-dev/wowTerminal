@@ -1,6 +1,23 @@
 // S-001 스플래시/로딩.
 
+import { LangDict, useT } from "../i18n";
+
+const STR: LangDict<{ initializing: string }> = {
+  en: { initializing: "Initializing…" },
+  ko: { initializing: "초기화 중…" },
+  es: { initializing: "Inicializando…" },
+  zh: { initializing: "正在初始化…" },
+  ja: { initializing: "初期化中…" },
+  ru: { initializing: "Инициализация…" },
+  fr: { initializing: "Initialisation…" },
+  de: { initializing: "Initialisierung…" },
+  vi: { initializing: "Đang khởi tạo…" },
+  id: { initializing: "Menginisialisasi…" },
+  hi: { initializing: "आरंभ हो रहा है…" },
+};
+
 export function SplashScreen() {
+  const t = useT(STR);
   return (
     <main
       style={{
@@ -43,7 +60,7 @@ export function SplashScreen() {
           }}
         />
       </div>
-      <div style={{ fontSize: 11, color: "#566" }}>초기화 중…</div>
+      <div style={{ fontSize: 11, color: "#566" }}>{t.initializing}</div>
       <style>
         {`@keyframes wt-splash { 0% { margin-left: -40%; } 100% { margin-left: 100%; } }`}
       </style>

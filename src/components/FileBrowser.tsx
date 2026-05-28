@@ -1,7 +1,884 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { LangDict, useT } from "../i18n";
 import { FileEntry, Listing, SearchHit } from "../types";
+
+const STR: LangDict<{
+    errLocal: (e: string) => string;
+    errRemote: (e: string) => string;
+    confirmOverwriteLocal: (name: string) => string;
+    confirmOverwriteRemote: (name: string) => string;
+    confirmDeleteRemote: (name: string) => string;
+    errDelete: (e: string) => string;
+    promptNewFolder: string;
+    errMkdir: (e: string) => string;
+    promptNewFile: string;
+    errTouch: (e: string) => string;
+    promptNewName: string;
+    errRename: (e: string) => string;
+    errChmod: (e: string) => string;
+    errPreview: (e: string) => string;
+    fileBrowser: string;
+    localSep: string;
+    newFolderRemote: string;
+    newFolderRemoteTitle: string;
+    newFileRemote: string;
+    newFileRemoteTitle: string;
+    searchRemote: string;
+    searchRemoteTitle: string;
+    deleteRemote: string;
+    deleteRemoteTitle: string;
+    refresh: string;
+    refreshTitle: string;
+    close: string;
+    local: string;
+    remoteWith: (label: string) => string;
+    downloadTitle: string;
+    uploadTitle: string;
+    ctxPreview: string;
+    ctxDownload: string;
+    ctxRename: string;
+    ctxProps: string;
+    ctxDelete: string;
+    ctxUpload: string;
+    emptyFile: string;
+    previewFooter: string;
+    loading: string;
+    colName: string;
+    colSize: string;
+    colModified: string;
+    propsTitle: (name: string) => string;
+    directory: string;
+    octal: string;
+    owner: string;
+    group: string;
+    other: string;
+    read: string;
+    write: string;
+    execute: string;
+    cancel: string;
+    apply: (octal: string) => string;
+    transferQueue: (active: number, finished: number) => string;
+    clearFinished: string;
+    done: string;
+    failed: string;
+    remoteSearch: string;
+    underRoot: (root: string) => string;
+    searchPlaceholder: string;
+    includeSub: string;
+    searching: string;
+    search: string;
+    enterQuery: string;
+    noResults: string;
+    openLocation: string;
+    truncated: string;
+  }
+> = {
+  en: {
+    errLocal: (e) => `Local: ${e}`,
+    errRemote: (e) => `Remote: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' already exists locally. Overwrite?`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' already exists on the remote. Overwrite?`,
+    confirmDeleteRemote: (name) => `Delete remote '${name}'?`,
+    errDelete: (e) => `Delete: ${e}`,
+    promptNewFolder: "New remote folder name:",
+    errMkdir: (e) => `New folder: ${e}`,
+    promptNewFile: "New remote file name:",
+    errTouch: (e) => `New file: ${e}`,
+    promptNewName: "New name:",
+    errRename: (e) => `Rename: ${e}`,
+    errChmod: (e) => `Change permissions: ${e}`,
+    errPreview: (e) => `Preview: ${e}`,
+    fileBrowser: "📁 File Browser",
+    localSep: "Local ↔ ",
+    newFolderRemote: "+ Folder (remote)",
+    newFolderRemoteTitle: "New remote folder",
+    newFileRemote: "+ File (remote)",
+    newFileRemoteTitle: "New remote file",
+    searchRemote: "🔍 Search (remote)",
+    searchRemoteTitle: "Remote search (S-031)",
+    deleteRemote: "🗑 Delete (remote)",
+    deleteRemoteTitle: "Delete remote selection",
+    refresh: "↺ Refresh",
+    refreshTitle: "Refresh",
+    close: "Close",
+    local: "Local",
+    remoteWith: (label) => `Remote — ${label}`,
+    downloadTitle: "Download remote → local",
+    uploadTitle: "Upload local → remote",
+    ctxPreview: "Preview",
+    ctxDownload: "← Download",
+    ctxRename: "Rename",
+    ctxProps: "Properties/Permissions",
+    ctxDelete: "Delete",
+    ctxUpload: "→ Upload",
+    emptyFile: "(empty file)",
+    previewFooter: "Up to 256KB preview · binary may appear garbled",
+    loading: "Loading…",
+    colName: "Name",
+    colSize: "Size",
+    colModified: "Modified",
+    propsTitle: (name) => `Properties / Permissions — ${name}`,
+    directory: "Directory",
+    octal: "octal",
+    owner: "Owner",
+    group: "Group",
+    other: "Other",
+    read: "Read (r)",
+    write: "Write (w)",
+    execute: "Execute (x)",
+    cancel: "Cancel",
+    apply: (octal) => `Apply (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `Transfer queue · in progress ${active} / done·failed ${finished}`,
+    clearFinished: "Clear finished",
+    done: "✓ Done",
+    failed: "✗ Failed",
+    remoteSearch: "🔍 Remote search",
+    underRoot: (root) => `under ${root}`,
+    searchPlaceholder: "File name (case-insensitive)",
+    includeSub: "Include subdirs",
+    searching: "Searching...",
+    search: "Search",
+    enterQuery: "Enter a query and press Enter.",
+    noResults: "No results",
+    openLocation: "Double-click: open location",
+    truncated: "Results were truncated at 500. Make your query more specific.",
+  },
+  ko: {
+    errLocal: (e) => `로컬: ${e}`,
+    errRemote: (e) => `원격: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `로컬에 '${name}'이(가) 이미 있습니다. 덮어쓸까요?`,
+    confirmOverwriteRemote: (name) =>
+      `원격에 '${name}'이(가) 이미 있습니다. 덮어쓸까요?`,
+    confirmDeleteRemote: (name) => `원격 '${name}'을(를) 삭제할까요?`,
+    errDelete: (e) => `삭제: ${e}`,
+    promptNewFolder: "새 원격 폴더 이름:",
+    errMkdir: (e) => `새 폴더: ${e}`,
+    promptNewFile: "새 원격 파일 이름:",
+    errTouch: (e) => `새 파일: ${e}`,
+    promptNewName: "새 이름:",
+    errRename: (e) => `이름 변경: ${e}`,
+    errChmod: (e) => `권한 변경: ${e}`,
+    errPreview: (e) => `미리보기: ${e}`,
+    fileBrowser: "📁 파일 브라우저",
+    localSep: "로컬 ↔ ",
+    newFolderRemote: "+ 폴더(원격)",
+    newFolderRemoteTitle: "원격 새 폴더",
+    newFileRemote: "+ 파일(원격)",
+    newFileRemoteTitle: "원격 새 파일",
+    searchRemote: "🔍 검색(원격)",
+    searchRemoteTitle: "원격 검색 (S-031)",
+    deleteRemote: "🗑 삭제(원격)",
+    deleteRemoteTitle: "원격 선택 삭제",
+    refresh: "↺ 새로고침",
+    refreshTitle: "새로고침",
+    close: "닫기",
+    local: "로컬",
+    remoteWith: (label) => `원격 — ${label}`,
+    downloadTitle: "원격 → 로컬 다운로드",
+    uploadTitle: "로컬 → 원격 업로드",
+    ctxPreview: "미리보기",
+    ctxDownload: "← 다운로드",
+    ctxRename: "이름 변경",
+    ctxProps: "속성/권한",
+    ctxDelete: "삭제",
+    ctxUpload: "→ 업로드",
+    emptyFile: "(빈 파일)",
+    previewFooter: "최대 256KB 미리보기 · 바이너리는 깨져 보일 수 있음",
+    loading: "불러오는 중…",
+    colName: "이름",
+    colSize: "크기",
+    colModified: "수정",
+    propsTitle: (name) => `속성 / 권한 — ${name}`,
+    directory: "디렉토리",
+    octal: "8진수",
+    owner: "소유자",
+    group: "그룹",
+    other: "기타",
+    read: "읽기 (r)",
+    write: "쓰기 (w)",
+    execute: "실행 (x)",
+    cancel: "취소",
+    apply: (octal) => `적용 (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `전송 큐 · 진행 ${active} / 완료·실패 ${finished}`,
+    clearFinished: "완료 항목 비우기",
+    done: "✓ 완료",
+    failed: "✗ 실패",
+    remoteSearch: "🔍 원격 검색",
+    underRoot: (root) => `${root} 이하`,
+    searchPlaceholder: "파일 이름 (대소문자 무시)",
+    includeSub: "하위 포함",
+    searching: "검색 중...",
+    search: "검색",
+    enterQuery: "검색어를 입력하고 Enter를 누르세요.",
+    noResults: "결과 없음",
+    openLocation: "더블클릭: 위치 열기",
+    truncated: "결과가 500개로 잘렸습니다. 검색어를 더 구체적으로.",
+  },
+  es: {
+    errLocal: (e) => `Local: ${e}`,
+    errRemote: (e) => `Remoto: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' ya existe localmente. ¿Sobrescribir?`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' ya existe en el remoto. ¿Sobrescribir?`,
+    confirmDeleteRemote: (name) => `¿Eliminar el remoto '${name}'?`,
+    errDelete: (e) => `Eliminar: ${e}`,
+    promptNewFolder: "Nombre de la nueva carpeta remota:",
+    errMkdir: (e) => `Nueva carpeta: ${e}`,
+    promptNewFile: "Nombre del nuevo archivo remoto:",
+    errTouch: (e) => `Nuevo archivo: ${e}`,
+    promptNewName: "Nuevo nombre:",
+    errRename: (e) => `Renombrar: ${e}`,
+    errChmod: (e) => `Cambiar permisos: ${e}`,
+    errPreview: (e) => `Vista previa: ${e}`,
+    fileBrowser: "📁 Explorador de archivos",
+    localSep: "Local ↔ ",
+    newFolderRemote: "+ Carpeta (remoto)",
+    newFolderRemoteTitle: "Nueva carpeta remota",
+    newFileRemote: "+ Archivo (remoto)",
+    newFileRemoteTitle: "Nuevo archivo remoto",
+    searchRemote: "🔍 Buscar (remoto)",
+    searchRemoteTitle: "Búsqueda remota (S-031)",
+    deleteRemote: "🗑 Eliminar (remoto)",
+    deleteRemoteTitle: "Eliminar selección remota",
+    refresh: "↺ Actualizar",
+    refreshTitle: "Actualizar",
+    close: "Cerrar",
+    local: "Local",
+    remoteWith: (label) => `Remoto — ${label}`,
+    downloadTitle: "Descargar remoto → local",
+    uploadTitle: "Subir local → remoto",
+    ctxPreview: "Vista previa",
+    ctxDownload: "← Descargar",
+    ctxRename: "Renombrar",
+    ctxProps: "Propiedades/Permisos",
+    ctxDelete: "Eliminar",
+    ctxUpload: "→ Subir",
+    emptyFile: "(archivo vacío)",
+    previewFooter: "Vista previa hasta 256KB · los binarios pueden verse ilegibles",
+    loading: "Cargando…",
+    colName: "Nombre",
+    colSize: "Tamaño",
+    colModified: "Modificado",
+    propsTitle: (name) => `Propiedades / Permisos — ${name}`,
+    directory: "Directorio",
+    octal: "octal",
+    owner: "Propietario",
+    group: "Grupo",
+    other: "Otros",
+    read: "Lectura (r)",
+    write: "Escritura (w)",
+    execute: "Ejecución (x)",
+    cancel: "Cancelar",
+    apply: (octal) => `Aplicar (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `Cola de transferencias · en curso ${active} / hechas·fallidas ${finished}`,
+    clearFinished: "Limpiar finalizadas",
+    done: "✓ Hecho",
+    failed: "✗ Falló",
+    remoteSearch: "🔍 Búsqueda remota",
+    underRoot: (root) => `bajo ${root}`,
+    searchPlaceholder: "Nombre de archivo (sin distinción de mayúsculas)",
+    includeSub: "Incluir subdirectorios",
+    searching: "Buscando...",
+    search: "Buscar",
+    enterQuery: "Introduce una consulta y pulsa Enter.",
+    noResults: "Sin resultados",
+    openLocation: "Doble clic: abrir ubicación",
+    truncated: "Los resultados se truncaron en 500. Haz tu consulta más específica.",
+  },
+  zh: {
+    errLocal: (e) => `本地: ${e}`,
+    errRemote: (e) => `远程: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' 在本地已存在。是否覆盖？`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' 在远程已存在。是否覆盖？`,
+    confirmDeleteRemote: (name) => `删除远程 '${name}'？`,
+    errDelete: (e) => `删除: ${e}`,
+    promptNewFolder: "新远程文件夹名称:",
+    errMkdir: (e) => `新文件夹: ${e}`,
+    promptNewFile: "新远程文件名称:",
+    errTouch: (e) => `新文件: ${e}`,
+    promptNewName: "新名称:",
+    errRename: (e) => `重命名: ${e}`,
+    errChmod: (e) => `更改权限: ${e}`,
+    errPreview: (e) => `预览: ${e}`,
+    fileBrowser: "📁 文件浏览器",
+    localSep: "本地 ↔ ",
+    newFolderRemote: "+ 文件夹（远程）",
+    newFolderRemoteTitle: "新建远程文件夹",
+    newFileRemote: "+ 文件（远程）",
+    newFileRemoteTitle: "新建远程文件",
+    searchRemote: "🔍 搜索（远程）",
+    searchRemoteTitle: "远程搜索 (S-031)",
+    deleteRemote: "🗑 删除（远程）",
+    deleteRemoteTitle: "删除远程所选项",
+    refresh: "↺ 刷新",
+    refreshTitle: "刷新",
+    close: "关闭",
+    local: "本地",
+    remoteWith: (label) => `远程 — ${label}`,
+    downloadTitle: "下载 远程 → 本地",
+    uploadTitle: "上传 本地 → 远程",
+    ctxPreview: "预览",
+    ctxDownload: "← 下载",
+    ctxRename: "重命名",
+    ctxProps: "属性/权限",
+    ctxDelete: "删除",
+    ctxUpload: "→ 上传",
+    emptyFile: "(空文件)",
+    previewFooter: "最多预览 256KB · 二进制文件可能显示乱码",
+    loading: "加载中…",
+    colName: "名称",
+    colSize: "大小",
+    colModified: "修改时间",
+    propsTitle: (name) => `属性 / 权限 — ${name}`,
+    directory: "目录",
+    octal: "八进制",
+    owner: "所有者",
+    group: "组",
+    other: "其他",
+    read: "读 (r)",
+    write: "写 (w)",
+    execute: "执行 (x)",
+    cancel: "取消",
+    apply: (octal) => `应用 (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `传输队列 · 进行中 ${active} / 完成·失败 ${finished}`,
+    clearFinished: "清除已完成",
+    done: "✓ 完成",
+    failed: "✗ 失败",
+    remoteSearch: "🔍 远程搜索",
+    underRoot: (root) => `在 ${root} 下`,
+    searchPlaceholder: "文件名（不区分大小写）",
+    includeSub: "包含子目录",
+    searching: "搜索中...",
+    search: "搜索",
+    enterQuery: "输入搜索词并按 Enter。",
+    noResults: "无结果",
+    openLocation: "双击：打开位置",
+    truncated: "结果被截断为 500 条。请使搜索词更具体。",
+  },
+  ja: {
+    errLocal: (e) => `ローカル: ${e}`,
+    errRemote: (e) => `リモート: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' はローカルに既に存在します。上書きしますか？`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' はリモートに既に存在します。上書きしますか？`,
+    confirmDeleteRemote: (name) => `リモートの '${name}' を削除しますか？`,
+    errDelete: (e) => `削除: ${e}`,
+    promptNewFolder: "新しいリモートフォルダ名:",
+    errMkdir: (e) => `新規フォルダ: ${e}`,
+    promptNewFile: "新しいリモートファイル名:",
+    errTouch: (e) => `新規ファイル: ${e}`,
+    promptNewName: "新しい名前:",
+    errRename: (e) => `名前変更: ${e}`,
+    errChmod: (e) => `権限変更: ${e}`,
+    errPreview: (e) => `プレビュー: ${e}`,
+    fileBrowser: "📁 ファイルブラウザ",
+    localSep: "ローカル ↔ ",
+    newFolderRemote: "+ フォルダ（リモート）",
+    newFolderRemoteTitle: "新規リモートフォルダ",
+    newFileRemote: "+ ファイル（リモート）",
+    newFileRemoteTitle: "新規リモートファイル",
+    searchRemote: "🔍 検索（リモート）",
+    searchRemoteTitle: "リモート検索 (S-031)",
+    deleteRemote: "🗑 削除（リモート）",
+    deleteRemoteTitle: "リモートの選択を削除",
+    refresh: "↺ 更新",
+    refreshTitle: "更新",
+    close: "閉じる",
+    local: "ローカル",
+    remoteWith: (label) => `リモート — ${label}`,
+    downloadTitle: "ダウンロード リモート → ローカル",
+    uploadTitle: "アップロード ローカル → リモート",
+    ctxPreview: "プレビュー",
+    ctxDownload: "← ダウンロード",
+    ctxRename: "名前変更",
+    ctxProps: "プロパティ/権限",
+    ctxDelete: "削除",
+    ctxUpload: "→ アップロード",
+    emptyFile: "(空のファイル)",
+    previewFooter: "最大 256KB のプレビュー · バイナリは文字化けする場合があります",
+    loading: "読み込み中…",
+    colName: "名前",
+    colSize: "サイズ",
+    colModified: "更新日時",
+    propsTitle: (name) => `プロパティ / 権限 — ${name}`,
+    directory: "ディレクトリ",
+    octal: "8進数",
+    owner: "所有者",
+    group: "グループ",
+    other: "その他",
+    read: "読み取り (r)",
+    write: "書き込み (w)",
+    execute: "実行 (x)",
+    cancel: "キャンセル",
+    apply: (octal) => `適用 (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `転送キュー · 進行中 ${active} / 完了·失敗 ${finished}`,
+    clearFinished: "完了項目をクリア",
+    done: "✓ 完了",
+    failed: "✗ 失敗",
+    remoteSearch: "🔍 リモート検索",
+    underRoot: (root) => `${root} 以下`,
+    searchPlaceholder: "ファイル名（大文字小文字を区別しない）",
+    includeSub: "サブディレクトリを含む",
+    searching: "検索中...",
+    search: "検索",
+    enterQuery: "検索語を入力して Enter を押してください。",
+    noResults: "結果なし",
+    openLocation: "ダブルクリック: 場所を開く",
+    truncated: "結果が 500 件で切り捨てられました。検索語をより具体的にしてください。",
+  },
+  ru: {
+    errLocal: (e) => `Локально: ${e}`,
+    errRemote: (e) => `Удалённо: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' уже существует локально. Перезаписать?`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' уже существует на удалённом сервере. Перезаписать?`,
+    confirmDeleteRemote: (name) => `Удалить удалённый '${name}'?`,
+    errDelete: (e) => `Удаление: ${e}`,
+    promptNewFolder: "Имя новой удалённой папки:",
+    errMkdir: (e) => `Новая папка: ${e}`,
+    promptNewFile: "Имя нового удалённого файла:",
+    errTouch: (e) => `Новый файл: ${e}`,
+    promptNewName: "Новое имя:",
+    errRename: (e) => `Переименование: ${e}`,
+    errChmod: (e) => `Изменение прав: ${e}`,
+    errPreview: (e) => `Предпросмотр: ${e}`,
+    fileBrowser: "📁 Файловый менеджер",
+    localSep: "Локально ↔ ",
+    newFolderRemote: "+ Папка (удалённо)",
+    newFolderRemoteTitle: "Новая удалённая папка",
+    newFileRemote: "+ Файл (удалённо)",
+    newFileRemoteTitle: "Новый удалённый файл",
+    searchRemote: "🔍 Поиск (удалённо)",
+    searchRemoteTitle: "Удалённый поиск (S-031)",
+    deleteRemote: "🗑 Удалить (удалённо)",
+    deleteRemoteTitle: "Удалить выбранное на сервере",
+    refresh: "↺ Обновить",
+    refreshTitle: "Обновить",
+    close: "Закрыть",
+    local: "Локально",
+    remoteWith: (label) => `Удалённо — ${label}`,
+    downloadTitle: "Скачать удалённо → локально",
+    uploadTitle: "Загрузить локально → удалённо",
+    ctxPreview: "Предпросмотр",
+    ctxDownload: "← Скачать",
+    ctxRename: "Переименовать",
+    ctxProps: "Свойства/Права",
+    ctxDelete: "Удалить",
+    ctxUpload: "→ Загрузить",
+    emptyFile: "(пустой файл)",
+    previewFooter: "Предпросмотр до 256КБ · двоичные файлы могут отображаться некорректно",
+    loading: "Загрузка…",
+    colName: "Имя",
+    colSize: "Размер",
+    colModified: "Изменён",
+    propsTitle: (name) => `Свойства / Права — ${name}`,
+    directory: "Каталог",
+    octal: "восьмеричный",
+    owner: "Владелец",
+    group: "Группа",
+    other: "Остальные",
+    read: "Чтение (r)",
+    write: "Запись (w)",
+    execute: "Выполнение (x)",
+    cancel: "Отмена",
+    apply: (octal) => `Применить (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `Очередь передачи · в процессе ${active} / готово·ошибки ${finished}`,
+    clearFinished: "Очистить завершённые",
+    done: "✓ Готово",
+    failed: "✗ Ошибка",
+    remoteSearch: "🔍 Удалённый поиск",
+    underRoot: (root) => `в ${root}`,
+    searchPlaceholder: "Имя файла (без учёта регистра)",
+    includeSub: "Включая подкаталоги",
+    searching: "Поиск...",
+    search: "Поиск",
+    enterQuery: "Введите запрос и нажмите Enter.",
+    noResults: "Нет результатов",
+    openLocation: "Двойной клик: открыть расположение",
+    truncated: "Результаты обрезаны до 500. Сделайте запрос более конкретным.",
+  },
+  fr: {
+    errLocal: (e) => `Local : ${e}`,
+    errRemote: (e) => `Distant : ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' existe déjà en local. Écraser ?`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' existe déjà sur le distant. Écraser ?`,
+    confirmDeleteRemote: (name) => `Supprimer le distant '${name}' ?`,
+    errDelete: (e) => `Suppression : ${e}`,
+    promptNewFolder: "Nom du nouveau dossier distant :",
+    errMkdir: (e) => `Nouveau dossier : ${e}`,
+    promptNewFile: "Nom du nouveau fichier distant :",
+    errTouch: (e) => `Nouveau fichier : ${e}`,
+    promptNewName: "Nouveau nom :",
+    errRename: (e) => `Renommer : ${e}`,
+    errChmod: (e) => `Changer les permissions : ${e}`,
+    errPreview: (e) => `Aperçu : ${e}`,
+    fileBrowser: "📁 Explorateur de fichiers",
+    localSep: "Local ↔ ",
+    newFolderRemote: "+ Dossier (distant)",
+    newFolderRemoteTitle: "Nouveau dossier distant",
+    newFileRemote: "+ Fichier (distant)",
+    newFileRemoteTitle: "Nouveau fichier distant",
+    searchRemote: "🔍 Rechercher (distant)",
+    searchRemoteTitle: "Recherche distante (S-031)",
+    deleteRemote: "🗑 Supprimer (distant)",
+    deleteRemoteTitle: "Supprimer la sélection distante",
+    refresh: "↺ Actualiser",
+    refreshTitle: "Actualiser",
+    close: "Fermer",
+    local: "Local",
+    remoteWith: (label) => `Distant — ${label}`,
+    downloadTitle: "Télécharger distant → local",
+    uploadTitle: "Envoyer local → distant",
+    ctxPreview: "Aperçu",
+    ctxDownload: "← Télécharger",
+    ctxRename: "Renommer",
+    ctxProps: "Propriétés/Permissions",
+    ctxDelete: "Supprimer",
+    ctxUpload: "→ Envoyer",
+    emptyFile: "(fichier vide)",
+    previewFooter: "Aperçu jusqu'à 256 Ko · le binaire peut être illisible",
+    loading: "Chargement…",
+    colName: "Nom",
+    colSize: "Taille",
+    colModified: "Modifié",
+    propsTitle: (name) => `Propriétés / Permissions — ${name}`,
+    directory: "Répertoire",
+    octal: "octal",
+    owner: "Propriétaire",
+    group: "Groupe",
+    other: "Autres",
+    read: "Lecture (r)",
+    write: "Écriture (w)",
+    execute: "Exécution (x)",
+    cancel: "Annuler",
+    apply: (octal) => `Appliquer (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `File de transfert · en cours ${active} / terminés·échoués ${finished}`,
+    clearFinished: "Effacer les terminés",
+    done: "✓ Terminé",
+    failed: "✗ Échec",
+    remoteSearch: "🔍 Recherche distante",
+    underRoot: (root) => `sous ${root}`,
+    searchPlaceholder: "Nom de fichier (insensible à la casse)",
+    includeSub: "Inclure les sous-dossiers",
+    searching: "Recherche...",
+    search: "Rechercher",
+    enterQuery: "Saisissez une requête et appuyez sur Entrée.",
+    noResults: "Aucun résultat",
+    openLocation: "Double-clic : ouvrir l'emplacement",
+    truncated: "Les résultats ont été tronqués à 500. Précisez votre requête.",
+  },
+  de: {
+    errLocal: (e) => `Lokal: ${e}`,
+    errRemote: (e) => `Remote: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' existiert bereits lokal. Überschreiben?`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' existiert bereits auf dem Remote. Überschreiben?`,
+    confirmDeleteRemote: (name) => `Remote '${name}' löschen?`,
+    errDelete: (e) => `Löschen: ${e}`,
+    promptNewFolder: "Name des neuen Remote-Ordners:",
+    errMkdir: (e) => `Neuer Ordner: ${e}`,
+    promptNewFile: "Name der neuen Remote-Datei:",
+    errTouch: (e) => `Neue Datei: ${e}`,
+    promptNewName: "Neuer Name:",
+    errRename: (e) => `Umbenennen: ${e}`,
+    errChmod: (e) => `Berechtigungen ändern: ${e}`,
+    errPreview: (e) => `Vorschau: ${e}`,
+    fileBrowser: "📁 Dateibrowser",
+    localSep: "Lokal ↔ ",
+    newFolderRemote: "+ Ordner (Remote)",
+    newFolderRemoteTitle: "Neuer Remote-Ordner",
+    newFileRemote: "+ Datei (Remote)",
+    newFileRemoteTitle: "Neue Remote-Datei",
+    searchRemote: "🔍 Suchen (Remote)",
+    searchRemoteTitle: "Remote-Suche (S-031)",
+    deleteRemote: "🗑 Löschen (Remote)",
+    deleteRemoteTitle: "Remote-Auswahl löschen",
+    refresh: "↺ Aktualisieren",
+    refreshTitle: "Aktualisieren",
+    close: "Schließen",
+    local: "Lokal",
+    remoteWith: (label) => `Remote — ${label}`,
+    downloadTitle: "Herunterladen Remote → Lokal",
+    uploadTitle: "Hochladen Lokal → Remote",
+    ctxPreview: "Vorschau",
+    ctxDownload: "← Herunterladen",
+    ctxRename: "Umbenennen",
+    ctxProps: "Eigenschaften/Berechtigungen",
+    ctxDelete: "Löschen",
+    ctxUpload: "→ Hochladen",
+    emptyFile: "(leere Datei)",
+    previewFooter: "Vorschau bis 256 KB · Binärdateien können unleserlich erscheinen",
+    loading: "Wird geladen…",
+    colName: "Name",
+    colSize: "Größe",
+    colModified: "Geändert",
+    propsTitle: (name) => `Eigenschaften / Berechtigungen — ${name}`,
+    directory: "Verzeichnis",
+    octal: "oktal",
+    owner: "Eigentümer",
+    group: "Gruppe",
+    other: "Andere",
+    read: "Lesen (r)",
+    write: "Schreiben (w)",
+    execute: "Ausführen (x)",
+    cancel: "Abbrechen",
+    apply: (octal) => `Anwenden (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `Übertragungswarteschlange · läuft ${active} / fertig·fehlgeschlagen ${finished}`,
+    clearFinished: "Abgeschlossene löschen",
+    done: "✓ Fertig",
+    failed: "✗ Fehlgeschlagen",
+    remoteSearch: "🔍 Remote-Suche",
+    underRoot: (root) => `unter ${root}`,
+    searchPlaceholder: "Dateiname (Groß-/Kleinschreibung egal)",
+    includeSub: "Unterverzeichnisse einbeziehen",
+    searching: "Wird gesucht...",
+    search: "Suchen",
+    enterQuery: "Geben Sie eine Suchanfrage ein und drücken Sie Enter.",
+    noResults: "Keine Ergebnisse",
+    openLocation: "Doppelklick: Speicherort öffnen",
+    truncated: "Ergebnisse wurden bei 500 abgeschnitten. Präzisieren Sie Ihre Suchanfrage.",
+  },
+  vi: {
+    errLocal: (e) => `Cục bộ: ${e}`,
+    errRemote: (e) => `Từ xa: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' đã tồn tại cục bộ. Ghi đè?`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' đã tồn tại trên máy từ xa. Ghi đè?`,
+    confirmDeleteRemote: (name) => `Xóa '${name}' trên máy từ xa?`,
+    errDelete: (e) => `Xóa: ${e}`,
+    promptNewFolder: "Tên thư mục từ xa mới:",
+    errMkdir: (e) => `Thư mục mới: ${e}`,
+    promptNewFile: "Tên tệp từ xa mới:",
+    errTouch: (e) => `Tệp mới: ${e}`,
+    promptNewName: "Tên mới:",
+    errRename: (e) => `Đổi tên: ${e}`,
+    errChmod: (e) => `Đổi quyền: ${e}`,
+    errPreview: (e) => `Xem trước: ${e}`,
+    fileBrowser: "📁 Trình duyệt tệp",
+    localSep: "Cục bộ ↔ ",
+    newFolderRemote: "+ Thư mục (từ xa)",
+    newFolderRemoteTitle: "Thư mục từ xa mới",
+    newFileRemote: "+ Tệp (từ xa)",
+    newFileRemoteTitle: "Tệp từ xa mới",
+    searchRemote: "🔍 Tìm kiếm (từ xa)",
+    searchRemoteTitle: "Tìm kiếm từ xa (S-031)",
+    deleteRemote: "🗑 Xóa (từ xa)",
+    deleteRemoteTitle: "Xóa mục đã chọn từ xa",
+    refresh: "↺ Làm mới",
+    refreshTitle: "Làm mới",
+    close: "Đóng",
+    local: "Cục bộ",
+    remoteWith: (label) => `Từ xa — ${label}`,
+    downloadTitle: "Tải xuống từ xa → cục bộ",
+    uploadTitle: "Tải lên cục bộ → từ xa",
+    ctxPreview: "Xem trước",
+    ctxDownload: "← Tải xuống",
+    ctxRename: "Đổi tên",
+    ctxProps: "Thuộc tính/Quyền",
+    ctxDelete: "Xóa",
+    ctxUpload: "→ Tải lên",
+    emptyFile: "(tệp trống)",
+    previewFooter: "Xem trước tối đa 256KB · tệp nhị phân có thể hiển thị lỗi",
+    loading: "Đang tải…",
+    colName: "Tên",
+    colSize: "Kích thước",
+    colModified: "Đã sửa đổi",
+    propsTitle: (name) => `Thuộc tính / Quyền — ${name}`,
+    directory: "Thư mục",
+    octal: "bát phân",
+    owner: "Chủ sở hữu",
+    group: "Nhóm",
+    other: "Khác",
+    read: "Đọc (r)",
+    write: "Ghi (w)",
+    execute: "Thực thi (x)",
+    cancel: "Hủy",
+    apply: (octal) => `Áp dụng (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `Hàng đợi truyền · đang chạy ${active} / xong·thất bại ${finished}`,
+    clearFinished: "Xóa mục đã xong",
+    done: "✓ Xong",
+    failed: "✗ Thất bại",
+    remoteSearch: "🔍 Tìm kiếm từ xa",
+    underRoot: (root) => `trong ${root}`,
+    searchPlaceholder: "Tên tệp (không phân biệt hoa thường)",
+    includeSub: "Bao gồm thư mục con",
+    searching: "Đang tìm...",
+    search: "Tìm kiếm",
+    enterQuery: "Nhập từ khóa và nhấn Enter.",
+    noResults: "Không có kết quả",
+    openLocation: "Nhấp đúp: mở vị trí",
+    truncated: "Kết quả bị cắt ở 500. Hãy làm từ khóa cụ thể hơn.",
+  },
+  id: {
+    errLocal: (e) => `Lokal: ${e}`,
+    errRemote: (e) => `Jarak jauh: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' sudah ada secara lokal. Timpa?`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' sudah ada di server jarak jauh. Timpa?`,
+    confirmDeleteRemote: (name) => `Hapus '${name}' di jarak jauh?`,
+    errDelete: (e) => `Hapus: ${e}`,
+    promptNewFolder: "Nama folder jarak jauh baru:",
+    errMkdir: (e) => `Folder baru: ${e}`,
+    promptNewFile: "Nama file jarak jauh baru:",
+    errTouch: (e) => `File baru: ${e}`,
+    promptNewName: "Nama baru:",
+    errRename: (e) => `Ganti nama: ${e}`,
+    errChmod: (e) => `Ubah izin: ${e}`,
+    errPreview: (e) => `Pratinjau: ${e}`,
+    fileBrowser: "📁 Penjelajah File",
+    localSep: "Lokal ↔ ",
+    newFolderRemote: "+ Folder (jarak jauh)",
+    newFolderRemoteTitle: "Folder jarak jauh baru",
+    newFileRemote: "+ File (jarak jauh)",
+    newFileRemoteTitle: "File jarak jauh baru",
+    searchRemote: "🔍 Cari (jarak jauh)",
+    searchRemoteTitle: "Pencarian jarak jauh (S-031)",
+    deleteRemote: "🗑 Hapus (jarak jauh)",
+    deleteRemoteTitle: "Hapus pilihan jarak jauh",
+    refresh: "↺ Segarkan",
+    refreshTitle: "Segarkan",
+    close: "Tutup",
+    local: "Lokal",
+    remoteWith: (label) => `Jarak jauh — ${label}`,
+    downloadTitle: "Unduh jarak jauh → lokal",
+    uploadTitle: "Unggah lokal → jarak jauh",
+    ctxPreview: "Pratinjau",
+    ctxDownload: "← Unduh",
+    ctxRename: "Ganti nama",
+    ctxProps: "Properti/Izin",
+    ctxDelete: "Hapus",
+    ctxUpload: "→ Unggah",
+    emptyFile: "(file kosong)",
+    previewFooter: "Pratinjau hingga 256KB · biner mungkin tampak rusak",
+    loading: "Memuat…",
+    colName: "Nama",
+    colSize: "Ukuran",
+    colModified: "Diubah",
+    propsTitle: (name) => `Properti / Izin — ${name}`,
+    directory: "Direktori",
+    octal: "oktal",
+    owner: "Pemilik",
+    group: "Grup",
+    other: "Lainnya",
+    read: "Baca (r)",
+    write: "Tulis (w)",
+    execute: "Eksekusi (x)",
+    cancel: "Batal",
+    apply: (octal) => `Terapkan (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `Antrean transfer · berlangsung ${active} / selesai·gagal ${finished}`,
+    clearFinished: "Bersihkan yang selesai",
+    done: "✓ Selesai",
+    failed: "✗ Gagal",
+    remoteSearch: "🔍 Pencarian jarak jauh",
+    underRoot: (root) => `di bawah ${root}`,
+    searchPlaceholder: "Nama file (tidak peka huruf besar/kecil)",
+    includeSub: "Sertakan subdirektori",
+    searching: "Mencari...",
+    search: "Cari",
+    enterQuery: "Masukkan kueri dan tekan Enter.",
+    noResults: "Tidak ada hasil",
+    openLocation: "Klik ganda: buka lokasi",
+    truncated: "Hasil dipotong pada 500. Buat kueri Anda lebih spesifik.",
+  },
+  hi: {
+    errLocal: (e) => `लोकल: ${e}`,
+    errRemote: (e) => `रिमोट: ${e}`,
+    confirmOverwriteLocal: (name) =>
+      `'${name}' पहले से लोकल में मौजूद है। अधिलेखित करें?`,
+    confirmOverwriteRemote: (name) =>
+      `'${name}' पहले से रिमोट पर मौजूद है। अधिलेखित करें?`,
+    confirmDeleteRemote: (name) => `रिमोट '${name}' हटाएं?`,
+    errDelete: (e) => `हटाएं: ${e}`,
+    promptNewFolder: "नए रिमोट फ़ोल्डर का नाम:",
+    errMkdir: (e) => `नया फ़ोल्डर: ${e}`,
+    promptNewFile: "नई रिमोट फ़ाइल का नाम:",
+    errTouch: (e) => `नई फ़ाइल: ${e}`,
+    promptNewName: "नया नाम:",
+    errRename: (e) => `नाम बदलें: ${e}`,
+    errChmod: (e) => `अनुमतियां बदलें: ${e}`,
+    errPreview: (e) => `पूर्वावलोकन: ${e}`,
+    fileBrowser: "📁 फ़ाइल ब्राउज़र",
+    localSep: "लोकल ↔ ",
+    newFolderRemote: "+ फ़ोल्डर (रिमोट)",
+    newFolderRemoteTitle: "नया रिमोट फ़ोल्डर",
+    newFileRemote: "+ फ़ाइल (रिमोट)",
+    newFileRemoteTitle: "नई रिमोट फ़ाइल",
+    searchRemote: "🔍 खोजें (रिमोट)",
+    searchRemoteTitle: "रिमोट खोज (S-031)",
+    deleteRemote: "🗑 हटाएं (रिमोट)",
+    deleteRemoteTitle: "रिमोट चयन हटाएं",
+    refresh: "↺ रिफ़्रेश",
+    refreshTitle: "रिफ़्रेश",
+    close: "बंद करें",
+    local: "लोकल",
+    remoteWith: (label) => `रिमोट — ${label}`,
+    downloadTitle: "डाउनलोड रिमोट → लोकल",
+    uploadTitle: "अपलोड लोकल → रिमोट",
+    ctxPreview: "पूर्वावलोकन",
+    ctxDownload: "← डाउनलोड",
+    ctxRename: "नाम बदलें",
+    ctxProps: "गुण/अनुमतियां",
+    ctxDelete: "हटाएं",
+    ctxUpload: "→ अपलोड",
+    emptyFile: "(खाली फ़ाइल)",
+    previewFooter: "256KB तक पूर्वावलोकन · बाइनरी विकृत दिख सकती है",
+    loading: "लोड हो रहा है…",
+    colName: "नाम",
+    colSize: "आकार",
+    colModified: "संशोधित",
+    propsTitle: (name) => `गुण / अनुमतियां — ${name}`,
+    directory: "डायरेक्टरी",
+    octal: "अष्टाधारी",
+    owner: "स्वामी",
+    group: "समूह",
+    other: "अन्य",
+    read: "पढ़ें (r)",
+    write: "लिखें (w)",
+    execute: "निष्पादित करें (x)",
+    cancel: "रद्द करें",
+    apply: (octal) => `लागू करें (chmod ${octal})`,
+    transferQueue: (active, finished) =>
+      `ट्रांसफर कतार · प्रगति में ${active} / पूर्ण·विफल ${finished}`,
+    clearFinished: "पूर्ण हटाएं",
+    done: "✓ पूर्ण",
+    failed: "✗ विफल",
+    remoteSearch: "🔍 रिमोट खोज",
+    underRoot: (root) => `${root} के अंतर्गत`,
+    searchPlaceholder: "फ़ाइल नाम (केस-असंवेदनशील)",
+    includeSub: "उपनिर्देशिकाएं शामिल करें",
+    searching: "खोज रहे हैं...",
+    search: "खोजें",
+    enterQuery: "क्वेरी दर्ज करें और Enter दबाएं।",
+    noResults: "कोई परिणाम नहीं",
+    openLocation: "डबल-क्लिक: स्थान खोलें",
+    truncated: "परिणाम 500 पर काट दिए गए। अपनी क्वेरी अधिक विशिष्ट बनाएं।",
+  },
+};
 
 function newTransferId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -50,6 +927,7 @@ function fmtDate(epoch?: number | null): string {
 }
 
 export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
+  const t = useT(STR);
   const [local, setLocal] = useState<Listing | null>(null);
   const [remote, setRemote] = useState<Listing | null>(null);
   const [localSel, setLocalSel] = useState<FileEntry | null>(null);
@@ -78,8 +956,9 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       const l = await invoke<Listing>("local_list_dir", { path: path ?? null });
       setLocal(l);
     } catch (e) {
-      setError(`로컬: ${String(e)}`);
+      setError(t.errLocal(String(e)));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const loadRemote = useCallback(
@@ -92,11 +971,12 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
         setRemote(r);
         setError(null);
       } catch (e) {
-        setError(`원격: ${String(e)}`);
+        setError(t.errRemote(String(e)));
       } finally {
         setRemoteBusy(false);
       }
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [hostId],
   );
 
@@ -134,7 +1014,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     if (entry.is_dir || !remote || !local) return;
     if (
       nameExists(local, entry.name) &&
-      !confirm(`로컬에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
+      !confirm(t.confirmOverwriteLocal(entry.name))
     )
       return;
     const id = newTransferId();
@@ -156,7 +1036,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     if (entry.is_dir || !local || !remote) return;
     if (
       nameExists(remote, entry.name) &&
-      !confirm(`원격에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
+      !confirm(t.confirmOverwriteRemote(entry.name))
     )
       return;
     const id = newTransferId();
@@ -176,7 +1056,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
 
   async function removeRemote() {
     if (!remoteSel || !remote) return;
-    if (!confirm(`원격 '${remoteSel.name}'을(를) 삭제할까요?`)) return;
+    if (!confirm(t.confirmDeleteRemote(remoteSel.name))) return;
     try {
       await invoke("sftp_remove", {
         hostId,
@@ -186,37 +1066,37 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       setRemoteSel(null);
       await loadRemote(remote.cwd);
     } catch (e) {
-      setError(`삭제: ${String(e)}`);
+      setError(t.errDelete(String(e)));
     }
   }
 
   async function mkdirRemote() {
     if (!remote) return;
-    const name = prompt("새 원격 폴더 이름:");
+    const name = prompt(t.promptNewFolder);
     if (!name) return;
     try {
       await invoke("sftp_mkdir", { hostId, path: joinPosix(remote.cwd, name) });
       await loadRemote(remote.cwd);
     } catch (e) {
-      setError(`새 폴더: ${String(e)}`);
+      setError(t.errMkdir(String(e)));
     }
   }
 
   async function touchRemote() {
     if (!remote) return;
-    const name = prompt("새 원격 파일 이름:");
+    const name = prompt(t.promptNewFile);
     if (!name) return;
     try {
       await invoke("sftp_touch", { hostId, path: joinPosix(remote.cwd, name) });
       await loadRemote(remote.cwd);
     } catch (e) {
-      setError(`새 파일: ${String(e)}`);
+      setError(t.errTouch(String(e)));
     }
   }
 
   async function renameRemote(entry: FileEntry) {
     if (!remote) return;
-    const next = prompt("새 이름:", entry.name);
+    const next = prompt(t.promptNewName, entry.name);
     if (!next || next === entry.name) return;
     try {
       await invoke("sftp_rename", {
@@ -226,7 +1106,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       });
       await loadRemote(remote.cwd);
     } catch (e) {
-      setError(`이름 변경: ${String(e)}`);
+      setError(t.errRename(String(e)));
     }
   }
 
@@ -240,7 +1120,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       });
       await loadRemote(remote.cwd);
     } catch (e) {
-      setError(`권한 변경: ${String(e)}`);
+      setError(t.errChmod(String(e)));
     }
   }
 
@@ -253,13 +1133,13 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       });
       setPreview({ name: entry.name, content });
     } catch (e) {
-      setError(`미리보기: ${String(e)}`);
+      setError(t.errPreview(String(e)));
     }
   }
 
   async function deleteRemoteEntry(entry: FileEntry) {
     if (!remote) return;
-    if (!confirm(`원격 '${entry.name}'을(를) 삭제할까요?`)) return;
+    if (!confirm(t.confirmDeleteRemote(entry.name))) return;
     try {
       await invoke("sftp_remove", {
         hostId,
@@ -268,7 +1148,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       });
       await loadRemote(remote.cwd);
     } catch (e) {
-      setError(`삭제: ${String(e)}`);
+      setError(t.errDelete(String(e)));
     }
   }
 
@@ -312,30 +1192,30 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             background: "#23232a",
           }}
         >
-          <strong style={{ fontSize: 14 }}>📁 파일 브라우저</strong>
-          <span style={{ color: "#789" }}>로컬 ↔ {hostLabel}</span>
+          <strong style={{ fontSize: 14 }}>{t.fileBrowser}</strong>
+          <span style={{ color: "#789" }}>{t.localSep}{hostLabel}</span>
           <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-            <button onClick={() => void mkdirRemote()} style={toolBtnStyle} title="원격 새 폴더">
-              + 폴더(원격)
+            <button onClick={() => void mkdirRemote()} style={toolBtnStyle} title={t.newFolderRemoteTitle}>
+              {t.newFolderRemote}
             </button>
-            <button onClick={() => void touchRemote()} style={toolBtnStyle} title="원격 새 파일">
-              + 파일(원격)
+            <button onClick={() => void touchRemote()} style={toolBtnStyle} title={t.newFileRemoteTitle}>
+              {t.newFileRemote}
             </button>
             <button
               onClick={() => setShowSearch(true)}
               disabled={!remote}
               style={toolBtnStyle}
-              title="원격 검색 (S-031)"
+              title={t.searchRemoteTitle}
             >
-              🔍 검색(원격)
+              {t.searchRemote}
             </button>
             <button
               onClick={() => void removeRemote()}
               disabled={!remoteSel}
               style={{ ...toolBtnStyle, opacity: remoteSel ? 1 : 0.5 }}
-              title="원격 선택 삭제"
+              title={t.deleteRemoteTitle}
             >
-              🗑 삭제(원격)
+              {t.deleteRemote}
             </button>
             <button
               onClick={() => {
@@ -343,12 +1223,12 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
                 void loadRemote(remote?.cwd);
               }}
               style={toolBtnStyle}
-              title="새로고침"
+              title={t.refreshTitle}
             >
-              ↺ 새로고침
+              {t.refresh}
             </button>
             <button onClick={onClose} style={toolBtnStyle}>
-              닫기
+              {t.close}
             </button>
           </div>
         </header>
@@ -361,7 +1241,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
 
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
           <Panel
-            title="로컬"
+            title={t.local}
             listing={local}
             selected={localSel}
             onSelect={setLocalSel}
@@ -389,7 +1269,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             <button
               onClick={() => remoteSel && doDownload(remoteSel)}
               disabled={!remoteSel || remoteSel.is_dir}
-              title="원격 → 로컬 다운로드"
+              title={t.downloadTitle}
               style={arrowBtnStyle(!!remoteSel && !remoteSel.is_dir)}
             >
               ←
@@ -397,14 +1277,14 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             <button
               onClick={() => localSel && doUpload(localSel)}
               disabled={!localSel || localSel.is_dir}
-              title="로컬 → 원격 업로드"
+              title={t.uploadTitle}
               style={arrowBtnStyle(!!localSel && !localSel.is_dir)}
             >
               →
             </button>
           </div>
           <Panel
-            title={`원격 — ${hostLabel}`}
+            title={t.remoteWith(hostLabel)}
             listing={remote}
             busy={remoteBusy}
             selected={remoteSel}
@@ -505,6 +1385,7 @@ function ContextMenu({
   onDelete: () => void;
   onProps: () => void;
 }) {
+  const t = useT(STR);
   useEffect(() => {
     const close = () => onDismiss();
     const t = setTimeout(() => {
@@ -520,13 +1401,13 @@ function ContextMenu({
 
   const items: Array<{ label: string; action: () => void; disabled?: boolean }> = [];
   if (side === "remote") {
-    items.push({ label: "미리보기", action: onPreview, disabled: entry.is_dir });
-    items.push({ label: "← 다운로드", action: onDownload, disabled: entry.is_dir });
-    items.push({ label: "이름 변경", action: onRename });
-    items.push({ label: "속성/권한", action: onProps });
-    items.push({ label: "삭제", action: onDelete });
+    items.push({ label: t.ctxPreview, action: onPreview, disabled: entry.is_dir });
+    items.push({ label: t.ctxDownload, action: onDownload, disabled: entry.is_dir });
+    items.push({ label: t.ctxRename, action: onRename });
+    items.push({ label: t.ctxProps, action: onProps });
+    items.push({ label: t.ctxDelete, action: onDelete });
   } else {
-    items.push({ label: "→ 업로드", action: onUpload, disabled: entry.is_dir });
+    items.push({ label: t.ctxUpload, action: onUpload, disabled: entry.is_dir });
   }
 
   const mx = Math.min(x, window.innerWidth - 180);
@@ -593,6 +1474,7 @@ function PreviewModal({
   content: string;
   onClose: () => void;
 }) {
+  const t = useT(STR);
   return (
     <div
       onClick={onClose}
@@ -651,10 +1533,10 @@ function PreviewModal({
             wordBreak: "break-word",
           }}
         >
-          {content || "(빈 파일)"}
+          {content || t.emptyFile}
         </pre>
         <div style={{ padding: "4px 14px", fontSize: 10, color: "#789", borderTop: "1px solid #2a2a30" }}>
-          최대 256KB 미리보기 · 바이너리는 깨져 보일 수 있음
+          {t.previewFooter}
         </div>
       </div>
     </div>
@@ -680,6 +1562,7 @@ function Panel({
   onContextMenu: (e: FileEntry, x: number, y: number) => void;
   joinPath: (cwd: string, name: string) => string;
 }) {
+  const t = useT(STR);
   const entries = listing
     ? [...listing.entries].sort((a, b) => {
         if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
@@ -718,14 +1601,14 @@ function Panel({
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
-        {busy && <div style={{ padding: 16, color: "#789" }}>불러오는 중…</div>}
+        {busy && <div style={{ padding: 16, color: "#789" }}>{t.loading}</div>}
         {listing && (
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr style={{ color: "#789", fontSize: 11 }}>
-                <th style={thStyle}>이름</th>
-                <th style={{ ...thStyle, width: 80, textAlign: "right" }}>크기</th>
-                <th style={{ ...thStyle, width: 150 }}>수정</th>
+                <th style={thStyle}>{t.colName}</th>
+                <th style={{ ...thStyle, width: 80, textAlign: "right" }}>{t.colSize}</th>
+                <th style={{ ...thStyle, width: 150 }}>{t.colModified}</th>
               </tr>
             </thead>
             <tbody>
@@ -796,17 +1679,18 @@ function PermissionsModal({
   onClose: () => void;
   onApply: (mode: number) => void;
 }) {
+  const t = useT(STR);
   const init = ((entry.permissions ?? 0o644) & 0o777) >>> 0;
   const [mode, setMode] = useState(init);
   const groups: Array<{ label: string; shift: number }> = [
-    { label: "소유자", shift: 6 },
-    { label: "그룹", shift: 3 },
-    { label: "기타", shift: 0 },
+    { label: t.owner, shift: 6 },
+    { label: t.group, shift: 3 },
+    { label: t.other, shift: 0 },
   ];
   const bits: Array<{ label: string; bit: number }> = [
-    { label: "읽기 (r)", bit: 4 },
-    { label: "쓰기 (w)", bit: 2 },
-    { label: "실행 (x)", bit: 1 },
+    { label: t.read, bit: 4 },
+    { label: t.write, bit: 2 },
+    { label: t.execute, bit: 1 },
   ];
   const has = (shift: number, bit: number) => (mode & (bit << shift)) !== 0;
   const toggle = (shift: number, bit: number) => setMode((m) => m ^ (bit << shift));
@@ -837,9 +1721,9 @@ function PermissionsModal({
           fontSize: 13,
         }}
       >
-        <strong style={{ fontSize: 14 }}>속성 / 권한 — {entry.name}</strong>
+        <strong style={{ fontSize: 14 }}>{t.propsTitle(entry.name)}</strong>
         <div style={{ fontSize: 11, color: "#789", margin: "6px 0 14px" }}>
-          {entry.is_dir ? "디렉토리" : `${fmtSize(entry.size)}`} · 8진수{" "}
+          {entry.is_dir ? t.directory : `${fmtSize(entry.size)}`} · {t.octal}{" "}
           <code style={{ color: "#9cf" }}>{octal}</code>
         </div>
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -869,12 +1753,12 @@ function PermissionsModal({
           </tbody>
         </table>
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 16 }}>
-          <button onClick={onClose} style={toolBtnStyle}>취소</button>
+          <button onClick={onClose} style={toolBtnStyle}>{t.cancel}</button>
           <button
             onClick={() => onApply(mode & 0o777)}
             style={{ ...toolBtnStyle, background: "#0a5380", borderColor: "#4a9eff", color: "#fff" }}
           >
-            적용 (chmod {octal})
+            {t.apply(octal)}
           </button>
         </div>
       </div>
@@ -889,7 +1773,8 @@ function TransferQueue({
   transfers: TransferItem[];
   onClear: () => void;
 }) {
-  const active = transfers.filter((t) => t.status === "active").length;
+  const t = useT(STR);
+  const active = transfers.filter((tr) => tr.status === "active").length;
   const finished = transfers.length - active;
   return (
     <div
@@ -911,7 +1796,7 @@ function TransferQueue({
         }}
       >
         <span>
-          전송 큐 · 진행 {active} / 완료·실패 {finished}
+          {t.transferQueue(active, finished)}
         </span>
         {finished > 0 && (
           <button
@@ -927,15 +1812,15 @@ function TransferQueue({
               fontSize: 11,
             }}
           >
-            완료 항목 비우기
+            {t.clearFinished}
           </button>
         )}
       </div>
       <div style={{ overflowY: "auto", padding: "0 12px 8px" }}>
-        {transfers.map((t) => {
-          const pct = t.total > 0 ? Math.round((t.transferred / t.total) * 100) : 0;
+        {transfers.map((tr) => {
+          const pct = tr.total > 0 ? Math.round((tr.transferred / tr.total) * 100) : 0;
           return (
-            <div key={t.id} style={{ marginBottom: 6 }}>
+            <div key={tr.id} style={{ marginBottom: 6 }}>
               <div style={{ display: "flex", fontSize: 11, color: "#ccc", gap: 8 }}>
                 <span
                   style={{
@@ -945,26 +1830,26 @@ function TransferQueue({
                     whiteSpace: "nowrap",
                   }}
                 >
-                  {t.label}
+                  {tr.label}
                 </span>
                 <span
                   style={{
                     color:
-                      t.status === "done"
+                      tr.status === "done"
                         ? "#5ad27a"
-                        : t.status === "error"
+                        : tr.status === "error"
                           ? "#ff8c8c"
                           : "#789",
                   }}
                 >
-                  {t.status === "done"
-                    ? "✓ 완료"
-                    : t.status === "error"
-                      ? "✗ 실패"
+                  {tr.status === "done"
+                    ? t.done
+                    : tr.status === "error"
+                      ? t.failed
                       : `${pct}%`}
                 </span>
               </div>
-              {t.status === "active" && (
+              {tr.status === "active" && (
                 <div
                   style={{
                     height: 3,
@@ -984,8 +1869,8 @@ function TransferQueue({
                   />
                 </div>
               )}
-              {t.status === "error" && t.error && (
-                <div style={{ fontSize: 10, color: "#c88" }}>{t.error}</div>
+              {tr.status === "error" && tr.error && (
+                <div style={{ fontSize: 10, color: "#c88" }}>{tr.error}</div>
               )}
             </div>
           );
@@ -1006,6 +1891,7 @@ function SearchModal({
   onClose: () => void;
   onNavigate: (path: string, isDir: boolean) => void;
 }) {
+  const t = useT(STR);
   const [query, setQuery] = useState("");
   const [recursive, setRecursive] = useState(true);
   const [hits, setHits] = useState<SearchHit[] | null>(null);
@@ -1059,8 +1945,8 @@ function SearchModal({
         }}
       >
         <header style={{ padding: "10px 14px", borderBottom: "1px solid #2a2a30", background: "#23232a" }}>
-          <strong style={{ fontSize: 13 }}>🔍 원격 검색</strong>
-          <span style={{ fontSize: 11, color: "#789", marginLeft: 8 }}>{root} 이하</span>
+          <strong style={{ fontSize: 13 }}>{t.remoteSearch}</strong>
+          <span style={{ fontSize: 11, color: "#789", marginLeft: 8 }}>{t.underRoot(root)}</span>
         </header>
         <div style={{ display: "flex", gap: 6, padding: 10, alignItems: "center" }}>
           <input
@@ -1070,7 +1956,7 @@ function SearchModal({
             onKeyDown={(e) => {
               if (e.key === "Enter") void run();
             }}
-            placeholder="파일 이름 (대소문자 무시)"
+            placeholder={t.searchPlaceholder}
             style={{
               flex: 1,
               background: "#101015",
@@ -1087,29 +1973,29 @@ function SearchModal({
               checked={recursive}
               onChange={(e) => setRecursive(e.target.checked)}
             />
-            하위 포함
+            {t.includeSub}
           </label>
           <button onClick={() => void run()} disabled={busy || !query.trim()} style={toolBtnStyle}>
-            {busy ? "검색 중..." : "검색"}
+            {busy ? t.searching : t.search}
           </button>
         </div>
         {err && <div style={{ padding: "0 14px 6px", color: "#fdd", fontSize: 11 }}>{err}</div>}
         <div style={{ flex: 1, overflowY: "auto", padding: "0 6px 8px" }}>
           {hits === null && (
             <div style={{ color: "#789", textAlign: "center", padding: 24, fontSize: 12 }}>
-              검색어를 입력하고 Enter를 누르세요.
+              {t.enterQuery}
             </div>
           )}
           {hits !== null && hits.length === 0 && (
             <div style={{ color: "#789", textAlign: "center", padding: 24, fontSize: 12 }}>
-              결과 없음
+              {t.noResults}
             </div>
           )}
           {hits?.map((h) => (
             <div
               key={h.path}
               onDoubleClick={() => onNavigate(h.path, h.is_dir)}
-              title={`더블클릭: 위치 열기\n${h.path}`}
+              title={`${t.openLocation}\n${h.path}`}
               style={{
                 display: "flex",
                 gap: 8,
@@ -1144,7 +2030,7 @@ function SearchModal({
         </div>
         {hits !== null && hits.length >= 500 && (
           <div style={{ padding: "4px 14px", fontSize: 10, color: "#fa8", borderTop: "1px solid #2a2a30" }}>
-            결과가 500개로 잘렸습니다. 검색어를 더 구체적으로.
+            {t.truncated}
           </div>
         )}
       </div>

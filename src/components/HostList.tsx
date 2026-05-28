@@ -5,6 +5,238 @@ import { HostForm } from "./HostForm";
 import { DeleteHostModal } from "./DeleteHostModal";
 import { GroupTagManager } from "./GroupTagManager";
 import { SshKeyManager } from "./SshKeyManager";
+import { LangDict, useT } from "../i18n";
+
+const STR: LangDict<{
+    switchToLocal: string;
+    keyManager: string;
+    groupTagManager: string;
+    newHost: string;
+    searchPlaceholder: string;
+    sort: string;
+    sortByName: string;
+    sortByHost: string;
+    noResults: (query: string) => string;
+    ungrouped: string;
+    rowHint: string;
+    edit: string;
+    delete: string;
+    emptyTitle: string;
+    emptyLine1: string;
+    emptyLine2: string;
+    addFirstHost: string;
+  }
+> = {
+  en: {
+    switchToLocal: "Switch active tab to local shell",
+    keyManager: "SSH key manager (S-019)",
+    groupTagManager: "Group/tag manager (S-017)",
+    newHost: "New host (S-014)",
+    searchPlaceholder: "🔍 Search...",
+    sort: "Sort",
+    sortByName: "By name",
+    sortByHost: "By address",
+    noResults: (query) => `No results for "${query}"`,
+    ungrouped: "(Ungrouped)",
+    rowHint: "Click: connect in current tab / Double-click: new tab",
+    edit: "Edit (S-015)",
+    delete: "Delete (S-016)",
+    emptyTitle: "No hosts registered yet",
+    emptyLine1: "Once you add your first SSH host,",
+    emptyLine2: "you can connect with a single click.",
+    addFirstHost: "+ Add your first host",
+  },
+  ko: {
+    switchToLocal: "활성 탭을 로컬 셸로 변경",
+    keyManager: "SSH 키 관리 (S-019)",
+    groupTagManager: "그룹/태그 관리 (S-017)",
+    newHost: "새 호스트 (S-014)",
+    searchPlaceholder: "🔍 검색...",
+    sort: "정렬",
+    sortByName: "이름순",
+    sortByHost: "주소순",
+    noResults: (query) => `"${query}" 검색 결과 없음`,
+    ungrouped: "(미분류)",
+    rowHint: "클릭: 현재 탭 연결 / 더블클릭: 새 탭",
+    edit: "편집 (S-015)",
+    delete: "삭제 (S-016)",
+    emptyTitle: "등록된 호스트가 없어요",
+    emptyLine1: "첫 SSH 호스트를 추가하면",
+    emptyLine2: "클릭 한 번으로 연결할 수 있습니다.",
+    addFirstHost: "+ 첫 호스트 추가하기",
+  },
+  es: {
+    switchToLocal: "Cambiar la pestaña activa al shell local",
+    keyManager: "Gestor de claves SSH (S-019)",
+    groupTagManager: "Gestor de grupos/etiquetas (S-017)",
+    newHost: "Nuevo host (S-014)",
+    searchPlaceholder: "🔍 Buscar...",
+    sort: "Ordenar",
+    sortByName: "Por nombre",
+    sortByHost: "Por dirección",
+    noResults: (query) => `Sin resultados para "${query}"`,
+    ungrouped: "(Sin grupo)",
+    rowHint: "Clic: conectar en la pestaña actual / Doble clic: nueva pestaña",
+    edit: "Editar (S-015)",
+    delete: "Eliminar (S-016)",
+    emptyTitle: "Aún no hay hosts registrados",
+    emptyLine1: "Cuando agregues tu primer host SSH,",
+    emptyLine2: "podrás conectarte con un solo clic.",
+    addFirstHost: "+ Agregar tu primer host",
+  },
+  zh: {
+    switchToLocal: "将活动标签页切换到本地 shell",
+    keyManager: "SSH 密钥管理器 (S-019)",
+    groupTagManager: "分组/标签管理器 (S-017)",
+    newHost: "新建主机 (S-014)",
+    searchPlaceholder: "🔍 搜索...",
+    sort: "排序",
+    sortByName: "按名称",
+    sortByHost: "按地址",
+    noResults: (query) => `没有“${query}”的结果`,
+    ungrouped: "(未分组)",
+    rowHint: "单击：在当前标签页连接 / 双击：新建标签页",
+    edit: "编辑 (S-015)",
+    delete: "删除 (S-016)",
+    emptyTitle: "尚未注册任何主机",
+    emptyLine1: "添加第一个 SSH 主机后，",
+    emptyLine2: "只需单击一次即可连接。",
+    addFirstHost: "+ 添加第一个主机",
+  },
+  ja: {
+    switchToLocal: "アクティブなタブをローカルシェルに切り替え",
+    keyManager: "SSH キー管理 (S-019)",
+    groupTagManager: "グループ/タグ管理 (S-017)",
+    newHost: "新規ホスト (S-014)",
+    searchPlaceholder: "🔍 検索...",
+    sort: "並び替え",
+    sortByName: "名前順",
+    sortByHost: "アドレス順",
+    noResults: (query) => `「${query}」の結果はありません`,
+    ungrouped: "(未分類)",
+    rowHint: "クリック: 現在のタブで接続 / ダブルクリック: 新規タブ",
+    edit: "編集 (S-015)",
+    delete: "削除 (S-016)",
+    emptyTitle: "登録済みのホストがありません",
+    emptyLine1: "最初の SSH ホストを追加すると、",
+    emptyLine2: "ワンクリックで接続できます。",
+    addFirstHost: "+ 最初のホストを追加",
+  },
+  ru: {
+    switchToLocal: "Переключить активную вкладку на локальную оболочку",
+    keyManager: "Менеджер ключей SSH (S-019)",
+    groupTagManager: "Менеджер групп/тегов (S-017)",
+    newHost: "Новый хост (S-014)",
+    searchPlaceholder: "🔍 Поиск...",
+    sort: "Сортировка",
+    sortByName: "По имени",
+    sortByHost: "По адресу",
+    noResults: (query) => `Нет результатов по запросу "${query}"`,
+    ungrouped: "(Без группы)",
+    rowHint: "Клик: подключиться в текущей вкладке / Двойной клик: новая вкладка",
+    edit: "Изменить (S-015)",
+    delete: "Удалить (S-016)",
+    emptyTitle: "Пока нет зарегистрированных хостов",
+    emptyLine1: "После добавления первого хоста SSH",
+    emptyLine2: "вы сможете подключаться одним кликом.",
+    addFirstHost: "+ Добавить первый хост",
+  },
+  fr: {
+    switchToLocal: "Basculer l'onglet actif vers le shell local",
+    keyManager: "Gestionnaire de clés SSH (S-019)",
+    groupTagManager: "Gestionnaire de groupes/étiquettes (S-017)",
+    newHost: "Nouvel hôte (S-014)",
+    searchPlaceholder: "🔍 Rechercher...",
+    sort: "Trier",
+    sortByName: "Par nom",
+    sortByHost: "Par adresse",
+    noResults: (query) => `Aucun résultat pour "${query}"`,
+    ungrouped: "(Sans groupe)",
+    rowHint: "Clic : connexion dans l'onglet actuel / Double-clic : nouvel onglet",
+    edit: "Modifier (S-015)",
+    delete: "Supprimer (S-016)",
+    emptyTitle: "Aucun hôte enregistré pour le moment",
+    emptyLine1: "Une fois votre premier hôte SSH ajouté,",
+    emptyLine2: "vous pourrez vous connecter en un seul clic.",
+    addFirstHost: "+ Ajouter votre premier hôte",
+  },
+  de: {
+    switchToLocal: "Aktiven Tab zur lokalen Shell wechseln",
+    keyManager: "SSH-Schlüsselverwaltung (S-019)",
+    groupTagManager: "Gruppen-/Tag-Verwaltung (S-017)",
+    newHost: "Neuer Host (S-014)",
+    searchPlaceholder: "🔍 Suchen...",
+    sort: "Sortieren",
+    sortByName: "Nach Name",
+    sortByHost: "Nach Adresse",
+    noResults: (query) => `Keine Ergebnisse für "${query}"`,
+    ungrouped: "(Ohne Gruppe)",
+    rowHint: "Klick: im aktuellen Tab verbinden / Doppelklick: neuer Tab",
+    edit: "Bearbeiten (S-015)",
+    delete: "Löschen (S-016)",
+    emptyTitle: "Noch keine Hosts registriert",
+    emptyLine1: "Sobald du deinen ersten SSH-Host hinzufügst,",
+    emptyLine2: "kannst du dich mit einem Klick verbinden.",
+    addFirstHost: "+ Ersten Host hinzufügen",
+  },
+  vi: {
+    switchToLocal: "Chuyển tab đang hoạt động sang shell cục bộ",
+    keyManager: "Trình quản lý khóa SSH (S-019)",
+    groupTagManager: "Trình quản lý nhóm/thẻ (S-017)",
+    newHost: "Host mới (S-014)",
+    searchPlaceholder: "🔍 Tìm kiếm...",
+    sort: "Sắp xếp",
+    sortByName: "Theo tên",
+    sortByHost: "Theo địa chỉ",
+    noResults: (query) => `Không có kết quả cho "${query}"`,
+    ungrouped: "(Chưa phân nhóm)",
+    rowHint: "Nhấp: kết nối trong tab hiện tại / Nhấp đúp: tab mới",
+    edit: "Chỉnh sửa (S-015)",
+    delete: "Xóa (S-016)",
+    emptyTitle: "Chưa có host nào được đăng ký",
+    emptyLine1: "Khi bạn thêm host SSH đầu tiên,",
+    emptyLine2: "bạn có thể kết nối chỉ bằng một cú nhấp.",
+    addFirstHost: "+ Thêm host đầu tiên của bạn",
+  },
+  id: {
+    switchToLocal: "Alihkan tab aktif ke shell lokal",
+    keyManager: "Pengelola kunci SSH (S-019)",
+    groupTagManager: "Pengelola grup/tag (S-017)",
+    newHost: "Host baru (S-014)",
+    searchPlaceholder: "🔍 Cari...",
+    sort: "Urutkan",
+    sortByName: "Berdasarkan nama",
+    sortByHost: "Berdasarkan alamat",
+    noResults: (query) => `Tidak ada hasil untuk "${query}"`,
+    ungrouped: "(Tanpa grup)",
+    rowHint: "Klik: sambungkan di tab saat ini / Klik dua kali: tab baru",
+    edit: "Edit (S-015)",
+    delete: "Hapus (S-016)",
+    emptyTitle: "Belum ada host yang terdaftar",
+    emptyLine1: "Setelah Anda menambahkan host SSH pertama,",
+    emptyLine2: "Anda dapat menyambung hanya dengan satu klik.",
+    addFirstHost: "+ Tambahkan host pertama Anda",
+  },
+  hi: {
+    switchToLocal: "सक्रिय टैब को लोकल शेल पर बदलें",
+    keyManager: "SSH कुंजी प्रबंधक (S-019)",
+    groupTagManager: "समूह/टैग प्रबंधक (S-017)",
+    newHost: "नया होस्ट (S-014)",
+    searchPlaceholder: "🔍 खोजें...",
+    sort: "क्रमबद्ध करें",
+    sortByName: "नाम से",
+    sortByHost: "पते से",
+    noResults: (query) => `"${query}" के लिए कोई परिणाम नहीं`,
+    ungrouped: "(समूह रहित)",
+    rowHint: "क्लिक: वर्तमान टैब में कनेक्ट करें / डबल-क्लिक: नया टैब",
+    edit: "संपादित करें (S-015)",
+    delete: "हटाएं (S-016)",
+    emptyTitle: "अभी तक कोई होस्ट पंजीकृत नहीं है",
+    emptyLine1: "जैसे ही आप अपना पहला SSH होस्ट जोड़ेंगे,",
+    emptyLine2: "आप एक ही क्लिक से कनेक्ट कर सकते हैं।",
+    addFirstHost: "+ अपना पहला होस्ट जोड़ें",
+  },
+};
 
 interface Props {
   activeHostId: string | null;
@@ -27,6 +259,7 @@ export function HostList({
   activeSessionCountForHost,
   onHostDeleted,
 }: Props) {
+  const t = useT(STR);
   const [hosts, setHosts] = useState<SshHost[]>([]);
   const [groups, setGroups] = useState<Group[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -125,7 +358,7 @@ export function HostList({
           background: isLocalActive ? "#094771" : "transparent",
           color: isLocalActive ? "#fff" : "#cccccc",
         }}
-        title="활성 탭을 로컬 셸로 변경"
+        title={t.switchToLocal}
       >
         ⌨ Local shell
       </button>
@@ -148,21 +381,21 @@ export function HostList({
           <button
             onClick={() => setShowKeys(true)}
             style={addBtnStyle}
-            title="SSH 키 관리 (S-019)"
+            title={t.keyManager}
           >
             🔑
           </button>
           <button
             onClick={() => setShowManager(true)}
             style={addBtnStyle}
-            title="그룹/태그 관리 (S-017)"
+            title={t.groupTagManager}
           >
             ⚙
           </button>
           <button
             onClick={() => setEditing("new")}
             style={addBtnStyle}
-            title="새 호스트 (S-014)"
+            title={t.newHost}
           >
             +
           </button>
@@ -173,7 +406,7 @@ export function HostList({
         <input
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="🔍 검색..."
+          placeholder={t.searchPlaceholder}
           style={{
             flex: 1,
             background: "#1c1c20",
@@ -188,7 +421,7 @@ export function HostList({
         <select
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value as SortBy)}
-          title="정렬"
+          title={t.sort}
           style={{
             background: "#1c1c20",
             border: "1px solid #333",
@@ -198,8 +431,8 @@ export function HostList({
             fontSize: 11,
           }}
         >
-          <option value="name">이름순</option>
-          <option value="host">주소순</option>
+          <option value="name">{t.sortByName}</option>
+          <option value="host">{t.sortByHost}</option>
         </select>
       </div>
 
@@ -214,7 +447,7 @@ export function HostList({
               textAlign: "center",
             }}
           >
-            "{query}" 검색 결과 없음
+            {t.noResults(query)}
           </div>
         )}
         {hosts.length > 0 &&
@@ -242,7 +475,7 @@ export function HostList({
           if (!ungrouped || ungrouped.length === 0) return null;
           return (
             <GroupSection
-              label="(미분류)"
+              label={t.ungrouped}
               hosts={ungrouped}
               activeHostId={activeHostId}
               query={query}
@@ -333,6 +566,7 @@ function GroupSection({
   onEdit: (h: SshHost) => void;
   onDelete: (h: SshHost) => void;
 }) {
+  const tr = useT(STR);
   return (
     <div>
       <div
@@ -362,7 +596,7 @@ function GroupSection({
               alignItems: "center",
               paddingLeft: 18,
             }}
-            title="클릭: 현재 탭 연결 / 더블클릭: 새 탭"
+            title={tr.rowHint}
           >
             <div style={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
               <span style={{ fontSize: 13 }}>
@@ -405,7 +639,7 @@ function GroupSection({
                   onEdit(h);
                 }}
                 style={iconBtnStyle}
-                title="편집 (S-015)"
+                title={tr.edit}
               >
                 ✎
               </button>
@@ -415,7 +649,7 @@ function GroupSection({
                   onDelete(h);
                 }}
                 style={iconBtnStyle}
-                title="삭제 (S-016)"
+                title={tr.delete}
               >
                 ×
               </button>
@@ -428,6 +662,7 @@ function GroupSection({
 }
 
 function EmptyState({ onAdd }: { onAdd: () => void }) {
+  const t = useT(STR);
   return (
     <div
       style={{
@@ -441,11 +676,11 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
       }}
     >
       <div style={{ fontSize: 36 }}>🖥️</div>
-      <div style={{ fontSize: 13, color: "#ddd" }}>등록된 호스트가 없어요</div>
+      <div style={{ fontSize: 13, color: "#ddd" }}>{t.emptyTitle}</div>
       <div style={{ fontSize: 11, color: "#789", lineHeight: 1.5 }}>
-        첫 SSH 호스트를 추가하면
+        {t.emptyLine1}
         <br />
-        클릭 한 번으로 연결할 수 있습니다.
+        {t.emptyLine2}
       </div>
       <button
         onClick={onAdd}
@@ -461,7 +696,7 @@ function EmptyState({ onAdd }: { onAdd: () => void }) {
           fontWeight: 600,
         }}
       >
-        + 첫 호스트 추가하기
+        {t.addFirstHost}
       </button>
     </div>
   );
