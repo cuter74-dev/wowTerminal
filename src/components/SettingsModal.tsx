@@ -78,7 +78,11 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                 }}
               >
                 <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
-                  <span style={{ fontSize: 26 }}>🖥️</span>
+                  <img
+                    src="/logo.png"
+                    alt="AI Terminal"
+                    style={{ width: 32, height: 32, objectFit: "contain" }}
+                  />
                   <div>
                     <div style={{ fontWeight: 700, color: "#fff" }}>AI Terminal</div>
                     <div style={{ fontSize: 11, color: "#789" }}>v0.1.0-beta</div>

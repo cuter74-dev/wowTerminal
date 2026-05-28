@@ -57,7 +57,11 @@ export function OnboardingFlow({ onComplete }: Props) {
         {step === 0 && (
           <div>
             <div style={{ textAlign: "center", marginBottom: 20 }}>
-              <div style={{ fontSize: 44 }}>🖥️</div>
+              <img
+                src="/logo.png"
+                alt="AI Terminal"
+                style={{ width: 72, height: 72, objectFit: "contain" }}
+              />
               <h1 style={{ fontSize: 22, margin: "10px 0 4px", color: "#fff" }}>
                 AI 터미널에 오신 것을 환영합니다
               </h1>
