@@ -8,11 +8,14 @@ function newTransferId(): string {
   return Math.random().toString(36).slice(2);
 }
 
-interface Transfer {
+interface TransferItem {
   id: string;
   label: string;
+  direction: "up" | "down";
   transferred: number;
   total: number;
+  status: "active" | "done" | "error";
+  error?: string;
 }
 
 interface Props {
@@ -53,7 +56,11 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
   const [remoteSel, setRemoteSel] = useState<FileEntry | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [remoteBusy, setRemoteBusy] = useState(true);
-  const [transfer, setTransfer] = useState<Transfer | null>(null);
+  const [transfers, setTransfers] = useState<TransferItem[]>([]);
+
+  function updateTransfer(id: string, patch: Partial<TransferItem>) {
+    setTransfers((prev) => prev.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  }
   const [menu, setMenu] = useState<{
     entry: FileEntry;
     x: number;
@@ -108,10 +115,12 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     void listen<{ transferId: string; transferred: number; total: number }>(
       "sftp:progress",
       (e) => {
-        setTransfer((prev) =>
-          prev && prev.id === e.payload.transferId
-            ? { ...prev, transferred: e.payload.transferred, total: e.payload.total }
-            : prev,
+        setTransfers((prev) =>
+          prev.map((t) =>
+            t.id === e.payload.transferId
+              ? { ...t, transferred: e.payload.transferred, total: e.payload.total }
+              : t,
+          ),
         );
       },
     ).then((f) => {
@@ -120,54 +129,49 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     return () => un?.();
   }, []);
 
-  async function download() {
-    if (!remoteSel || remoteSel.is_dir || !remote || !local) return;
+  // 다운로드/업로드를 큐에 넣고 비동기 진행 (동시 여러 전송 가능).
+  function doDownload(entry: FileEntry) {
+    if (entry.is_dir || !remote || !local) return;
     if (
-      nameExists(local, remoteSel.name) &&
-      !confirm(`로컬에 '${remoteSel.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
+      nameExists(local, entry.name) &&
+      !confirm(`로컬에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
     )
       return;
     const id = newTransferId();
-    setTransfer({ id, label: `↓ ${remoteSel.name}`, transferred: 0, total: remoteSel.size });
-    setError(null);
-    try {
-      await invoke("sftp_download", {
-        hostId,
-        remotePath: joinPosix(remote.cwd, remoteSel.name),
-        localDir: local.cwd,
-        transferId: id,
-      });
-      await loadLocal(local.cwd);
-    } catch (e) {
-      setError(`다운로드: ${String(e)}`);
-    } finally {
-      setTransfer(null);
-    }
+    const localCwd = local.cwd;
+    const remotePath = joinPosix(remote.cwd, entry.name);
+    setTransfers((prev) => [
+      ...prev,
+      { id, label: `↓ ${entry.name}`, direction: "down", transferred: 0, total: entry.size, status: "active" },
+    ]);
+    void invoke("sftp_download", { hostId, remotePath, localDir: localCwd, transferId: id })
+      .then(() => {
+        updateTransfer(id, { status: "done", transferred: entry.size });
+        void loadLocal(localCwd);
+      })
+      .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
   }
 
-  async function upload() {
-    if (!localSel || localSel.is_dir || !local || !remote) return;
+  function doUpload(entry: FileEntry) {
+    if (entry.is_dir || !local || !remote) return;
     if (
-      nameExists(remote, localSel.name) &&
-      !confirm(`원격에 '${localSel.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
+      nameExists(remote, entry.name) &&
+      !confirm(`원격에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
     )
       return;
     const id = newTransferId();
-    setTransfer({ id, label: `↑ ${localSel.name}`, transferred: 0, total: localSel.size });
-    setError(null);
-    try {
-      await invoke("sftp_upload", {
-        hostId,
-        localPath: joinPosix(local.cwd, localSel.name),
-        remoteDir: remote.cwd,
-        transferId: id,
-      });
-      await loadRemote(remote.cwd);
-    } catch (e) {
-      setError(`업로드: ${String(e)}`);
-    } finally {
-      setTransfer(null);
-    }
+    const remoteCwd = remote.cwd;
+    const localPath = joinPosix(local.cwd, entry.name);
+    setTransfers((prev) => [
+      ...prev,
+      { id, label: `↑ ${entry.name}`, direction: "up", transferred: 0, total: entry.size, status: "active" },
+    ]);
+    void invoke("sftp_upload", { hostId, localPath, remoteDir: remoteCwd, transferId: id })
+      .then(() => {
+        updateTransfer(id, { status: "done", transferred: entry.size });
+        void loadRemote(remoteCwd);
+      })
+      .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
   }
 
   async function removeRemote() {
@@ -265,54 +269,6 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       await loadRemote(remote.cwd);
     } catch (e) {
       setError(`삭제: ${String(e)}`);
-    }
-  }
-
-  async function uploadEntry(entry: FileEntry) {
-    if (entry.is_dir || !local || !remote) return;
-    if (
-      nameExists(remote, entry.name) &&
-      !confirm(`원격에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
-    )
-      return;
-    const id = newTransferId();
-    setTransfer({ id, label: `↑ ${entry.name}`, transferred: 0, total: entry.size });
-    try {
-      await invoke("sftp_upload", {
-        hostId,
-        localPath: joinPosix(local.cwd, entry.name),
-        remoteDir: remote.cwd,
-        transferId: id,
-      });
-      await loadRemote(remote.cwd);
-    } catch (e) {
-      setError(`업로드: ${String(e)}`);
-    } finally {
-      setTransfer(null);
-    }
-  }
-
-  async function downloadEntry(entry: FileEntry) {
-    if (entry.is_dir || !local || !remote) return;
-    if (
-      nameExists(local, entry.name) &&
-      !confirm(`로컬에 '${entry.name}'이(가) 이미 있습니다. 덮어쓸까요?`)
-    )
-      return;
-    const id = newTransferId();
-    setTransfer({ id, label: `↓ ${entry.name}`, transferred: 0, total: entry.size });
-    try {
-      await invoke("sftp_download", {
-        hostId,
-        remotePath: joinPosix(remote.cwd, entry.name),
-        localDir: local.cwd,
-        transferId: id,
-      });
-      await loadLocal(local.cwd);
-    } catch (e) {
-      setError(`다운로드: ${String(e)}`);
-    } finally {
-      setTransfer(null);
     }
   }
 
@@ -431,59 +387,21 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             }}
           >
             <button
-              onClick={() => void download()}
-              disabled={!remoteSel || remoteSel.is_dir || !!transfer}
+              onClick={() => remoteSel && doDownload(remoteSel)}
+              disabled={!remoteSel || remoteSel.is_dir}
               title="원격 → 로컬 다운로드"
-              style={arrowBtnStyle(!!remoteSel && !remoteSel.is_dir && !transfer)}
+              style={arrowBtnStyle(!!remoteSel && !remoteSel.is_dir)}
             >
               ←
             </button>
             <button
-              onClick={() => void upload()}
-              disabled={!localSel || localSel.is_dir || !!transfer}
+              onClick={() => localSel && doUpload(localSel)}
+              disabled={!localSel || localSel.is_dir}
               title="로컬 → 원격 업로드"
-              style={arrowBtnStyle(!!localSel && !localSel.is_dir && !transfer)}
+              style={arrowBtnStyle(!!localSel && !localSel.is_dir)}
             >
               →
             </button>
-            {transfer && (
-              <div style={{ width: "100%", textAlign: "center", padding: "0 4px" }}>
-                <div
-                  style={{
-                    fontSize: 9,
-                    color: "#4a9eff",
-                    overflow: "hidden",
-                    textOverflow: "ellipsis",
-                    whiteSpace: "nowrap",
-                  }}
-                >
-                  {transfer.label}
-                </div>
-                <div
-                  style={{
-                    height: 4,
-                    background: "#2a2a30",
-                    borderRadius: 2,
-                    overflow: "hidden",
-                    margin: "3px 0",
-                  }}
-                >
-                  <div
-                    style={{
-                      height: "100%",
-                      width: `${transfer.total > 0 ? Math.round((transfer.transferred / transfer.total) * 100) : 0}%`,
-                      background: "#4a9eff",
-                      transition: "width 0.1s",
-                    }}
-                  />
-                </div>
-                <div style={{ fontSize: 8, color: "#789" }}>
-                  {transfer.total > 0
-                    ? `${Math.round((transfer.transferred / transfer.total) * 100)}%`
-                    : "…"}
-                </div>
-              </div>
-            )}
           </div>
           <Panel
             title={`원격 — ${hostLabel}`}
@@ -500,6 +418,15 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
           />
         </div>
 
+        {transfers.length > 0 && (
+          <TransferQueue
+            transfers={transfers}
+            onClear={() =>
+              setTransfers((prev) => prev.filter((t) => t.status === "active"))
+            }
+          />
+        )}
+
         {menu && (
           <ContextMenu
             x={menu.x}
@@ -508,8 +435,8 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             entry={menu.entry}
             onDismiss={() => setMenu(null)}
             onPreview={() => void previewRemote(menu.entry)}
-            onDownload={() => void downloadEntry(menu.entry)}
-            onUpload={() => void uploadEntry(menu.entry)}
+            onDownload={() => doDownload(menu.entry)}
+            onUpload={() => doUpload(menu.entry)}
             onRename={() => void renameRemote(menu.entry)}
             onDelete={() => void deleteRemoteEntry(menu.entry)}
             onProps={() => setPermEdit(menu.entry)}
@@ -950,6 +877,119 @@ function PermissionsModal({
             적용 (chmod {octal})
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function TransferQueue({
+  transfers,
+  onClear,
+}: {
+  transfers: TransferItem[];
+  onClear: () => void;
+}) {
+  const active = transfers.filter((t) => t.status === "active").length;
+  const finished = transfers.length - active;
+  return (
+    <div
+      style={{
+        borderTop: "1px solid #2a2a30",
+        background: "#181820",
+        maxHeight: 160,
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          padding: "4px 12px",
+          fontSize: 11,
+          color: "#9aa",
+        }}
+      >
+        <span>
+          전송 큐 · 진행 {active} / 완료·실패 {finished}
+        </span>
+        {finished > 0 && (
+          <button
+            onClick={onClear}
+            style={{
+              marginLeft: "auto",
+              background: "transparent",
+              border: "1px solid #444",
+              color: "#bbb",
+              borderRadius: 3,
+              padding: "2px 8px",
+              cursor: "pointer",
+              fontSize: 11,
+            }}
+          >
+            완료 항목 비우기
+          </button>
+        )}
+      </div>
+      <div style={{ overflowY: "auto", padding: "0 12px 8px" }}>
+        {transfers.map((t) => {
+          const pct = t.total > 0 ? Math.round((t.transferred / t.total) * 100) : 0;
+          return (
+            <div key={t.id} style={{ marginBottom: 6 }}>
+              <div style={{ display: "flex", fontSize: 11, color: "#ccc", gap: 8 }}>
+                <span
+                  style={{
+                    flex: 1,
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  {t.label}
+                </span>
+                <span
+                  style={{
+                    color:
+                      t.status === "done"
+                        ? "#5ad27a"
+                        : t.status === "error"
+                          ? "#ff8c8c"
+                          : "#789",
+                  }}
+                >
+                  {t.status === "done"
+                    ? "✓ 완료"
+                    : t.status === "error"
+                      ? "✗ 실패"
+                      : `${pct}%`}
+                </span>
+              </div>
+              {t.status === "active" && (
+                <div
+                  style={{
+                    height: 3,
+                    background: "#2a2a30",
+                    borderRadius: 2,
+                    overflow: "hidden",
+                    marginTop: 2,
+                  }}
+                >
+                  <div
+                    style={{
+                      height: "100%",
+                      width: `${pct}%`,
+                      background: "#4a9eff",
+                      transition: "width 0.1s",
+                    }}
+                  />
+                </div>
+              )}
+              {t.status === "error" && t.error && (
+                <div style={{ fontSize: 10, color: "#c88" }}>{t.error}</div>
+              )}
+            </div>
+          );
+        })}
       </div>
     </div>
   );
