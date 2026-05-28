@@ -1,57 +1,104 @@
 # wowTerminal
 
-AI 기반 터미널 — 외부 AI 서비스, 로컬 AI, 자체 AI 서버를 모두 활용할 수 있고, SSH 접속 정보/키를 관리해 원격 서버에 간편하게 접속할 수 있는 데스크탑 터미널 앱.
+> A context-aware AI terminal — LLM × SSH × SFTP.
 
-## 주요 기능 (예정)
+wowTerminal is a cross-platform desktop terminal that brings an AI assistant, an SSH host
+manager, and an SFTP file browser into one window. The assistant can read your current
+terminal output as context, suggest commands, and send them straight to the active pane.
 
-- **멀티 AI 백엔드**
-  - 외부 API: OpenAI, Anthropic, Google Gemini 등
-  - 로컬: Ollama, llama.cpp 등 로컬 추론 엔진
-  - 자체 호스팅: OpenAI 호환 엔드포인트 (vLLM, TGI 등)
-- **SSH 매니저**: 호스트 프로필 + 키 안전 저장, 원클릭 접속
-- **터미널 코어**: PTY 기반 풀 셸, xterm.js 렌더링
-- **컨텍스트 인지 AI**: 현재 셸 상태/출력을 AI에 전달해 명령 추천·설명·디버깅
+🌐 한국어 README: [README.ko.md](README.ko.md)
 
-## 기술 스택
+---
 
-- **백엔드**: Rust (Tauri 2)
-- **프론트엔드**: React 19 + TypeScript + Vite
-- **터미널 렌더링**: xterm.js (예정)
-- **PTY**: portable-pty (Rust, 예정)
-- **SSH**: russh (Rust, 예정)
+## Features
 
-## 개발 시작
+- **AI assistant (multi-backend)**
+  - Works with any OpenAI-compatible endpoint — OpenAI, Ollama, vLLM, TGI, self-hosted gateways.
+  - Sends the focused pane's recent output as context, so suggestions fit what you're doing.
+  - Extracts commands from responses into cards with a one-click **Send to terminal** button.
+  - Per-tab conversations, saved chat history, and session restore.
+- **SSH manager**
+  - Host profiles (name / host / port / user / auth), groups, tags, search and sort.
+  - SSH key manager: generate or import keys.
+  - TOFU host-key verification with `known_hosts` — first-contact confirmation and
+    mismatch warnings to guard against man-in-the-middle attacks.
+  - Password prompt with optional save to the OS keychain (no plaintext on disk).
+- **SFTP file browser**
+  - Dual local ↔ remote panes, upload/download with a progress bar and transfer queue.
+  - Remote file search and Unix permission editing.
+- **Terminal core**
+  - PTY-backed local shells, rendered with xterm.js.
+  - Tabs, split panes (horizontal / vertical), and **detach a tab into a new window**
+    (the live session and screen are handed over).
+  - Command history search (`Ctrl/⌘ + R`) and inline autocomplete (`Tab`).
+- **UI**
+  - Collapsible left host panel and right AI panel, with draggable widths.
+  - 11 UI languages (auto-detected from your OS locale, switchable in Settings).
+  - Dark / light themes, configurable font and scrollback.
+  - Import/export of hosts, groups, and tags (secrets stay in the keychain).
 
-> 사전 요구사항: Rust stable, Node.js 20+, 시스템 의존성 (Linux: `libwebkit2gtk-4.1-dev`, `libgtk-3-dev` 등)
+## Tech stack
+
+- **Backend**: Rust + [Tauri 2](https://tauri.app/)
+- **Frontend**: React 19 + TypeScript + Vite
+- **Terminal**: [xterm.js](https://xtermjs.org/) + [portable-pty](https://crates.io/crates/portable-pty)
+- **SSH/SFTP**: [russh](https://crates.io/crates/russh) + [russh-sftp](https://crates.io/crates/russh-sftp)
+- **Secrets**: OS keychain via [keyring](https://crates.io/crates/keyring)
+
+## Getting started
+
+> **Prerequisites**: Rust (stable), Node.js 20+, and platform build dependencies.
+> On Linux you also need `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, and related packages.
+> See the [Tauri prerequisites guide](https://tauri.app/start/prerequisites/).
 
 ```bash
 npm install
-npm run tauri dev
+npm run tauri dev      # development build with hot reload
+npm run tauri build    # production bundle
 ```
 
-## 작업 방식
+The first launch shows a short onboarding flow. After that you land on a local shell tab.
 
-- 모든 작업은 GitHub Issue로 트래킹
-- `docs/work-log/YYYY-MM-DD.md`에 일자별 작업 내용 기록
-- 개발 → 문서화 → 이슈 코멘트 → 이슈 클로즈 순으로 진행
+## Documentation
 
-## 디렉토리 구조
+User guides live in [`docs/guide/`](docs/guide/):
+
+- [Getting started](docs/guide/getting-started.md) — install, first run, the workspace layout
+- [SSH](docs/guide/ssh.md) — hosts, keys, host-key verification, saved credentials
+- [SFTP](docs/guide/sftp.md) — the file browser, transfers, permissions
+- [AI assistant](docs/guide/ai.md) — backends, context, running suggested commands
+- [Keyboard shortcuts](docs/guide/shortcuts.md)
+
+Design notes are in [`docs/design/`](docs/design/); the dated development log is in
+[`docs/work-log/`](docs/work-log/).
+
+## Project layout
 
 ```
 .
-├── src/                  # React 프론트엔드
-├── src-tauri/            # Rust 백엔드 (Tauri)
-│   ├── src/
-│   │   ├── ai/           # AI 백엔드 (외부/로컬/자체)
-│   │   ├── ssh/          # SSH 매니저
-│   │   └── pty/          # PTY (터미널 코어)
-│   └── tauri.conf.json
-├── docs/
-│   ├── design/           # 설계 문서
-│   └── work-log/         # 일자별 작업 로그
-└── README.md
+├── src/                  # React frontend
+│   ├── components/        # UI components
+│   ├── i18n.tsx           # lightweight self-hosted i18n
+│   └── settings.ts        # app settings (theme, layout, language)
+├── src-tauri/            # Rust backend (Tauri)
+│   └── src/
+│       ├── ai/            # AI backends (OpenAI-compatible)
+│       ├── ssh/           # SSH manager, known_hosts
+│       ├── pty/           # PTY terminal core
+│       └── secrets/       # keychain-backed secret storage
+└── docs/
+    ├── design/            # design docs
+    ├── guide/             # user guides (English)
+    └── work-log/          # dated development log
 ```
 
-## 라이선스
+## Security
 
-미정 (TBD)
+- API keys, SSH private keys, and passwords are never stored in plaintext — they live in
+  the OS keychain (Keychain on macOS, Credential Manager on Windows, Secret Service on Linux).
+- Host/group/tag export does **not** include secrets.
+- SSH connections verify host keys against `known_hosts` (trust-on-first-use).
+
+## License
+
+TBD
