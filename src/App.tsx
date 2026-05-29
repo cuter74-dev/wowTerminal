@@ -1191,6 +1191,7 @@ function App() {
           setEditingTabId(null);
         }}
         onRenameCancel={() => setEditingTabId(null)}
+        onStartRename={(id) => setEditingTabId(id)}
         onTabPointerDown={(id) => {
           if (tabs.length > 0) setDrag({ tabId: id, active: false });
         }}

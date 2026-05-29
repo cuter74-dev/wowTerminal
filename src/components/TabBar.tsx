@@ -69,6 +69,8 @@ interface Props {
   onContextMenu: (id: string, x: number, y: number) => void;
   onRenameCommit: (id: string, label: string) => void;
   onRenameCancel: () => void;
+  /** 탭 더블클릭 → 인라인 이름 편집 시작. */
+  onStartRename: (id: string) => void;
   /** 탭에서 pointer down — 드래그 분리 후보 시작 (WKWebView는 HTML5 DnD 불안정 → pointer 기반). */
   onTabPointerDown: (id: string, clientX: number, clientY: number) => void;
 }
@@ -83,6 +85,7 @@ export function TabBar({
   onContextMenu,
   onRenameCommit,
   onRenameCancel,
+  onStartRename,
   onTabPointerDown,
 }: Props) {
   const tr = useT(STR);
@@ -111,6 +114,9 @@ export function TabBar({
               }
             }}
             onClick={() => onActivate(t.id)}
+            onDoubleClick={() => {
+              if (!editing) onStartRename(t.id);
+            }}
             onContextMenu={(e) => {
               e.preventDefault();
               onActivate(t.id);
