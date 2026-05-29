@@ -116,9 +116,13 @@ pub fn build_state(
     groups_path: PathBuf,
     tags_path: PathBuf,
     keys_path: PathBuf,
+    history: Arc<crate::pty::manager::HistoryStore>,
 ) -> SshState {
     let handle = app.clone();
+    let hist = Arc::clone(&history);
     let sink: DataSink = Arc::new(move |session_id, data| {
+        // 출력 ring buffer에 누적(세션 인계 시 스크롤백 복원용) 후 프론트로 emit.
+        hist.append(&session_id, &data);
         let payload = SshOutput {
             session_id,
             data_b64: B64.encode(&data),
@@ -141,7 +145,11 @@ pub fn build_state(
     });
 
     SshState {
-        manager: Arc::new(SshManager::new(sink, Arc::clone(&known_hosts))),
+        manager: Arc::new(SshManager::with_history(
+            sink,
+            Arc::clone(&known_hosts),
+            history,
+        )),
         sftp: Arc::new(SftpManager::new(Arc::clone(&known_hosts), progress)),
         store: HostStore::new(hosts_path),
         groups: GroupStore::new(groups_path),

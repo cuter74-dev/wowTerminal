@@ -40,7 +40,11 @@ pub fn run() {
             let menu = tauri::menu::Menu::default(app.handle())?;
             app.set_menu(menu)?;
 
-            let pty_manager = pty::commands::build_manager(&app.handle());
+            // 세션 출력 ring buffer (pty/ssh 공유) — 탭 분리 시 스크롤백 복원용.
+            let history = Arc::new(pty::manager::HistoryStore::new(512 * 1024));
+            app.manage(pty::commands::HistoryState(Arc::clone(&history)));
+
+            let pty_manager = pty::commands::build_manager(&app.handle(), Arc::clone(&history));
             app.manage(PtyState(pty_manager));
 
             let config_dir = dirs::config_dir()
@@ -83,6 +87,7 @@ pub fn run() {
                 groups_path,
                 tags_path,
                 keys_path,
+                Arc::clone(&history),
             );
             ssh_state.secrets = Some(secret_store.clone());
             app.manage(ssh_state);
@@ -97,6 +102,7 @@ pub fn run() {
             ai::commands::ai_save_backend,
             ai::commands::ai_delete_backend,
             pty::commands::pty_spawn,
+            pty::commands::session_history,
             pty::commands::pty_write,
             pty::commands::pty_resize,
             pty::commands::pty_kill,

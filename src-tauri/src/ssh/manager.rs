@@ -61,15 +61,29 @@ pub struct SshManager {
     detach_guard: Mutex<std::collections::HashSet<SessionId>>,
     sink: DataSink,
     known_hosts: Arc<KnownHostsStore>,
+    history: Arc<crate::pty::manager::HistoryStore>,
 }
 
 impl SshManager {
     pub fn new(sink: DataSink, known_hosts: Arc<KnownHostsStore>) -> Self {
+        Self::with_history(
+            sink,
+            known_hosts,
+            Arc::new(crate::pty::manager::HistoryStore::new(512 * 1024)),
+        )
+    }
+
+    pub fn with_history(
+        sink: DataSink,
+        known_hosts: Arc<KnownHostsStore>,
+        history: Arc<crate::pty::manager::HistoryStore>,
+    ) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
             detach_guard: Mutex::new(std::collections::HashSet::new()),
             sink,
             known_hosts,
+            history,
         }
     }
 
@@ -142,6 +156,7 @@ impl SshManager {
             let mut guard = self.sessions.lock().await;
             guard.remove(id).ok_or_else(|| SshError::NotFound(id.into()))?
         };
+        self.history.remove(id);
         session.close().await
     }
 

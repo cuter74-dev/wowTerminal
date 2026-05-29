@@ -6,22 +6,38 @@ use base64::{engine::general_purpose::STANDARD as B64, Engine as _};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, State};
 
-use crate::pty::manager::{DataSink, PtyDims, PtyManager, SessionId};
+use crate::pty::manager::{DataSink, HistoryStore, PtyDims, PtyManager, SessionId};
 
 /// Tauri state에 보관되는 매니저 핸들.
 pub struct PtyState(pub Arc<PtyManager>);
 
+/// 세션 출력 ring buffer 핸들 (pty/ssh 공유). 세션 인계 시 스크롤백 복원용.
+pub struct HistoryState(pub Arc<HistoryStore>);
+
+/// 세션의 누적 출력(스크롤백)을 base64로 반환. 분리된 새 창이 attach 시 재생한다.
+/// pty/ssh 세션 id는 모두 고유 UUID라 단일 store로 처리.
+#[tauri::command]
+pub fn session_history(session_id: String, history: State<'_, HistoryState>) -> String {
+    B64.encode(history.0.get(&session_id))
+}
+
 /// 앱 시작 시 한 번 호출해 이벤트 sink를 AppHandle에 묶는다.
-pub fn build_manager(app: &AppHandle) -> Arc<PtyManager> {
+pub fn build_manager(
+    app: &AppHandle,
+    history: Arc<crate::pty::manager::HistoryStore>,
+) -> Arc<PtyManager> {
     let handle = app.clone();
+    let hist = Arc::clone(&history);
     let sink: DataSink = Arc::new(move |session_id, data| {
+        // 출력 ring buffer에 누적(세션 인계 시 스크롤백 복원용) 후 프론트로 emit.
+        hist.append(&session_id, &data);
         let payload = PtyOutput {
             session_id,
             data_b64: B64.encode(&data),
         };
         let _ = handle.emit("pty:output", payload);
     });
-    Arc::new(PtyManager::new(sink))
+    Arc::new(PtyManager::with_history(sink, history))
 }
 
 #[derive(Clone, Serialize)]

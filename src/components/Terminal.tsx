@@ -517,13 +517,21 @@ export function Terminal({
         if (disposed) return;
 
         if (attachSessionId) {
-          // 기존 세션 인계 — spawn하지 않는다. 새 윈도우는 레이아웃이 늦게 잡혀
-          // mount 시 fit이 0일 수 있으므로, 지연 후 fit → 그 크기로 resize 순서로.
-          // 분리 직전 화면 스냅샷이 있으면 먼저 복원해 이전 작업 화면을 그대로 보여준다.
-          if (attachScreen) {
-            term.write(attachScreen);
-          } else {
-            term.writeln(tRef.current.sessionHandover);
+          // 기존 세션 인계 — spawn하지 않는다. 백엔드 출력 ring buffer(이전 스크롤백 포함)를
+          // 받아 재생해 이전 출력 전체를 복원한다. 실패/빈 값이면 화면 스냅샷으로 폴백.
+          let replayed = false;
+          try {
+            const b64 = await invoke<string>("session_history", {
+              sessionId: attachSessionId,
+            });
+            if (b64) {
+              term.write(base64ToBytes(b64));
+              replayed = true;
+            }
+          } catch {}
+          if (!replayed) {
+            if (attachScreen) term.write(attachScreen);
+            else term.writeln(tRef.current.sessionHandover);
           }
           const finishAttach = () => {
             if (disposed) return;
@@ -535,9 +543,8 @@ export function Terminal({
               cols: term.cols,
               rows: term.rows,
             });
-            // 스냅샷이 없을 때만 Ctrl-L로 셸이 프롬프트를 다시 그리게 한다.
-            // 스냅샷이 있으면 Ctrl-L은 복원된 화면을 지우므로 보내지 않는다.
-            if (!attachScreen) writeToSession("\x0c");
+            // 재생/스냅샷이 모두 없을 때만 Ctrl-L로 셸이 프롬프트를 다시 그리게 한다.
+            if (!replayed && !attachScreen) writeToSession("\x0c");
           };
           setTimeout(finishAttach, 250);
         } else {

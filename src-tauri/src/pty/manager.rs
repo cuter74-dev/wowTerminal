@@ -49,6 +49,48 @@ pub enum PtyError {
 /// 테스트에서는 채널이나 버퍼에 모을 수 있도록 추상화.
 pub type DataSink = Arc<dyn Fn(SessionId, Vec<u8>) + Send + Sync>;
 
+/// 세션별 출력 ring buffer. 탭 분리(세션 인계) 시 새 창이 이전 스크롤백을 복원하도록
+/// 출력 바이트를 세션마다 상한까지 누적한다. 상한 초과 시 오래된 앞부분부터 버린다.
+pub struct HistoryStore {
+    inner: Mutex<HashMap<SessionId, Vec<u8>>>,
+    cap: usize,
+}
+
+impl HistoryStore {
+    pub fn new(cap: usize) -> Self {
+        Self {
+            inner: Mutex::new(HashMap::new()),
+            cap,
+        }
+    }
+
+    pub fn append(&self, id: &str, data: &[u8]) {
+        let mut g = self.inner.lock().expect("history mutex poisoned");
+        let buf = g.entry(id.to_string()).or_default();
+        buf.extend_from_slice(data);
+        if buf.len() > self.cap {
+            let excess = buf.len() - self.cap;
+            buf.drain(..excess);
+        }
+    }
+
+    pub fn get(&self, id: &str) -> Vec<u8> {
+        self.inner
+            .lock()
+            .expect("history mutex poisoned")
+            .get(id)
+            .cloned()
+            .unwrap_or_default()
+    }
+
+    pub fn remove(&self, id: &str) {
+        self.inner
+            .lock()
+            .expect("history mutex poisoned")
+            .remove(id);
+    }
+}
+
 struct Session {
     writer: Box<dyn Write + Send>,
     master: Box<dyn portable_pty::MasterPty + Send>,
@@ -60,14 +102,20 @@ pub struct PtyManager {
     /// 다른 윈도우로 인계된 세션 — 다음 kill 1회 무시(세션 유지).
     detach_guard: Mutex<std::collections::HashSet<SessionId>>,
     sink: DataSink,
+    history: Arc<HistoryStore>,
 }
 
 impl PtyManager {
     pub fn new(sink: DataSink) -> Self {
+        Self::with_history(sink, Arc::new(HistoryStore::new(512 * 1024)))
+    }
+
+    pub fn with_history(sink: DataSink, history: Arc<HistoryStore>) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
             detach_guard: Mutex::new(std::collections::HashSet::new()),
             sink,
+            history,
         }
     }
 
@@ -186,6 +234,7 @@ impl PtyManager {
             .ok_or_else(|| PtyError::NotFound(id.into()))?;
         let _ = session.child.kill();
         let _ = session.child.wait();
+        self.history.remove(id);
         Ok(())
     }
 
