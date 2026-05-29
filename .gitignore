@@ -38,6 +38,7 @@ src-tauri/WixTools/
 !.env.example
 *.pem
 *.key
+*.key.pub
 secrets/
 # code module — secrets/ pattern above must not hide it
 !src-tauri/src/secrets/

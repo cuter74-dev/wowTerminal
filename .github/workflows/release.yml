@@ -66,6 +66,11 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # --- 자동 업데이트 서명 (tauri-plugin-updater) ---
+          # GitHub Secret TAURI_SIGNING_PRIVATE_KEY에 비밀키 내용을 등록하면
+          # 빌드 시 업데이트 아티팩트(.sig)와 latest.json이 서명·생성된다. 비밀번호는 빈 값.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           # --- macOS code signing + notarization ---
           # 아래 GitHub Secrets를 등록하면 자동으로 서명·공증된다. 비어 있으면 unsigned로 빌드.
           # 발급/등록 절차: docs/guide/release-signing.md

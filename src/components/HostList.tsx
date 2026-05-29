@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
+import { check, Update } from "@tauri-apps/plugin-updater";
+import { relaunch } from "@tauri-apps/plugin-process";
 import { Group, SshHost, Tag } from "../types";
 import { HostForm } from "./HostForm";
 import { DeleteHostModal } from "./DeleteHostModal";
@@ -25,6 +27,8 @@ const STR: LangDict<{
     duplicate: string;
     connect: string;
     openInNewTab: string;
+    updateAvailable: string;
+    updating: string;
     emptyTitle: string;
     emptyLine1: string;
     emptyLine2: string;
@@ -48,6 +52,8 @@ const STR: LangDict<{
     duplicate: "Duplicate",
     connect: "Connect (current tab)",
     openInNewTab: "Connect in new tab",
+    updateAvailable: "Update available — click to install",
+    updating: "Updating…",
     emptyTitle: "No hosts registered yet",
     emptyLine1: "Once you add your first SSH host,",
     emptyLine2: "you can connect with a single click.",
@@ -70,6 +76,8 @@ const STR: LangDict<{
     duplicate: "복제",
     connect: "연결 (현재 탭)",
     openInNewTab: "새 탭에서 연결",
+    updateAvailable: "업데이트 있음 — 클릭해 설치",
+    updating: "업데이트 중…",
     emptyTitle: "등록된 호스트가 없어요",
     emptyLine1: "첫 SSH 호스트를 추가하면",
     emptyLine2: "클릭 한 번으로 연결할 수 있습니다.",
@@ -92,6 +100,8 @@ const STR: LangDict<{
     duplicate: "Duplicar",
     connect: "Conectar (pestaña actual)",
     openInNewTab: "Conectar en pestaña nueva",
+    updateAvailable: "Actualización disponible — clic para instalar",
+    updating: "Actualizando…",
     emptyTitle: "Aún no hay hosts registrados",
     emptyLine1: "Cuando agregues tu primer host SSH,",
     emptyLine2: "podrás conectarte con un solo clic.",
@@ -114,6 +124,8 @@ const STR: LangDict<{
     duplicate: "复制",
     connect: "连接（当前标签页）",
     openInNewTab: "在新标签页中连接",
+    updateAvailable: "有可用更新 — 点击安装",
+    updating: "正在更新…",
     emptyTitle: "尚未注册任何主机",
     emptyLine1: "添加第一个 SSH 主机后，",
     emptyLine2: "只需单击一次即可连接。",
@@ -136,6 +148,8 @@ const STR: LangDict<{
     duplicate: "複製",
     connect: "接続（現在のタブ）",
     openInNewTab: "新しいタブで接続",
+    updateAvailable: "更新があります — クリックしてインストール",
+    updating: "更新中…",
     emptyTitle: "登録済みのホストがありません",
     emptyLine1: "最初の SSH ホストを追加すると、",
     emptyLine2: "ワンクリックで接続できます。",
@@ -158,6 +172,8 @@ const STR: LangDict<{
     duplicate: "Дублировать",
     connect: "Подключить (текущая вкладка)",
     openInNewTab: "Подключить в новой вкладке",
+    updateAvailable: "Доступно обновление — нажмите для установки",
+    updating: "Обновление…",
     emptyTitle: "Пока нет зарегистрированных хостов",
     emptyLine1: "После добавления первого хоста SSH",
     emptyLine2: "вы сможете подключаться одним кликом.",
@@ -180,6 +196,8 @@ const STR: LangDict<{
     duplicate: "Dupliquer",
     connect: "Connecter (onglet actuel)",
     openInNewTab: "Connecter dans un nouvel onglet",
+    updateAvailable: "Mise à jour disponible — cliquez pour installer",
+    updating: "Mise à jour…",
     emptyTitle: "Aucun hôte enregistré pour le moment",
     emptyLine1: "Une fois votre premier hôte SSH ajouté,",
     emptyLine2: "vous pourrez vous connecter en un seul clic.",
@@ -202,6 +220,8 @@ const STR: LangDict<{
     duplicate: "Duplizieren",
     connect: "Verbinden (aktueller Tab)",
     openInNewTab: "In neuem Tab verbinden",
+    updateAvailable: "Update verfügbar — zum Installieren klicken",
+    updating: "Wird aktualisiert…",
     emptyTitle: "Noch keine Hosts registriert",
     emptyLine1: "Sobald du deinen ersten SSH-Host hinzufügst,",
     emptyLine2: "kannst du dich mit einem Klick verbinden.",
@@ -224,6 +244,8 @@ const STR: LangDict<{
     duplicate: "Nhân bản",
     connect: "Kết nối (tab hiện tại)",
     openInNewTab: "Kết nối trong tab mới",
+    updateAvailable: "Có bản cập nhật — nhấp để cài đặt",
+    updating: "Đang cập nhật…",
     emptyTitle: "Chưa có host nào được đăng ký",
     emptyLine1: "Khi bạn thêm host SSH đầu tiên,",
     emptyLine2: "bạn có thể kết nối chỉ bằng một cú nhấp.",
@@ -246,6 +268,8 @@ const STR: LangDict<{
     duplicate: "Duplikat",
     connect: "Sambungkan (tab saat ini)",
     openInNewTab: "Sambungkan di tab baru",
+    updateAvailable: "Pembaruan tersedia — klik untuk memasang",
+    updating: "Memperbarui…",
     emptyTitle: "Belum ada host yang terdaftar",
     emptyLine1: "Setelah Anda menambahkan host SSH pertama,",
     emptyLine2: "Anda dapat menyambung hanya dengan satu klik.",
@@ -268,6 +292,8 @@ const STR: LangDict<{
     duplicate: "डुप्लिकेट",
     connect: "कनेक्ट करें (वर्तमान टैब)",
     openInNewTab: "नए टैब में कनेक्ट करें",
+    updateAvailable: "अपडेट उपलब्ध — इंस्टॉल करने के लिए क्लिक करें",
+    updating: "अपडेट हो रहा है…",
     emptyTitle: "अभी तक कोई होस्ट पंजीकृत नहीं है",
     emptyLine1: "जैसे ही आप अपना पहला SSH होस्ट जोड़ेंगे,",
     emptyLine2: "आप एक ही क्लिक से कनेक्ट कर सकते हैं।",
@@ -316,11 +342,32 @@ export function HostList({
     y: number;
   } | null>(null);
 
+  const [update, setUpdate] = useState<Update | null>(null);
+  const [updating, setUpdating] = useState(false);
+
   useEffect(() => {
     getVersion()
       .then(setAppVersion)
       .catch(() => {});
+    // 시작 시 업데이트 확인 (endpoint에 latest.json이 없으면 조용히 무시).
+    check()
+      .then((u) => {
+        if (u) setUpdate(u);
+      })
+      .catch(() => {});
   }, []);
+
+  async function applyUpdate() {
+    if (!update || updating) return;
+    setUpdating(true);
+    try {
+      await update.downloadAndInstall();
+      await relaunch();
+    } catch (e) {
+      setError(String(e));
+      setUpdating(false);
+    }
+  }
 
   const reload = useCallback(async () => {
     try {
@@ -604,9 +651,31 @@ export function HostList({
           borderTop: "1px solid #1a1a1e",
           textAlign: "center",
           userSelect: "none",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 8,
         }}
       >
-        wowTerminal{appVersion ? ` v${appVersion}` : ""}
+        <span>wowTerminal{appVersion ? ` v${appVersion}` : ""}</span>
+        {update && (
+          <button
+            onClick={() => void applyUpdate()}
+            disabled={updating}
+            title={t.updateAvailable}
+            style={{
+              background: "#0a5380",
+              color: "#fff",
+              border: "1px solid #4a9eff",
+              borderRadius: 4,
+              padding: "1px 7px",
+              fontSize: 10,
+              cursor: updating ? "default" : "pointer",
+            }}
+          >
+            {updating ? t.updating : `↑ ${update.version}`}
+          </button>
+        )}
       </div>
 
       {error && (
