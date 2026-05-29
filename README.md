@@ -68,6 +68,7 @@ User guides live in [`docs/guide/`](docs/guide/):
 - [SFTP](docs/guide/sftp.md) — the file browser, transfers, permissions
 - [AI assistant](docs/guide/ai.md) — backends, context, running suggested commands
 - [Keyboard shortcuts](docs/guide/shortcuts.md)
+- [Release code signing](docs/guide/release-signing.md) — for maintainers building signed releases
 
 Design notes are in [`docs/design/`](docs/design/); the dated development log is in
 [`docs/work-log/`](docs/work-log/).

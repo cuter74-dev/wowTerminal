@@ -66,6 +66,18 @@ jobs:
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # --- macOS code signing + notarization ---
+          # 아래 GitHub Secrets를 등록하면 자동으로 서명·공증된다. 비어 있으면 unsigned로 빌드.
+          # 발급/등록 절차: docs/guide/release-signing.md
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          # --- Windows code signing ---
+          # tauri-action은 Windows 서명을 자동 처리하지 않는다. 인증서 형태(OV .pfx / EV 토큰 /
+          # Azure Trusted Signing)에 따라 별도 설정이 필요하다 — docs/guide/release-signing.md 참고.
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "wowTerminal ${{ github.ref_name }}"
