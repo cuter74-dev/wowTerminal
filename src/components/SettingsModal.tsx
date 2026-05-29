@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { AppSettings, SHORTCUTS, Lang, LANGS } from "../settings";
 import { LangDict, useT } from "../i18n";
 import { Group, SshHost, Tag } from "../types";
@@ -53,7 +54,7 @@ const STR: LangDict<{
     restoreTabs: "Restore last tabs on startup (later)",
     aboutDesc: "A context-aware AI terminal — LLM × SSH × SFTP.",
     checkUpdate: "Check for updates",
-    upToDate: "You're on the latest version (v0.1.0-beta).",
+    upToDate: "You're on the latest version.",
     fontSize: "Font size",
     fontFamily: "Font family",
     theme: "Theme",
@@ -86,7 +87,7 @@ const STR: LangDict<{
     restoreTabs: "앱 시작 시 마지막 탭 복원 (후속)",
     aboutDesc: "컨텍스트를 아는 AI 터미널 — LLM × SSH × SFTP.",
     checkUpdate: "업데이트 확인",
-    upToDate: "현재 최신 버전입니다 (v0.1.0-beta).",
+    upToDate: "현재 최신 버전입니다.",
     fontSize: "폰트 크기",
     fontFamily: "폰트 패밀리",
     theme: "테마",
@@ -119,7 +120,7 @@ const STR: LangDict<{
     restoreTabs: "Restaurar las últimas pestañas al iniciar (más adelante)",
     aboutDesc: "Un terminal de IA con reconocimiento de contexto — LLM × SSH × SFTP.",
     checkUpdate: "Buscar actualizaciones",
-    upToDate: "Estás en la última versión (v0.1.0-beta).",
+    upToDate: "Estás en la última versión.",
     fontSize: "Tamaño de fuente",
     fontFamily: "Familia de fuente",
     theme: "Tema",
@@ -152,7 +153,7 @@ const STR: LangDict<{
     restoreTabs: "启动时恢复上次的标签页（稍后）",
     aboutDesc: "一个具有上下文感知的 AI 终端 — LLM × SSH × SFTP.",
     checkUpdate: "检查更新",
-    upToDate: "您使用的是最新版本 (v0.1.0-beta).",
+    upToDate: "您使用的是最新版本.",
     fontSize: "字体大小",
     fontFamily: "字体",
     theme: "主题",
@@ -185,7 +186,7 @@ const STR: LangDict<{
     restoreTabs: "起動時に前回のタブを復元（後日）",
     aboutDesc: "コンテキストを理解する AI ターミナル — LLM × SSH × SFTP.",
     checkUpdate: "更新を確認",
-    upToDate: "最新バージョンです (v0.1.0-beta).",
+    upToDate: "最新バージョンです.",
     fontSize: "フォントサイズ",
     fontFamily: "フォントファミリー",
     theme: "テーマ",
@@ -218,7 +219,7 @@ const STR: LangDict<{
     restoreTabs: "Восстанавливать последние вкладки при запуске (позже)",
     aboutDesc: "Контекстно-зависимый ИИ-терминал — LLM × SSH × SFTP.",
     checkUpdate: "Проверить обновления",
-    upToDate: "У вас последняя версия (v0.1.0-beta).",
+    upToDate: "У вас последняя версия.",
     fontSize: "Размер шрифта",
     fontFamily: "Семейство шрифтов",
     theme: "Тема",
@@ -251,7 +252,7 @@ const STR: LangDict<{
     restoreTabs: "Restaurer les derniers onglets au démarrage (plus tard)",
     aboutDesc: "Un terminal IA sensible au contexte — LLM × SSH × SFTP.",
     checkUpdate: "Vérifier les mises à jour",
-    upToDate: "Vous utilisez la dernière version (v0.1.0-beta).",
+    upToDate: "Vous utilisez la dernière version.",
     fontSize: "Taille de police",
     fontFamily: "Famille de police",
     theme: "Thème",
@@ -284,7 +285,7 @@ const STR: LangDict<{
     restoreTabs: "Letzte Tabs beim Start wiederherstellen (später)",
     aboutDesc: "Ein kontextbewusstes KI-Terminal — LLM × SSH × SFTP.",
     checkUpdate: "Nach Updates suchen",
-    upToDate: "Sie haben die neueste Version (v0.1.0-beta).",
+    upToDate: "Sie haben die neueste Version.",
     fontSize: "Schriftgröße",
     fontFamily: "Schriftfamilie",
     theme: "Design",
@@ -317,7 +318,7 @@ const STR: LangDict<{
     restoreTabs: "Khôi phục các tab gần nhất khi khởi động (sau này)",
     aboutDesc: "Một terminal AI nhận biết ngữ cảnh — LLM × SSH × SFTP.",
     checkUpdate: "Kiểm tra cập nhật",
-    upToDate: "Bạn đang dùng phiên bản mới nhất (v0.1.0-beta).",
+    upToDate: "Bạn đang dùng phiên bản mới nhất.",
     fontSize: "Cỡ chữ",
     fontFamily: "Phông chữ",
     theme: "Giao diện",
@@ -350,7 +351,7 @@ const STR: LangDict<{
     restoreTabs: "Pulihkan tab terakhir saat memulai (nanti)",
     aboutDesc: "Terminal AI yang sadar konteks — LLM × SSH × SFTP.",
     checkUpdate: "Periksa pembaruan",
-    upToDate: "Anda menggunakan versi terbaru (v0.1.0-beta).",
+    upToDate: "Anda menggunakan versi terbaru.",
     fontSize: "Ukuran font",
     fontFamily: "Jenis font",
     theme: "Tema",
@@ -383,7 +384,7 @@ const STR: LangDict<{
     restoreTabs: "शुरू होने पर अंतिम टैब पुनर्स्थापित करें (बाद में)",
     aboutDesc: "एक संदर्भ-जागरूक AI टर्मिनल — LLM × SSH × SFTP.",
     checkUpdate: "अपडेट जाँचें",
-    upToDate: "आप नवीनतम संस्करण पर हैं (v0.1.0-beta).",
+    upToDate: "आप नवीनतम संस्करण पर हैं.",
     fontSize: "फ़ॉन्ट आकार",
     fontFamily: "फ़ॉन्ट परिवार",
     theme: "थीम",
@@ -411,6 +412,12 @@ const STR: LangDict<{
 export function SettingsModal({ settings, onChange, onClose }: Props) {
   const t = useT(STR);
   const [tab, setTab] = useState<TabId>("general");
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => {});
+  }, []);
 
   const TABS: Array<{ id: TabId; label: string }> = [
     { id: "general", label: t.tabGeneral },
@@ -496,7 +503,9 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   />
                   <div>
                     <div style={{ fontWeight: 700, color: "#fff" }}>AI Terminal</div>
-                    <div style={{ fontSize: 11, color: "#789" }}>v0.1.0-beta</div>
+                    <div style={{ fontSize: 11, color: "#789" }}>
+                      {appVersion ? `v${appVersion}` : ""}
+                    </div>
                   </div>
                 </div>
                 <div style={{ fontSize: 12, color: "#9aa", lineHeight: 1.6 }}>

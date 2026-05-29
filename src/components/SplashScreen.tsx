@@ -1,5 +1,7 @@
 // S-001 스플래시/로딩.
 
+import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { LangDict, useT } from "../i18n";
 
 const STR: LangDict<{ initializing: string }> = {
@@ -18,6 +20,12 @@ const STR: LangDict<{ initializing: string }> = {
 
 export function SplashScreen() {
   const t = useT(STR);
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => {});
+  }, []);
   return (
     <main
       style={{
@@ -39,7 +47,9 @@ export function SplashScreen() {
         style={{ width: 96, height: 96, objectFit: "contain" }}
       />
       <div style={{ fontSize: 22, fontWeight: 700, color: "#fff" }}>AI Terminal</div>
-      <div style={{ fontSize: 12, color: "#789" }}>v0.1.0-beta</div>
+      <div style={{ fontSize: 12, color: "#789" }}>
+        {appVersion ? `v${appVersion}` : ""}
+      </div>
       <div
         style={{
           width: 180,
