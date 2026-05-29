@@ -326,6 +326,37 @@ impl SftpManager {
         Ok(String::from_utf8_lossy(&buf).to_string())
     }
 
+    /// 원격 파일을 최대 max_bytes까지 읽어 base64로 반환 (이미지 미리보기용).
+    /// 파일이 max_bytes보다 크면 too-large 에러.
+    pub async fn read_bytes_base64(
+        &self,
+        host_id: &str,
+        path: &str,
+        max_bytes: u64,
+    ) -> Result<String, SshError> {
+        use base64::Engine;
+        use tokio::io::AsyncReadExt;
+        let conn = self.conn(host_id).await?;
+        let rf = conn
+            .sftp
+            .open(path)
+            .await
+            .map_err(|e| SshError::Channel(format!("open {path}: {e}")))?;
+        // max_bytes+1까지 읽어 초과 여부를 판별.
+        let mut buf = Vec::new();
+        rf.take(max_bytes + 1)
+            .read_to_end(&mut buf)
+            .await
+            .map_err(|e| SshError::Io(format!("read {path}: {e}")))?;
+        if buf.len() as u64 > max_bytes {
+            return Err(SshError::Io(format!(
+                "file too large to preview (> {} bytes)",
+                max_bytes
+            )));
+        }
+        Ok(base64::engine::general_purpose::STANDARD.encode(&buf))
+    }
+
     pub async fn disconnect(&self, host_id: &str) {
         self.conns.lock().await.remove(host_id);
     }

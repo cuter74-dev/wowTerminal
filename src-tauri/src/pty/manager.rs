@@ -91,7 +91,17 @@ impl PtyManager {
             .map_err(|e| PtyError::Backend(e.to_string()))?;
 
         let prog = program.map(|s| s.to_string()).unwrap_or_else(default_shell);
-        let cmd = CommandBuilder::new(prog);
+        let mut cmd = CommandBuilder::new(&prog);
+        // zsh는 개행 없이 끝난 줄에 부분 줄 표시(%/PROMPT_SP)를 붙인다. 로그인 메시지가 없는
+        // PTY 첫 프롬프트에서 거슬리게 나오므로 promptsp 옵션을 꺼서 시작한다.
+        if std::path::Path::new(&prog)
+            .file_name()
+            .and_then(|s| s.to_str())
+            == Some("zsh")
+        {
+            cmd.arg("+o");
+            cmd.arg("promptsp");
+        }
 
         let child = pair
             .slave

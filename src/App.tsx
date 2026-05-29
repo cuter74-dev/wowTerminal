@@ -435,6 +435,7 @@ function App() {
   const [fileBrowser, setFileBrowser] = useState<{
     hostId: string;
     hostLabel: string;
+    initialRemotePath?: string;
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
   const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
@@ -1170,9 +1171,14 @@ function App() {
         canOpenFiles={!!activeHostId}
         onOpenFiles={() => {
           if (activeHostId) {
+            // 포커스된 패널의 셸 cwd(OSC 7로 추적)를 파일 브라우저 원격 시작 위치로.
+            const cwd = activeTab
+              ? getTerminal(activeTab.focusedPaneId)?.getCwd() ?? undefined
+              : undefined;
             setFileBrowser({
               hostId: activeHostId,
               hostLabel: labelForHost(activeHostId),
+              initialRemotePath: cwd,
             });
           }
         }}
@@ -1355,6 +1361,7 @@ function App() {
         <FileBrowser
           hostId={fileBrowser.hostId}
           hostLabel={fileBrowser.hostLabel}
+          initialRemotePath={fileBrowser.initialRemotePath}
           onClose={() => setFileBrowser(null)}
         />
       )}

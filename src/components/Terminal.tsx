@@ -194,6 +194,16 @@ type Commands = {
   spawnArgs: (cols: number, rows: number) => Record<string, unknown>;
 };
 
+// 셸에 주입하는 OSC 7 훅: 프롬프트마다 현재 디렉토리를 `\e]7;file://$PWD\a`로 출력한다.
+// (printf의 \033/\007은 셸이 해석하도록 리터럴 텍스트로 보낸다. 앞 공백은 히스토리 제외용.)
+const OSC7_HOOK =
+  " __wt7(){ printf '\\033]7;file://%s\\007' \"$PWD\"; }; " +
+  'if [ -n "$ZSH_VERSION" ]; then precmd_functions+=(__wt7); ' +
+  'elif [ -n "$BASH_VERSION" ]; then PROMPT_COMMAND="__wt7;$PROMPT_COMMAND"; fi; __wt7';
+// 원격(SSH): 원격 rc를 제어할 수 없어 런타임 주입. 배너/MOTD 보존을 위해 주입 직전
+// 저장(ESC 7)한 프롬프트 위치로 복원(ESC 8) 후 그 아래만 지워(ESC[J) 에코된 셋업 줄만 제거.
+const OSC7_SETUP_REMOTE = `${OSC7_HOOK}; printf '\\0338\\033[J'\r`;
+
 function commandsFor(source: TerminalSource, password?: string): Commands {
   if (source.kind === "local") {
     return {
@@ -300,6 +310,21 @@ export function Terminal({
     const cmds = commandsFor(source, password);
     let sessionId: string | null = null;
     let unlistenOutput: UnlistenFn | null = null;
+    // OSC 7로 추적하는 셸 현재 작업 디렉토리 (파일 브라우저 시작 위치용).
+    let currentCwd: string | null = null;
+    // 셸이 디렉토리 변경 시 `\e]7;file://host/path\a`를 출력하면 여기서 잡는다.
+    term.parser.registerOscHandler(7, (payload) => {
+      // payload 예: "file:///home/user" 또는 "file://host/home/user"
+      const m = /^file:\/\/[^/]*(\/.*)$/.exec(payload);
+      if (m) {
+        try {
+          currentCwd = decodeURIComponent(m[1]);
+        } catch {
+          currentCwd = m[1];
+        }
+      }
+      return false; // 다른 핸들러도 볼 수 있게(특별히 막을 필요 없음)
+    });
     let disposed = false;
 
     const encoder = new TextEncoder();
@@ -474,6 +499,7 @@ export function Terminal({
             return "";
           }
         },
+        getCwd: () => currentCwd,
       });
     }
 
@@ -523,6 +549,16 @@ export function Terminal({
             onSshConnected?.();
           }
           onSession?.(sessionId);
+          // 원격(SSH)은 원격 셸 rc를 제어할 수 없으므로 프롬프트가 준비된 뒤 OSC 7 훅을
+          // 주입한다. 프롬프트 위치 저장(ESC 7) → 셋업 끝에서 복원+아래 지우기로 배너 보존.
+          // (로컬은 pty spawn 시 rc로 이미 심어져 깜빡임 없이 적용됨.)
+          if (source.kind === "ssh") {
+            setTimeout(() => {
+              if (disposed) return;
+              term.write("\x1b7");
+              writeToSession(OSC7_SETUP_REMOTE);
+            }, 600);
+          }
         }
       } catch (err) {
         if (source.kind === "ssh" && isSshConnectError(err)) {

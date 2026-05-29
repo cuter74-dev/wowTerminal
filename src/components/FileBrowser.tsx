@@ -900,6 +900,8 @@ interface TransferItem {
 interface Props {
   hostId: string;
   hostLabel: string;
+  /** 원격 패널 시작 경로 (셸 cwd, OSC 7로 추적). 없으면 SSH 기본 홈. */
+  initialRemotePath?: string;
   onClose: () => void;
 }
 
@@ -916,6 +918,30 @@ function nameExists(listing: Listing | null, name: string): boolean {
   return !!listing?.entries.some((e) => e.name === name);
 }
 
+// 확장자 → 이미지 MIME (미리보기용). 미지원이면 null.
+function imageMime(name: string): string | null {
+  const ext = name.toLowerCase().split(".").pop() ?? "";
+  switch (ext) {
+    case "png":
+      return "image/png";
+    case "jpg":
+    case "jpeg":
+      return "image/jpeg";
+    case "gif":
+      return "image/gif";
+    case "webp":
+      return "image/webp";
+    case "bmp":
+      return "image/bmp";
+    case "svg":
+      return "image/svg+xml";
+    case "ico":
+      return "image/x-icon";
+    default:
+      return null;
+  }
+}
+
 function fmtSize(n: number): string {
   if (n < 1024) return `${n} B`;
   if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
@@ -928,7 +954,7 @@ function fmtDate(epoch?: number | null): string {
   return new Date(epoch * 1000).toLocaleString();
 }
 
-export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
+export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: Props) {
   const t = useT(STR);
   const [local, setLocal] = useState<Listing | null>(null);
   const [remote, setRemote] = useState<Listing | null>(null);
@@ -947,9 +973,11 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     y: number;
     side: "local" | "remote";
   } | null>(null);
-  const [preview, setPreview] = useState<{ name: string; content: string } | null>(
-    null,
-  );
+  const [preview, setPreview] = useState<{
+    name: string;
+    content: string;
+    imageUrl?: string;
+  } | null>(null);
   const [permEdit, setPermEdit] = useState<FileEntry | null>(null);
   const [showSearch, setShowSearch] = useState(false);
 
@@ -963,13 +991,17 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+    // 첫 호출은 sftp_open(연결+리스트)을 써야 한다. sftp_list는 연결을 가정하므로
+    // 초기 경로(셸 cwd)가 있어도 연결을 먼저 establish하도록 sftp_open(path)로 연다.
+  const connectedRef = useRef(false);
   const loadRemote = useCallback(
     async (path?: string) => {
       setRemoteBusy(true);
       try {
-        const cmd = path ? "sftp_list" : "sftp_open";
-        const args = path ? { hostId, path } : { hostId, path: null };
+        const cmd = connectedRef.current && path ? "sftp_list" : "sftp_open";
+        const args = { hostId, path: path ?? null };
         const r = await invoke<Listing>(cmd, args);
+        connectedRef.current = true;
         setRemote(r);
         setError(null);
       } catch (e) {
@@ -984,7 +1016,8 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
 
   useEffect(() => {
     void loadLocal();
-    void loadRemote();
+    // 셸 cwd가 있으면 그 경로에서 원격 패널 시작 (없으면 SSH 기본 홈).
+    void loadRemote(initialRemotePath || undefined);
     return () => {
       void invoke("sftp_disconnect", { hostId }).catch(() => {});
     };
@@ -1251,11 +1284,40 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
 
   async function previewRemote(entry: FileEntry) {
     if (!remote || entry.is_dir) return;
+    const path = joinPosix(remote.cwd, entry.name);
+    const mime = imageMime(entry.name);
     try {
-      const content = await invoke<string>("sftp_read_text", {
-        hostId,
-        path: joinPosix(remote.cwd, entry.name),
-      });
+      if (mime) {
+        const b64 = await invoke<string>("sftp_read_bytes", { hostId, path });
+        setPreview({
+          name: entry.name,
+          content: "",
+          imageUrl: `data:${mime};base64,${b64}`,
+        });
+        return;
+      }
+      const content = await invoke<string>("sftp_read_text", { hostId, path });
+      setPreview({ name: entry.name, content });
+    } catch (e) {
+      setError(t.errPreview(String(e)));
+    }
+  }
+
+  async function previewLocal(entry: FileEntry) {
+    if (!local || entry.is_dir) return;
+    const path = joinPosix(local.cwd, entry.name);
+    const mime = imageMime(entry.name);
+    try {
+      if (mime) {
+        const b64 = await invoke<string>("local_read_bytes", { path });
+        setPreview({
+          name: entry.name,
+          content: "",
+          imageUrl: `data:${mime};base64,${b64}`,
+        });
+        return;
+      }
+      const content = await invoke<string>("local_read_text", { path });
       setPreview({ name: entry.name, content });
     } catch (e) {
       setError(t.errPreview(String(e)));
@@ -1420,6 +1482,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
               }}
               onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "local" })}
               onItemMouseDown={(entry, ev) => onItemMouseDown("local", entry, ev)}
+              onFileActivate={(entry) => void previewLocal(entry)}
               dragging={!!paneDrag?.active}
               joinPath={(cwd, name) => joinPosix(cwd, name)}
             />
@@ -1468,6 +1531,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
               }}
               onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "remote" })}
               onItemMouseDown={(entry, ev) => onItemMouseDown("remote", entry, ev)}
+              onFileActivate={(entry) => void previewRemote(entry)}
               dragging={!!paneDrag?.active}
               joinPath={(cwd, name) => joinPosix(cwd, name)}
             />
@@ -1490,7 +1554,11 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
             side={menu.side}
             entry={menu.entry}
             onDismiss={() => setMenu(null)}
-            onPreview={() => void previewRemote(menu.entry)}
+            onPreview={() =>
+              menu.side === "remote"
+                ? void previewRemote(menu.entry)
+                : void previewLocal(menu.entry)
+            }
             onDownload={() => doDownload(menu.entry)}
             onUpload={() => doUpload(menu.entry)}
             onRename={() => void renameRemote(menu.entry)}
@@ -1528,6 +1596,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
           <PreviewModal
             name={preview.name}
             content={preview.content}
+            imageUrl={preview.imageUrl}
             onClose={() => setPreview(null)}
           />
         )}
@@ -1583,6 +1652,7 @@ function ContextMenu({
     items.push({ label: t.ctxProps, action: onProps });
     items.push({ label: t.ctxDelete, action: onDelete });
   } else {
+    items.push({ label: t.ctxPreview, action: onPreview, disabled: entry.is_dir });
     items.push({ label: t.ctxUpload, action: onUpload, disabled: entry.is_dir });
   }
 
@@ -1644,10 +1714,12 @@ function ContextMenu({
 function PreviewModal({
   name,
   content,
+  imageUrl,
   onClose,
 }: {
   name: string;
   content: string;
+  imageUrl?: string;
   onClose: () => void;
 }) {
   const t = useT(STR);
@@ -1688,7 +1760,9 @@ function PreviewModal({
             color: "#e6e6e6",
           }}
         >
-          <strong style={{ fontSize: 13 }}>📄 {name}</strong>
+          <strong style={{ fontSize: 13 }}>
+            {imageUrl ? "🖼" : "📄"} {name}
+          </strong>
           <button
             onClick={onClose}
             style={{ background: "transparent", border: "none", color: "#ccc", cursor: "pointer", fontSize: 15 }}
@@ -1696,24 +1770,48 @@ function PreviewModal({
             ×
           </button>
         </header>
-        <pre
-          style={{
-            flex: 1,
-            margin: 0,
-            padding: 14,
-            overflow: "auto",
-            fontFamily: "Menlo, Consolas, monospace",
-            fontSize: 12,
-            color: "#dcdcdc",
-            whiteSpace: "pre-wrap",
-            wordBreak: "break-word",
-          }}
-        >
-          {content || t.emptyFile}
-        </pre>
-        <div style={{ padding: "4px 14px", fontSize: 10, color: "#789", borderTop: "1px solid #2a2a30" }}>
-          {t.previewFooter}
-        </div>
+        {imageUrl ? (
+          <div
+            style={{
+              flex: 1,
+              minHeight: 0,
+              padding: 14,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              overflow: "auto",
+              background:
+                "repeating-conic-gradient(#2a2a30 0% 25%, #23232a 0% 50%) 50% / 24px 24px",
+            }}
+          >
+            <img
+              src={imageUrl}
+              alt={name}
+              style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
+            />
+          </div>
+        ) : (
+          <pre
+            style={{
+              flex: 1,
+              margin: 0,
+              padding: 14,
+              overflow: "auto",
+              fontFamily: "Menlo, Consolas, monospace",
+              fontSize: 12,
+              color: "#dcdcdc",
+              whiteSpace: "pre-wrap",
+              wordBreak: "break-word",
+            }}
+          >
+            {content || t.emptyFile}
+          </pre>
+        )}
+        {!imageUrl && (
+          <div style={{ padding: "4px 14px", fontSize: 10, color: "#789", borderTop: "1px solid #2a2a30" }}>
+            {t.previewFooter}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -1728,6 +1826,7 @@ function Panel({
   onNavigate,
   onContextMenu,
   onItemMouseDown,
+  onFileActivate,
   dragging,
   joinPath,
 }: {
@@ -1739,6 +1838,8 @@ function Panel({
   onNavigate: (path: string) => void;
   onContextMenu: (e: FileEntry, x: number, y: number) => void;
   onItemMouseDown: (e: FileEntry, ev: React.MouseEvent) => void;
+  /** 파일(비-디렉토리) 더블클릭 시 호출 (미리보기). 없으면 동작 안 함. */
+  onFileActivate?: (e: FileEntry) => void;
   dragging: boolean;
   joinPath: (cwd: string, name: string) => string;
 }) {
@@ -1820,7 +1921,9 @@ function Panel({
                       onContextMenu(e, ev.clientX, ev.clientY);
                     }}
                     onDoubleClick={() =>
-                      e.is_dir && onNavigate(joinPath(listing.cwd, e.name))
+                      e.is_dir
+                        ? onNavigate(joinPath(listing.cwd, e.name))
+                        : onFileActivate?.(e)
                     }
                     style={{
                       cursor: e.is_dir ? "pointer" : "default",

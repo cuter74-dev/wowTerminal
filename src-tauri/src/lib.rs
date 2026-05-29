@@ -132,9 +132,12 @@ pub fn run() {
             ssh::commands::sftp_mkdir,
             ssh::commands::sftp_touch,
             ssh::commands::sftp_read_text,
+            ssh::commands::sftp_read_bytes,
             ssh::commands::sftp_chmod,
             ssh::commands::sftp_search,
             ssh::commands::local_list_dir,
+            ssh::commands::local_read_text,
+            ssh::commands::local_read_bytes,
             windows::open_detached_window,
             windows::detached_init,
         ])

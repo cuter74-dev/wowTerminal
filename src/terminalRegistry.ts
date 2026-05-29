@@ -11,6 +11,8 @@ export interface TerminalHandle {
   fit: () => void;
   /** 현재 화면+스크롤백을 ANSI 포함 문자열로 직렬화 (세션 인계 시 새 창 복원용). */
   serialize: () => string;
+  /** OSC 7로 추적한 셸 현재 작업 디렉토리 (없으면 null). 파일 브라우저 시작 위치용. */
+  getCwd: () => string | null;
 }
 
 const registry = new Map<string, TerminalHandle>();

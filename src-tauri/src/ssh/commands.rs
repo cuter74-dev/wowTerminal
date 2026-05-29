@@ -612,6 +612,20 @@ pub async fn sftp_read_text(
         .map_err(|e| e.to_string())
 }
 
+/// 원격 파일을 base64로 읽는다 (이미지 미리보기용). 상한 8MB.
+#[tauri::command]
+pub async fn sftp_read_bytes(
+    host_id: String,
+    path: String,
+    state: State<'_, SshState>,
+) -> Result<String, String> {
+    state
+        .sftp
+        .read_bytes_base64(&host_id, &path, 8 * 1024 * 1024)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 원격 파일 검색. root에서 이름에 query가 포함된 항목을 찾는다 (최대 500개).
 #[tauri::command]
 pub async fn sftp_search(
@@ -685,6 +699,34 @@ pub fn local_list_dir(path: Option<String>) -> Result<Listing, String> {
         cwd: canon.to_string_lossy().to_string(),
         entries,
     })
+}
+
+/// 로컬 파일을 텍스트로 읽는다 (미리보기용, 상한 256KB).
+#[tauri::command]
+pub fn local_read_text(path: String) -> Result<String, String> {
+    use std::io::Read;
+    let mut f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let mut buf = Vec::new();
+    f.take(256 * 1024)
+        .read_to_end(&mut buf)
+        .map_err(|e| e.to_string())?;
+    Ok(String::from_utf8_lossy(&buf).to_string())
+}
+
+/// 로컬 파일을 base64로 읽는다 (이미지 미리보기용, 상한 8MB).
+#[tauri::command]
+pub fn local_read_bytes(path: String) -> Result<String, String> {
+    use std::io::Read;
+    let max: u64 = 8 * 1024 * 1024;
+    let mut f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let mut buf = Vec::new();
+    f.take(max + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| e.to_string())?;
+    if buf.len() as u64 > max {
+        return Err(format!("file too large to preview (> {} bytes)", max));
+    }
+    Ok(B64.encode(&buf))
 }
 
 // ---- 그룹 / 태그 (S-017) ----
