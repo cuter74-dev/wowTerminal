@@ -54,3 +54,6 @@ Thumbs.db
 
 # Claude / local tooling
 .claude/settings.local.json
+
+# 랜딩 페이지 콘텐츠 원고 (커밋 제외 — 로컬 보관)
+docs/landing-page.md

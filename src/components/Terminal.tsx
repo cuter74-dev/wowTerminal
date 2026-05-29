@@ -303,17 +303,36 @@ export function Terminal({
     let disposed = false;
 
     const encoder = new TextEncoder();
+    // 쓰기를 순서대로 직렬화한다. IME 미러는 "ㄱ" 다음 "\x7f가"처럼 연속 전송하는데,
+    // await 없이 invoke를 발사하면 PTY 도착 순서가 뒤바뀌어(백스페이스가 먼저 가는 등)
+    // 자모가 남는다. 프로미스 체인으로 직전 쓰기 완료 후 다음을 보낸다.
+    let writeChain: Promise<unknown> = Promise.resolve();
     const writeToSession = (text: string) => {
       if (!sessionId) return;
-      void invoke(cmds.writeCmd, {
-        sessionId,
-        dataB64: bytesToBase64(encoder.encode(text)),
-      });
+      const dataB64 = bytesToBase64(encoder.encode(text));
+      const sid = sessionId;
+      writeChain = writeChain.then(() =>
+        invoke(cmds.writeCmd, { sessionId: sid, dataB64 }).catch(() => {}),
+      );
     };
     sendToSessionRef.current = writeToSession;
 
+    // 한글/CJK IME 미러 상태 (자세한 설명은 아래 input 핸들러 참고).
+    let imeActive = false;
+    let imeSent = "";
+
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
+      // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
+      // 한글 입력은 아래 textarea input 미러만 PTY로 보낸다.
+      if (imeActive) return;
+      // 단독 호환 자모(U+3130–U+318F: ㄱ, ㅏ 등)는 정상 입력으로 나올 수 없다.
+      // imeActive 설정 직전 타이밍 틈에 xterm이 흘리는 조합 누수이므로 버린다.
+      // (완성 음절 가-힣은 위 input 미러가 보내므로 여기로 오지 않는다.)
+      if (data.length === 1) {
+        const cp = data.charCodeAt(0);
+        if (cp >= 0x3130 && cp <= 0x318f) return;
+      }
       writeToSession(data);
 
       // 입력 라인 추적 (단순): 타이핑/백스페이스/엔터만 정확. 화살표 등은 라인 리셋.
@@ -337,9 +356,63 @@ export function Terminal({
       setSuggestion(sug);
     });
 
+    // 한글/CJK IME 처리.
+    // WKWebView(macOS)는 이 textarea에 compositionstart/end 이벤트를 보내지 않고
+    // 조합 키에 keyCode 229만 준다. 그래서 xterm의 조합 처리기가 음절 경계를 못 잡고
+    // 깨진 자모/음절을 onData로 흘린다. 대신 조합 키를 xterm이 처리하지 못하게 막고,
+    // textarea.value(항상 올바른 전체 텍스트)를 PTY에 직접 미러링한다.
+    // imeSent: 현재 IME 입력 중 이미 PTY로 보낸 부분. 값이 바뀌면 공통 접두 이후를
+    // 백스페이스(\x7f)로 지우고 새 꼬리를 보내 셸 라인이 textarea와 일치하도록 한다.
+    const ta = term.textarea;
+    const resetIme = () => {
+      imeActive = false;
+      imeSent = "";
+      if (ta) ta.value = "";
+    };
+    if (ta) {
+      // 캡처 단계로 등록해 xterm의 input 핸들러보다 먼저 실행 → IME 중에는
+      // stopImmediatePropagation으로 xterm이 같은 input을 또 보내는 이중 전송을 막는다.
+      ta.addEventListener(
+        "input",
+        (ev) => {
+          if (!imeActive) return; // 영어/제어키는 xterm 기존 경로가 담당.
+          ev.stopImmediatePropagation();
+          const full = ta.value;
+          let c = 0;
+          while (c < full.length && c < imeSent.length && full[c] === imeSent[c]) {
+            c++;
+          }
+          let out = "";
+          for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
+          out += full.slice(c);
+          if (out) writeToSession(out);
+          imeSent = full;
+        },
+        true,
+      );
+    }
+
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // IME 조합 키: xterm의 깨진 조합 처리를 막고 위 input 미러가 담당.
+      if (e.keyCode === 229) {
+        imeActive = true;
+        return false;
+      }
+      // 한글 미러 세션이 시작된 뒤에는 그 줄 전체(공백·영어 포함)를 textarea 미러로
+      // 처리한다. xterm과 textarea를 번갈아 만지면 추적이 어긋나 자모가 새기 때문.
+      if (imeActive) {
+        const printable =
+          e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
+        // 일반 문자/스페이스/백스페이스는 textarea가 받아 미러가 보낸다(xterm 차단).
+        if (printable || e.key === "Backspace") {
+          return false;
+        }
+        // Enter/화살표/Ctrl/Cmd/Esc/Tab 등 → 미러 종료 후 xterm 정상 처리로 넘긴다.
+        // (Enter는 xterm이 \r 한 번만 보내고 textarea 줄바꿈도 preventDefault로 막는다.)
+        resetIme();
+      }
       if (e.ctrlKey && (e.key === "r" || e.key === "R")) {
         setHistorySearch(true);
         return false; // PTY로 보내지 않음 — 앱이 처리
