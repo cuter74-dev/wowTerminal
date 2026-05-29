@@ -46,5 +46,10 @@ config/local.toml
 # OS
 Thumbs.db
 
+# 작업 중 임시 스크린샷/이미지 (루트). 정식 에셋은 public/ 또는 src-tauri/icons/에 둔다.
+/image.png
+/스크린샷*.png
+/Screenshot*.png
+
 # Claude / local tooling
 .claude/settings.local.json

@@ -7,6 +7,11 @@ on:
     tags:
       - "v*"
 
+# 번들 액션(checkout/setup-node 등)을 Node 24 런타임으로 강제.
+# GitHub은 2026-06-02부터 Node 20 액션을 Node 24로 전환한다 — 미리 opt-in해 경고 제거.
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
+
 jobs:
   publish-tauri:
     permissions:
@@ -31,7 +36,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Install Rust stable
         uses: dtolnay/rust-toolchain@stable
