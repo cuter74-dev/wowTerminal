@@ -74,6 +74,7 @@ const STR: LangDict<{
     noKey: string;
     edit: string;
     delete: string;
+    duplicate: string;
     addBackend: string;
     presetOpenai: string;
     presetClaude: string;
@@ -107,6 +108,7 @@ const STR: LangDict<{
     noKey: "· no key",
     edit: "Edit",
     delete: "Delete",
+    duplicate: "Duplicate",
     addBackend: "+ Add backend",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — requires OpenAI-compatible gateway",
@@ -141,6 +143,7 @@ const STR: LangDict<{
     noKey: "· 키 없음",
     edit: "편집",
     delete: "삭제",
+    duplicate: "복제",
     addBackend: "+ 백엔드 추가",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — OpenAI 호환 게이트웨이 필요",
@@ -174,6 +177,7 @@ const STR: LangDict<{
     noKey: "· sin clave",
     edit: "Editar",
     delete: "Eliminar",
+    duplicate: "Duplicar",
     addBackend: "+ Añadir backend",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — requiere una puerta de enlace compatible con OpenAI",
@@ -208,6 +212,7 @@ const STR: LangDict<{
     noKey: "· 无密钥",
     edit: "编辑",
     delete: "删除",
+    duplicate: "复制",
     addBackend: "+ 添加后端",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — 需要 OpenAI 兼容网关",
@@ -242,6 +247,7 @@ const STR: LangDict<{
     noKey: "· キーなし",
     edit: "編集",
     delete: "削除",
+    duplicate: "複製",
     addBackend: "+ バックエンドを追加",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — OpenAI 互換ゲートウェイが必要",
@@ -276,6 +282,7 @@ const STR: LangDict<{
     noKey: "· без ключа",
     edit: "Изменить",
     delete: "Удалить",
+    duplicate: "Дублировать",
     addBackend: "+ Добавить бэкенд",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — требуется шлюз, совместимый с OpenAI",
@@ -310,6 +317,7 @@ const STR: LangDict<{
     noKey: "· sans clé",
     edit: "Modifier",
     delete: "Supprimer",
+    duplicate: "Dupliquer",
     addBackend: "+ Ajouter un backend",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — nécessite une passerelle compatible OpenAI",
@@ -344,6 +352,7 @@ const STR: LangDict<{
     noKey: "· kein Schlüssel",
     edit: "Bearbeiten",
     delete: "Löschen",
+    duplicate: "Duplizieren",
     addBackend: "+ Backend hinzufügen",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — erfordert ein OpenAI-kompatibles Gateway",
@@ -378,6 +387,7 @@ const STR: LangDict<{
     noKey: "· không có khóa",
     edit: "Sửa",
     delete: "Xóa",
+    duplicate: "Nhân bản",
     addBackend: "+ Thêm backend",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — cần cổng tương thích OpenAI",
@@ -412,6 +422,7 @@ const STR: LangDict<{
     noKey: "· tanpa kunci",
     edit: "Ubah",
     delete: "Hapus",
+    duplicate: "Duplikat",
     addBackend: "+ Tambah backend",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — memerlukan gateway kompatibel OpenAI",
@@ -446,6 +457,7 @@ const STR: LangDict<{
     noKey: "· कोई कुंजी नहीं",
     edit: "संपादित करें",
     delete: "हटाएं",
+    duplicate: "डुप्लिकेट",
     addBackend: "+ बैकएंड जोड़ें",
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — OpenAI-संगत गेटवे आवश्यक",
@@ -496,6 +508,30 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
       return;
     try {
       await invoke("ai_delete_backend", { id });
+      await reload();
+      onChanged();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  async function duplicateOne(b: BackendInfo) {
+    // 설정만 복제 — 충돌 없는 새 id를 만든다. API 키는 keyring에 id 기준 저장되므로
+    // 복제본은 키 없이 생성되고 첫 사용 전 키를 다시 입력하면 된다.
+    const base = `${b.id}-copy`;
+    let id = base;
+    let n = 2;
+    while (list.some((x) => x.id === id)) id = `${base}-${n++}`;
+    try {
+      await invoke("ai_save_backend", {
+        args: {
+          id,
+          displayName: `${b.displayName} (copy)`,
+          apiBase: b.apiBase,
+          defaultModel: b.defaultModel,
+          apiKey: null,
+        },
+      });
       await reload();
       onChanged();
     } catch (e) {
@@ -581,6 +617,13 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
                     </div>
                   </div>
                   <div style={{ display: "flex", gap: 4 }}>
+                    <button
+                      onClick={() => void duplicateOne(b)}
+                      style={iconBtnStyle}
+                      title={t.duplicate}
+                    >
+                      ⧉
+                    </button>
                     <button
                       onClick={() => setEditing(b)}
                       style={iconBtnStyle}

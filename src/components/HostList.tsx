@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { Group, SshHost, Tag } from "../types";
 import { HostForm } from "./HostForm";
 import { DeleteHostModal } from "./DeleteHostModal";
@@ -21,6 +22,9 @@ const STR: LangDict<{
     rowHint: string;
     edit: string;
     delete: string;
+    duplicate: string;
+    connect: string;
+    openInNewTab: string;
     emptyTitle: string;
     emptyLine1: string;
     emptyLine2: string;
@@ -38,9 +42,12 @@ const STR: LangDict<{
     sortByHost: "By address",
     noResults: (query) => `No results for "${query}"`,
     ungrouped: "(Ungrouped)",
-    rowHint: "Click: connect in current tab / Double-click: new tab",
+    rowHint: "Click: select / ▶: connect / Double-click: new tab",
     edit: "Edit (S-015)",
     delete: "Delete (S-016)",
+    duplicate: "Duplicate",
+    connect: "Connect (current tab)",
+    openInNewTab: "Connect in new tab",
     emptyTitle: "No hosts registered yet",
     emptyLine1: "Once you add your first SSH host,",
     emptyLine2: "you can connect with a single click.",
@@ -57,9 +64,12 @@ const STR: LangDict<{
     sortByHost: "주소순",
     noResults: (query) => `"${query}" 검색 결과 없음`,
     ungrouped: "(미분류)",
-    rowHint: "클릭: 현재 탭 연결 / 더블클릭: 새 탭",
+    rowHint: "클릭: 선택 / ▶: 연결 / 더블클릭: 새 탭",
     edit: "편집 (S-015)",
     delete: "삭제 (S-016)",
+    duplicate: "복제",
+    connect: "연결 (현재 탭)",
+    openInNewTab: "새 탭에서 연결",
     emptyTitle: "등록된 호스트가 없어요",
     emptyLine1: "첫 SSH 호스트를 추가하면",
     emptyLine2: "클릭 한 번으로 연결할 수 있습니다.",
@@ -76,9 +86,12 @@ const STR: LangDict<{
     sortByHost: "Por dirección",
     noResults: (query) => `Sin resultados para "${query}"`,
     ungrouped: "(Sin grupo)",
-    rowHint: "Clic: conectar en la pestaña actual / Doble clic: nueva pestaña",
+    rowHint: "Clic: seleccionar / ▶: conectar / Doble clic: pestaña nueva",
     edit: "Editar (S-015)",
     delete: "Eliminar (S-016)",
+    duplicate: "Duplicar",
+    connect: "Conectar (pestaña actual)",
+    openInNewTab: "Conectar en pestaña nueva",
     emptyTitle: "Aún no hay hosts registrados",
     emptyLine1: "Cuando agregues tu primer host SSH,",
     emptyLine2: "podrás conectarte con un solo clic.",
@@ -95,9 +108,12 @@ const STR: LangDict<{
     sortByHost: "按地址",
     noResults: (query) => `没有“${query}”的结果`,
     ungrouped: "(未分组)",
-    rowHint: "单击：在当前标签页连接 / 双击：新建标签页",
+    rowHint: "单击：选择 / ▶：连接 / 双击：新建标签页",
     edit: "编辑 (S-015)",
     delete: "删除 (S-016)",
+    duplicate: "复制",
+    connect: "连接（当前标签页）",
+    openInNewTab: "在新标签页中连接",
     emptyTitle: "尚未注册任何主机",
     emptyLine1: "添加第一个 SSH 主机后，",
     emptyLine2: "只需单击一次即可连接。",
@@ -114,9 +130,12 @@ const STR: LangDict<{
     sortByHost: "アドレス順",
     noResults: (query) => `「${query}」の結果はありません`,
     ungrouped: "(未分類)",
-    rowHint: "クリック: 現在のタブで接続 / ダブルクリック: 新規タブ",
+    rowHint: "クリック: 選択 / ▶: 接続 / ダブルクリック: 新規タブ",
     edit: "編集 (S-015)",
     delete: "削除 (S-016)",
+    duplicate: "複製",
+    connect: "接続（現在のタブ）",
+    openInNewTab: "新しいタブで接続",
     emptyTitle: "登録済みのホストがありません",
     emptyLine1: "最初の SSH ホストを追加すると、",
     emptyLine2: "ワンクリックで接続できます。",
@@ -133,9 +152,12 @@ const STR: LangDict<{
     sortByHost: "По адресу",
     noResults: (query) => `Нет результатов по запросу "${query}"`,
     ungrouped: "(Без группы)",
-    rowHint: "Клик: подключиться в текущей вкладке / Двойной клик: новая вкладка",
+    rowHint: "Клик: выбрать / ▶: подключить / Двойной клик: новая вкладка",
     edit: "Изменить (S-015)",
     delete: "Удалить (S-016)",
+    duplicate: "Дублировать",
+    connect: "Подключить (текущая вкладка)",
+    openInNewTab: "Подключить в новой вкладке",
     emptyTitle: "Пока нет зарегистрированных хостов",
     emptyLine1: "После добавления первого хоста SSH",
     emptyLine2: "вы сможете подключаться одним кликом.",
@@ -152,9 +174,12 @@ const STR: LangDict<{
     sortByHost: "Par adresse",
     noResults: (query) => `Aucun résultat pour "${query}"`,
     ungrouped: "(Sans groupe)",
-    rowHint: "Clic : connexion dans l'onglet actuel / Double-clic : nouvel onglet",
+    rowHint: "Clic : sélectionner / ▶ : connecter / Double-clic : nouvel onglet",
     edit: "Modifier (S-015)",
     delete: "Supprimer (S-016)",
+    duplicate: "Dupliquer",
+    connect: "Connecter (onglet actuel)",
+    openInNewTab: "Connecter dans un nouvel onglet",
     emptyTitle: "Aucun hôte enregistré pour le moment",
     emptyLine1: "Une fois votre premier hôte SSH ajouté,",
     emptyLine2: "vous pourrez vous connecter en un seul clic.",
@@ -171,9 +196,12 @@ const STR: LangDict<{
     sortByHost: "Nach Adresse",
     noResults: (query) => `Keine Ergebnisse für "${query}"`,
     ungrouped: "(Ohne Gruppe)",
-    rowHint: "Klick: im aktuellen Tab verbinden / Doppelklick: neuer Tab",
+    rowHint: "Klick: auswählen / ▶: verbinden / Doppelklick: neuer Tab",
     edit: "Bearbeiten (S-015)",
     delete: "Löschen (S-016)",
+    duplicate: "Duplizieren",
+    connect: "Verbinden (aktueller Tab)",
+    openInNewTab: "In neuem Tab verbinden",
     emptyTitle: "Noch keine Hosts registriert",
     emptyLine1: "Sobald du deinen ersten SSH-Host hinzufügst,",
     emptyLine2: "kannst du dich mit einem Klick verbinden.",
@@ -190,9 +218,12 @@ const STR: LangDict<{
     sortByHost: "Theo địa chỉ",
     noResults: (query) => `Không có kết quả cho "${query}"`,
     ungrouped: "(Chưa phân nhóm)",
-    rowHint: "Nhấp: kết nối trong tab hiện tại / Nhấp đúp: tab mới",
+    rowHint: "Nhấp: chọn / ▶: kết nối / Nhấp đúp: tab mới",
     edit: "Chỉnh sửa (S-015)",
     delete: "Xóa (S-016)",
+    duplicate: "Nhân bản",
+    connect: "Kết nối (tab hiện tại)",
+    openInNewTab: "Kết nối trong tab mới",
     emptyTitle: "Chưa có host nào được đăng ký",
     emptyLine1: "Khi bạn thêm host SSH đầu tiên,",
     emptyLine2: "bạn có thể kết nối chỉ bằng một cú nhấp.",
@@ -209,9 +240,12 @@ const STR: LangDict<{
     sortByHost: "Berdasarkan alamat",
     noResults: (query) => `Tidak ada hasil untuk "${query}"`,
     ungrouped: "(Tanpa grup)",
-    rowHint: "Klik: sambungkan di tab saat ini / Klik dua kali: tab baru",
+    rowHint: "Klik: pilih / ▶: sambungkan / Klik dua kali: tab baru",
     edit: "Edit (S-015)",
     delete: "Hapus (S-016)",
+    duplicate: "Duplikat",
+    connect: "Sambungkan (tab saat ini)",
+    openInNewTab: "Sambungkan di tab baru",
     emptyTitle: "Belum ada host yang terdaftar",
     emptyLine1: "Setelah Anda menambahkan host SSH pertama,",
     emptyLine2: "Anda dapat menyambung hanya dengan satu klik.",
@@ -228,9 +262,12 @@ const STR: LangDict<{
     sortByHost: "पते से",
     noResults: (query) => `"${query}" के लिए कोई परिणाम नहीं`,
     ungrouped: "(समूह रहित)",
-    rowHint: "क्लिक: वर्तमान टैब में कनेक्ट करें / डबल-क्लिक: नया टैब",
+    rowHint: "क्लिक: चुनें / ▶: कनेक्ट / डबल-क्लिक: नया टैब",
     edit: "संपादित करें (S-015)",
     delete: "हटाएं (S-016)",
+    duplicate: "डुप्लिकेट",
+    connect: "कनेक्ट करें (वर्तमान टैब)",
+    openInNewTab: "नए टैब में कनेक्ट करें",
     emptyTitle: "अभी तक कोई होस्ट पंजीकृत नहीं है",
     emptyLine1: "जैसे ही आप अपना पहला SSH होस्ट जोड़ेंगे,",
     emptyLine2: "आप एक ही क्लिक से कनेक्ट कर सकते हैं।",
@@ -270,6 +307,20 @@ export function HostList({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [sortBy, setSortBy] = useState<SortBy>("name");
+  const [appVersion, setAppVersion] = useState("");
+  // 행 클릭은 "선택"만(연결 X). 연결은 더블클릭/연결 버튼/우클릭 메뉴로.
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [ctxMenu, setCtxMenu] = useState<{
+    host: SshHost;
+    x: number;
+    y: number;
+  } | null>(null);
+
+  useEffect(() => {
+    getVersion()
+      .then(setAppVersion)
+      .catch(() => {});
+  }, []);
 
   const reload = useCallback(async () => {
     try {
@@ -299,6 +350,54 @@ export function HostList({
       setError(String(e));
     }
   }
+
+  async function duplicateHost(h: SshHost) {
+    // 설정만 복제 — 새 id를 발급한다. 시크릿(비밀번호/키)은 호스트 id 기준 Keychain에
+    // 저장되므로 복제본은 첫 접속 시 다시 인증한다.
+    const copy: SshHost = {
+      ...h,
+      id: crypto.randomUUID(),
+      name: `${h.name} (copy)`,
+    };
+    try {
+      await invoke("ssh_save_host", { host: copy });
+      await reload();
+    } catch (e) {
+      setError(String(e));
+    }
+  }
+
+  // 선택된 호스트를 키보드로 복사(cmd/ctrl+C) → 붙여넣기(cmd/ctrl+V)로 복제, 삭제(cmd/ctrl+Delete).
+  // 입력창/터미널(textarea)에 포커스가 있으면 텍스트 복붙을 방해하지 않도록 무시한다.
+  const copiedHostRef = useRef<SshHost | null>(null);
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      const tgt = e.target as HTMLElement | null;
+      const tag = tgt?.tagName;
+      if (tag === "INPUT" || tag === "TEXTAREA" || tgt?.isContentEditable) return;
+      const targetId = selectedId ?? activeHostId;
+      const k = e.key.toLowerCase();
+      if (k === "c") {
+        const h = hosts.find((x) => x.id === targetId);
+        if (h) copiedHostRef.current = h;
+      } else if (k === "v") {
+        if (copiedHostRef.current) {
+          e.preventDefault();
+          void duplicateHost(copiedHostRef.current);
+        }
+      } else if (e.key === "Backspace" || e.key === "Delete") {
+        const h = hosts.find((x) => x.id === targetId);
+        if (h) {
+          e.preventDefault();
+          setDeleting(h);
+        }
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hosts, activeHostId, selectedId]);
 
   const tagColor = useMemo(() => {
     const m = new Map<string, string>();
@@ -461,12 +560,16 @@ export function HostList({
                 label={g.name}
                 hosts={list}
                 activeHostId={activeHostId}
+                selectedId={selectedId}
                 query={query}
                 tagColor={tagColor}
-                onSelect={onSelect}
+                onConnect={onSelect}
+                onSelectRow={setSelectedId}
                 onOpenInNewTab={onOpenInNewTab}
                 onEdit={setEditing}
                 onDelete={setDeleting}
+                onDuplicate={duplicateHost}
+                onContextMenu={(h, x, y) => setCtxMenu({ host: h, x, y })}
               />
             );
           })}
@@ -478,15 +581,32 @@ export function HostList({
               label={t.ungrouped}
               hosts={ungrouped}
               activeHostId={activeHostId}
+              selectedId={selectedId}
               query={query}
               tagColor={tagColor}
-              onSelect={onSelect}
+              onConnect={onSelect}
+              onSelectRow={setSelectedId}
               onOpenInNewTab={onOpenInNewTab}
               onEdit={setEditing}
               onDelete={setDeleting}
+              onDuplicate={duplicateHost}
+              onContextMenu={(h, x, y) => setCtxMenu({ host: h, x, y })}
             />
           );
         })()}
+      </div>
+
+      <div
+        style={{
+          padding: "6px 12px",
+          fontSize: 10,
+          color: "#666",
+          borderTop: "1px solid #1a1a1e",
+          textAlign: "center",
+          userSelect: "none",
+        }}
+      >
+        wowTerminal{appVersion ? ` v${appVersion}` : ""}
       </div>
 
       {error && (
@@ -541,6 +661,122 @@ export function HostList({
       )}
 
       {showKeys && <SshKeyManager onClose={() => setShowKeys(false)} />}
+
+      {ctxMenu && (
+        <HostContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          onClose={() => setCtxMenu(null)}
+          onConnect={() => {
+            onSelect(ctxMenu.host.id);
+            setCtxMenu(null);
+          }}
+          onConnectNewTab={() => {
+            onOpenInNewTab(ctxMenu.host.id);
+            setCtxMenu(null);
+          }}
+          onEdit={() => {
+            setEditing(ctxMenu.host);
+            setCtxMenu(null);
+          }}
+          onDuplicate={() => {
+            void duplicateHost(ctxMenu.host);
+            setCtxMenu(null);
+          }}
+          onDelete={() => {
+            setDeleting(ctxMenu.host);
+            setCtxMenu(null);
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function HostContextMenu({
+  x,
+  y,
+  onClose,
+  onConnect,
+  onConnectNewTab,
+  onEdit,
+  onDuplicate,
+  onDelete,
+}: {
+  x: number;
+  y: number;
+  onClose: () => void;
+  onConnect: () => void;
+  onConnectNewTab: () => void;
+  onEdit: () => void;
+  onDuplicate: () => void;
+  onDelete: () => void;
+}) {
+  const t = useT(STR);
+  useEffect(() => {
+    const close = () => onClose();
+    const onEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", onEsc);
+    return () => {
+      window.removeEventListener("click", close);
+      window.removeEventListener("keydown", onEsc);
+    };
+  }, [onClose]);
+
+  const item = (label: string, onClick: () => void, danger?: boolean) => (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+      style={{
+        background: "transparent",
+        border: "none",
+        color: danger ? "#f88" : "#ddd",
+        textAlign: "left",
+        padding: "6px 12px",
+        fontSize: 12,
+        cursor: "pointer",
+        whiteSpace: "nowrap",
+        borderRadius: 4,
+      }}
+      onMouseEnter={(e) => (e.currentTarget.style.background = "#094771")}
+      onMouseLeave={(e) => (e.currentTarget.style.background = "transparent")}
+    >
+      {label}
+    </button>
+  );
+
+  return (
+    <div
+      onClick={(e) => e.stopPropagation()}
+      onContextMenu={(e) => e.preventDefault()}
+      style={{
+        position: "fixed",
+        top: y,
+        left: x,
+        zIndex: 2000,
+        background: "#26262d",
+        border: "1px solid #444",
+        borderRadius: 6,
+        padding: 4,
+        minWidth: 180,
+        boxShadow: "0 8px 24px rgba(0,0,0,0.5)",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      {item(t.connect, onConnect)}
+      {item(t.openInNewTab, onConnectNewTab)}
+      <div style={{ height: 1, background: "#3a3a42", margin: "4px 0" }} />
+      {/* edit/delete 라벨의 spec 코드 "(S-0xx)"는 메뉴 표시에선 떼어낸다. */}
+      {item(t.edit.replace(/\s*\(S-\d+\)/, ""), onEdit)}
+      {item(t.duplicate, onDuplicate)}
+      <div style={{ height: 1, background: "#3a3a42", margin: "4px 0" }} />
+      {item(t.delete.replace(/\s*\(S-\d+\)/, ""), onDelete, true)}
     </div>
   );
 }
@@ -549,22 +785,30 @@ function GroupSection({
   label,
   hosts,
   activeHostId,
+  selectedId,
   query,
   tagColor,
-  onSelect,
+  onConnect,
+  onSelectRow,
   onOpenInNewTab,
   onEdit,
   onDelete,
+  onDuplicate,
+  onContextMenu,
 }: {
   label: string;
   hosts: SshHost[];
   activeHostId: string | null;
+  selectedId: string | null;
   query: string;
   tagColor: (name: string) => string;
-  onSelect: (id: string) => void;
+  onConnect: (id: string) => void;
+  onSelectRow: (id: string) => void;
   onOpenInNewTab: (id: string) => void;
   onEdit: (h: SshHost) => void;
   onDelete: (h: SshHost) => void;
+  onDuplicate: (h: SshHost) => void;
+  onContextMenu: (h: SshHost, x: number, y: number) => void;
 }) {
   const tr = useT(STR);
   return (
@@ -581,12 +825,18 @@ function GroupSection({
         ▾ {label} ({hosts.length})
       </div>
       {hosts.map((h) => {
-        const selected = activeHostId === h.id;
+        const selected = selectedId === h.id || activeHostId === h.id;
         return (
           <div
             key={h.id}
-            onClick={() => onSelect(h.id)}
+            onClick={() => onSelectRow(h.id)}
             onDoubleClick={() => onOpenInNewTab(h.id)}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              onSelectRow(h.id);
+              onContextMenu(h, e.clientX, e.clientY);
+            }}
             style={{
               ...rowStyle,
               background: selected ? "#094771" : "transparent",
@@ -633,6 +883,26 @@ function GroupSection({
               )}
             </div>
             <div style={{ display: "flex", gap: 4 }}>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onConnect(h.id);
+                }}
+                style={iconBtnStyle}
+                title={tr.connect}
+              >
+                ▶
+              </button>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDuplicate(h);
+                }}
+                style={iconBtnStyle}
+                title={tr.duplicate}
+              >
+                ⧉
+              </button>
               <button
                 onClick={(e) => {
                   e.stopPropagation();

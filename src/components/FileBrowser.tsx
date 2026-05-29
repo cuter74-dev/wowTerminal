@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
+import { open as openDialog } from "@tauri-apps/plugin-dialog";
 import { LangDict, useT } from "../i18n";
 import { FileEntry, Listing, SearchHit } from "../types";
 
@@ -1009,25 +1011,95 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
     return () => un?.();
   }, []);
 
+  // OS(Finder/탐색기)에서 파일을 앱에 드롭 → 원격 cwd로 업로드 (#26).
+  // remote.cwd는 자주 바뀌므로 ref로 최신값을 읽어 effect는 1회만 구독한다.
+  const remoteRef = useRef<Listing | null>(null);
+  remoteRef.current = remote;
+  const [dragOver, setDragOver] = useState(false);
+
+  // 앱 내부 패널 간 드래그(pointer 기반; dragDropEnabled=true라 HTML5 DnD 불가).
+  // 로컬 항목→원격 패널=업로드, 원격 항목→로컬 패널=다운로드.
+  const localPanelRef = useRef<HTMLDivElement>(null);
+  const remotePanelRef = useRef<HTMLDivElement>(null);
+  const [paneDrag, setPaneDrag] = useState<{
+    entry: FileEntry;
+    from: "local" | "remote";
+    x: number;
+    y: number;
+    active: boolean;
+  } | null>(null);
+  const paneDragRef = useRef(paneDrag);
+  paneDragRef.current = paneDrag;
+
+  function onItemMouseDown(
+    from: "local" | "remote",
+    entry: FileEntry,
+    e: React.MouseEvent,
+  ) {
+    if (e.button !== 0 || entry.is_dir) return; // 디렉토리 전송은 v1 미지원
+    setPaneDrag({ entry, from, x: e.clientX, y: e.clientY, active: false });
+  }
+  useEffect(() => {
+    let un: UnlistenFn | undefined;
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        const p = event.payload;
+        if (p.type === "enter" || p.type === "over") {
+          setDragOver(true);
+          return;
+        }
+        if (p.type === "leave") {
+          setDragOver(false);
+          return;
+        }
+        // type === "drop"
+        setDragOver(false);
+        const r = remoteRef.current;
+        if (!r) return;
+        const remoteCwd = r.cwd;
+        for (const path of p.paths) {
+          const name = path.split(/[\\/]/).pop() || path;
+          const id = newTransferId();
+          setTransfers((prev) => [
+            ...prev,
+            { id, label: `↑ ${name}`, direction: "up", transferred: 0, total: 0, status: "active" },
+          ]);
+          void invoke("sftp_upload", { hostId, localPath: path, remoteDir: remoteCwd, transferId: id })
+            .then(() => {
+              updateTransfer(id, { status: "done" });
+              void loadRemote(remoteCwd);
+            })
+            .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
+        }
+      })
+      .then((f) => {
+        un = f;
+      });
+    return () => un?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 다운로드/업로드를 큐에 넣고 비동기 진행 (동시 여러 전송 가능).
-  function doDownload(entry: FileEntry) {
-    if (entry.is_dir || !remote || !local) return;
-    if (
-      nameExists(local, entry.name) &&
-      !confirm(t.confirmOverwriteLocal(entry.name))
-    )
-      return;
+  async function doDownload(entry: FileEntry) {
+    if (entry.is_dir || !remote) return;
+    // WKWebView는 앱→OS 드래그 아웃을 지원하지 않으므로, 저장할 폴더를 직접 고른다.
+    const dir = await openDialog({
+      directory: true,
+      multiple: false,
+      defaultPath: local?.cwd,
+    });
+    if (typeof dir !== "string") return;
     const id = newTransferId();
-    const localCwd = local.cwd;
     const remotePath = joinPosix(remote.cwd, entry.name);
     setTransfers((prev) => [
       ...prev,
       { id, label: `↓ ${entry.name}`, direction: "down", transferred: 0, total: entry.size, status: "active" },
     ]);
-    void invoke("sftp_download", { hostId, remotePath, localDir: localCwd, transferId: id })
+    void invoke("sftp_download", { hostId, remotePath, localDir: dir, transferId: id })
       .then(() => {
         updateTransfer(id, { status: "done", transferred: entry.size });
-        void loadLocal(localCwd);
+        // 선택한 폴더가 현재 로컬 뷰면 새로고침.
+        if (dir === local?.cwd) void loadLocal(dir);
       })
       .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
   }
@@ -1053,6 +1125,59 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       })
       .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
   }
+
+  // 패널 간 드래그 다운로드 — 폴더 선택 없이 현재 로컬 폴더로 바로 저장.
+  function doDownloadTo(entry: FileEntry) {
+    if (entry.is_dir || !remote || !local) return;
+    const id = newTransferId();
+    const localCwd = local.cwd;
+    const remotePath = joinPosix(remote.cwd, entry.name);
+    setTransfers((prev) => [
+      ...prev,
+      { id, label: `↓ ${entry.name}`, direction: "down", transferred: 0, total: entry.size, status: "active" },
+    ]);
+    void invoke("sftp_download", { hostId, remotePath, localDir: localCwd, transferId: id })
+      .then(() => {
+        updateTransfer(id, { status: "done", transferred: entry.size });
+        void loadLocal(localCwd);
+      })
+      .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
+  }
+
+  // 패널 간 pointer 드래그: 이동 임계를 넘으면 active, mouseup 시 반대 패널 위면 전송.
+  useEffect(() => {
+    function move(e: MouseEvent) {
+      const d = paneDragRef.current;
+      if (!d) return;
+      const active = d.active || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 6;
+      setPaneDrag({ ...d, x: e.clientX, y: e.clientY, active });
+    }
+    function up(e: MouseEvent) {
+      const d = paneDragRef.current;
+      if (d?.active) {
+        const inRect = (ref: React.RefObject<HTMLDivElement | null>) => {
+          const r = ref.current?.getBoundingClientRect();
+          return (
+            !!r &&
+            e.clientX >= r.left &&
+            e.clientX <= r.right &&
+            e.clientY >= r.top &&
+            e.clientY <= r.bottom
+          );
+        };
+        if (d.from === "local" && inRect(remotePanelRef)) doUpload(d.entry);
+        else if (d.from === "remote" && inRect(localPanelRef)) doDownloadTo(d.entry);
+      }
+      if (paneDragRef.current) setPaneDrag(null);
+    }
+    window.addEventListener("mousemove", move);
+    window.addEventListener("mouseup", up);
+    return () => {
+      window.removeEventListener("mousemove", move);
+      window.removeEventListener("mouseup", up);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [local, remote, hostId]);
 
   async function removeRemote() {
     if (!remoteSel || !remote) return;
@@ -1168,6 +1293,7 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
+          position: "relative",
           width: "90vw",
           height: "85vh",
           background: "#1e1e24",
@@ -1178,10 +1304,52 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
           flexDirection: "column",
           fontSize: 12,
           overflow: "hidden",
+          outline: dragOver ? "2px dashed #4a9eff" : "none",
+          outlineOffset: -4,
         }}
         role="dialog"
         aria-modal="true"
       >
+        {dragOver && (
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              background: "rgba(10,16,32,0.55)",
+              display: "flex",
+              flexDirection: "column",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              zIndex: 20,
+              pointerEvents: "none",
+              color: "#cfe6ff",
+            }}
+          >
+            <div style={{ fontSize: 40 }}>⬆</div>
+            <div style={{ fontSize: 15 }}>{t.uploadTitle}</div>
+          </div>
+        )}
+        {paneDrag?.active && (
+          <div
+            style={{
+              position: "fixed",
+              top: paneDrag.y + 12,
+              left: paneDrag.x + 12,
+              zIndex: 3000,
+              pointerEvents: "none",
+              background: "#094771",
+              color: "#fff",
+              padding: "3px 8px",
+              borderRadius: 4,
+              fontSize: 11,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.45)",
+            }}
+          >
+            {paneDrag.from === "local" ? "↑ " : "↓ "}
+            {paneDrag.entry.name}
+          </div>
+        )}
         <header
           style={{
             display: "flex",
@@ -1240,18 +1408,22 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
         )}
 
         <div style={{ flex: 1, display: "flex", minHeight: 0 }}>
-          <Panel
-            title={t.local}
-            listing={local}
-            selected={localSel}
-            onSelect={setLocalSel}
-            onNavigate={(p) => {
-              setLocalSel(null);
-              void loadLocal(p);
-            }}
-            onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "local" })}
-            joinPath={(cwd, name) => joinPosix(cwd, name)}
-          />
+          <div ref={localPanelRef} style={{ flex: 1, display: "flex", minWidth: 0 }}>
+            <Panel
+              title={t.local}
+              listing={local}
+              selected={localSel}
+              onSelect={setLocalSel}
+              onNavigate={(p) => {
+                setLocalSel(null);
+                void loadLocal(p);
+              }}
+              onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "local" })}
+              onItemMouseDown={(entry, ev) => onItemMouseDown("local", entry, ev)}
+              dragging={!!paneDrag?.active}
+              joinPath={(cwd, name) => joinPosix(cwd, name)}
+            />
+          </div>
           <div
             style={{
               width: 64,
@@ -1283,19 +1455,23 @@ export function FileBrowser({ hostId, hostLabel, onClose }: Props) {
               →
             </button>
           </div>
-          <Panel
-            title={t.remoteWith(hostLabel)}
-            listing={remote}
-            busy={remoteBusy}
-            selected={remoteSel}
-            onSelect={setRemoteSel}
-            onNavigate={(p) => {
-              setRemoteSel(null);
-              void loadRemote(p);
-            }}
-            onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "remote" })}
-            joinPath={(cwd, name) => joinPosix(cwd, name)}
-          />
+          <div ref={remotePanelRef} style={{ flex: 1, display: "flex", minWidth: 0 }}>
+            <Panel
+              title={t.remoteWith(hostLabel)}
+              listing={remote}
+              busy={remoteBusy}
+              selected={remoteSel}
+              onSelect={setRemoteSel}
+              onNavigate={(p) => {
+                setRemoteSel(null);
+                void loadRemote(p);
+              }}
+              onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "remote" })}
+              onItemMouseDown={(entry, ev) => onItemMouseDown("remote", entry, ev)}
+              dragging={!!paneDrag?.active}
+              joinPath={(cwd, name) => joinPosix(cwd, name)}
+            />
+          </div>
         </div>
 
         {transfers.length > 0 && (
@@ -1551,6 +1727,8 @@ function Panel({
   onSelect,
   onNavigate,
   onContextMenu,
+  onItemMouseDown,
+  dragging,
   joinPath,
 }: {
   title: string;
@@ -1560,6 +1738,8 @@ function Panel({
   onSelect: (e: FileEntry) => void;
   onNavigate: (path: string) => void;
   onContextMenu: (e: FileEntry, x: number, y: number) => void;
+  onItemMouseDown: (e: FileEntry, ev: React.MouseEvent) => void;
+  dragging: boolean;
   joinPath: (cwd: string, name: string) => string;
 }) {
   const t = useT(STR);
@@ -1603,7 +1783,14 @@ function Panel({
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         {busy && <div style={{ padding: 16, color: "#789" }}>{t.loading}</div>}
         {listing && (
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
+          <table
+            style={{
+              width: "100%",
+              borderCollapse: "collapse",
+              userSelect: "none",
+              WebkitUserSelect: "none",
+            }}
+          >
             <thead>
               <tr style={{ color: "#789", fontSize: 11 }}>
                 <th style={thStyle}>{t.colName}</th>
@@ -1626,6 +1813,7 @@ function Panel({
                   <tr
                     key={e.name}
                     onClick={() => onSelect(e)}
+                    onMouseDown={(ev) => onItemMouseDown(e, ev)}
                     onContextMenu={(ev) => {
                       ev.preventDefault();
                       onSelect(e);
@@ -1640,7 +1828,8 @@ function Panel({
                       color: sel ? "#fff" : "#e6e6e6",
                     }}
                     onMouseEnter={(ev) => {
-                      if (!sel)
+                      // 드래그 중에는 지나가는 행에 hover 강조를 칠하지 않는다(선택처럼 보임).
+                      if (!sel && !dragging)
                         (ev.currentTarget as HTMLTableRowElement).style.background =
                           "#26262e";
                     }}

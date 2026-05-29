@@ -39,6 +39,7 @@ dirs = "5"
 tempfile = "3"
 russh-sftp = "2"
 ssh-key = { version = "=0.7.0-rc.10", features = ["ed25519", "rsa", "encryption"] }
+tauri-plugin-dialog = "2.7.1"
 
 [dev-dependencies]
 wiremock = "0.6"

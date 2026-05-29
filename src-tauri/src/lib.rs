@@ -21,9 +21,15 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(AiRegistry::new())
         .manage(DetachedRegistry::default())
         .setup(|app| {
+            // 기본 메뉴(App/Edit/Window 등)를 설정한다. Edit 메뉴의 Copy/Paste/Cut/Select All이
+            // 있어야 macOS 등에서 cmd+C/V/X/A 키가 입력창·터미널로 전달된다(없으면 동작 안 함).
+            let menu = tauri::menu::Menu::default(app.handle())?;
+            app.set_menu(menu)?;
+
             let pty_manager = pty::commands::build_manager(&app.handle());
             app.manage(PtyState(pty_manager));
 

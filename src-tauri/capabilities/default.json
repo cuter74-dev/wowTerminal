@@ -5,6 +5,7 @@
   "windows": ["main", "detached-*"],
   "permissions": [
     "core:default",
-    "opener:default"
+    "opener:default",
+    "dialog:default"
   ]
 }
