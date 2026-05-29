@@ -10,7 +10,7 @@ use reqwest::{Client, StatusCode};
 use serde::{Deserialize, Serialize};
 
 use crate::ai::types::{AiError, ChatRequest, ChatResponse, Message, Role, TokenUsage};
-use crate::ai::AiBackend;
+use crate::ai::{AiBackend, DeltaSink};
 
 pub struct OpenAiCompatibleBackend {
     id: String,
@@ -91,6 +91,70 @@ impl AiBackend for OpenAiCompatibleBackend {
             }),
         })
     }
+
+    async fn complete_stream(
+        &self,
+        req: ChatRequest,
+        on_delta: DeltaSink,
+    ) -> Result<ChatResponse, AiError> {
+        use futures_util::StreamExt;
+
+        let model = req.model.clone();
+        let mut body = OpenAiChatRequest::from(&req);
+        body.stream = Some(true);
+
+        let mut builder = self.http.post(self.chat_url()).json(&body);
+        if let Some(key) = &self.api_key {
+            builder = builder.bearer_auth(key);
+        }
+        let resp = builder
+            .send()
+            .await
+            .map_err(|e| AiError::Network(e.to_string()))?;
+
+        let status = resp.status();
+        if !status.is_success() {
+            let text = resp.text().await.unwrap_or_default();
+            return Err(map_http_error(status, text));
+        }
+
+        // SSE: "data: {json}\n\n" 청크. 라인 단위로 모아 delta.content를 누적.
+        let mut stream = resp.bytes_stream();
+        let mut buf = String::new();
+        let mut full = String::new();
+        while let Some(chunk) = stream.next().await {
+            let chunk = chunk.map_err(|e| AiError::Network(e.to_string()))?;
+            buf.push_str(&String::from_utf8_lossy(&chunk));
+            loop {
+                let Some(nl) = buf.find('\n') else { break };
+                let line: String = buf.drain(..=nl).collect();
+                let line = line.trim();
+                let Some(data) = line.strip_prefix("data:") else {
+                    continue;
+                };
+                let data = data.trim();
+                if data.is_empty() || data == "[DONE]" {
+                    continue;
+                }
+                if let Ok(ev) = serde_json::from_str::<OpenAiStreamChunk>(data) {
+                    if let Some(choice) = ev.choices.into_iter().next() {
+                        if let Some(content) = choice.delta.content {
+                            if !content.is_empty() {
+                                full.push_str(&content);
+                                on_delta(content);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(ChatResponse {
+            content: full,
+            model,
+            usage: None,
+        })
+    }
 }
 
 fn map_http_error(status: StatusCode, body: String) -> AiError {
@@ -112,6 +176,8 @@ struct OpenAiChatRequest<'a> {
     temperature: Option<f32>,
     #[serde(skip_serializing_if = "Option::is_none")]
     max_tokens: Option<u32>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    stream: Option<bool>,
 }
 
 impl<'a> From<&'a ChatRequest> for OpenAiChatRequest<'a> {
@@ -121,6 +187,7 @@ impl<'a> From<&'a ChatRequest> for OpenAiChatRequest<'a> {
             messages: req.messages.iter().map(OpenAiMessage::from).collect(),
             temperature: req.temperature,
             max_tokens: req.max_tokens,
+            stream: None,
         }
     }
 }
@@ -165,6 +232,23 @@ struct OpenAiResponseMessage {
 struct OpenAiUsage {
     prompt_tokens: u32,
     completion_tokens: u32,
+}
+
+// ---- streaming (SSE) wire format ----
+
+#[derive(Deserialize)]
+struct OpenAiStreamChunk {
+    choices: Vec<OpenAiStreamChoice>,
+}
+
+#[derive(Deserialize)]
+struct OpenAiStreamChoice {
+    delta: OpenAiDelta,
+}
+
+#[derive(Deserialize)]
+struct OpenAiDelta {
+    content: Option<String>,
 }
 
 #[cfg(test)]

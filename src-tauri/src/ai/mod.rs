@@ -19,6 +19,9 @@ pub use types::*;
 
 use async_trait::async_trait;
 
+/// 스트리밍 응답에서 토큰 delta를 받는 콜백. (dyn 호환을 위해 Box 콜백 사용)
+pub type DeltaSink = Box<dyn Fn(String) + Send + Sync>;
+
 /// 모든 AI 백엔드가 구현해야 하는 공통 인터페이스.
 #[async_trait]
 pub trait AiBackend: Send + Sync {
@@ -28,6 +31,18 @@ pub trait AiBackend: Send + Sync {
     /// 비-스트리밍 텍스트 완성.
     async fn complete(&self, req: ChatRequest) -> Result<ChatResponse, AiError>;
 
-    // TODO: 스트리밍 응답을 위한 `complete_stream` 추가.
+    /// 스트리밍 텍스트 완성 — delta를 받을 때마다 `on_delta`를 호출하고,
+    /// 완료 시 누적된 전체 응답을 반환한다.
+    /// 기본 구현은 스트리밍을 지원하지 않는 백엔드용 폴백(완성본을 한 번에 전달).
+    async fn complete_stream(
+        &self,
+        req: ChatRequest,
+        on_delta: DeltaSink,
+    ) -> Result<ChatResponse, AiError> {
+        let resp = self.complete(req).await?;
+        on_delta(resp.content.clone());
+        Ok(resp)
+    }
+
     // TODO: 모델 목록 조회 `list_models` 추가.
 }

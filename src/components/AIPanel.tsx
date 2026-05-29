@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { invoke } from "@tauri-apps/api/core";
+import { invoke, Channel } from "@tauri-apps/api/core";
 import {
   BackendInfo,
   ChatMessage,
   ChatRequest,
-  ChatResponse,
   Tab,
   TerminalSource,
 } from "../types";
@@ -18,6 +17,12 @@ import {
   saveSessions,
   titleFromMessages,
 } from "../chatSessions";
+
+// 백엔드 ai_complete_stream이 Channel로 보내는 스트리밍 이벤트.
+type StreamEvent =
+  | { type: "delta"; delta: string }
+  | { type: "done"; content: string }
+  | { type: "error"; message: string };
 
 const STR: LangDict<{
     assistant: string;
@@ -667,16 +672,36 @@ export function AIPanel({
         model: current.defaultModel,
         messages: reqMessages,
       };
-      const resp = await invoke<ChatResponse>("ai_complete", {
+      const channel = new Channel<StreamEvent>();
+      let acc = "";
+      // 스트리밍으로 채울 빈 assistant 메시지를 미리 추가.
+      setMessages([...display, { role: "assistant", content: "" }]);
+      channel.onmessage = (ev) => {
+        if (ev.type === "delta") {
+          acc += ev.delta;
+          setMessages([...display, { role: "assistant", content: acc }]);
+        } else if (ev.type === "done") {
+          const final = [
+            ...display,
+            { role: "assistant" as const, content: ev.content || acc },
+          ];
+          setMessages(final);
+          persistSession(sid, final);
+        } else if (ev.type === "error") {
+          setError(ev.message);
+          const final = [
+            ...display,
+            { role: "assistant" as const, content: t.errorPrefix(ev.message) },
+          ];
+          setMessages(final);
+          persistSession(sid, final);
+        }
+      };
+      await invoke("ai_complete_stream", {
         backendId: current.id,
         request: req,
+        onEvent: channel,
       });
-      const final = [
-        ...display,
-        { role: "assistant" as const, content: resp.content },
-      ];
-      setMessages(final);
-      persistSession(sid, final);
     } catch (e) {
       setError(String(e));
       const final = [

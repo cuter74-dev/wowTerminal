@@ -44,6 +44,22 @@ impl AiRegistry {
         };
         backend.complete(req).await
     }
+
+    pub async fn complete_stream(
+        &self,
+        backend_id: &str,
+        req: ChatRequest,
+        on_delta: crate::ai::DeltaSink,
+    ) -> Result<ChatResponse, AiError> {
+        let backend = {
+            let guard = self.inner.read().await;
+            guard
+                .get(backend_id)
+                .cloned()
+                .ok_or_else(|| AiError::Backend(format!("unknown backend: {backend_id}")))?
+        };
+        backend.complete_stream(req, on_delta).await
+    }
 }
 
 #[cfg(test)]

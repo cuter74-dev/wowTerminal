@@ -3,6 +3,7 @@
 use std::sync::Arc;
 
 use serde::{Deserialize, Serialize};
+use tauri::ipc::Channel;
 use tauri::State;
 
 use crate::ai::adapters::OpenAiCompatibleBackend;
@@ -43,6 +44,41 @@ pub async fn ai_complete(
         .complete(&backend_id, request)
         .await
         .map_err(|e| e.to_string())
+}
+
+/// 스트리밍 응답 이벤트 — 프론트는 Channel로 받는다.
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "camelCase", tag = "type")]
+pub enum StreamEvent {
+    Delta { delta: String },
+    Done { content: String },
+    Error { message: String },
+}
+
+#[tauri::command]
+pub async fn ai_complete_stream(
+    backend_id: String,
+    request: ChatRequest,
+    on_event: Channel<StreamEvent>,
+    registry: State<'_, AiRegistry>,
+) -> Result<(), String> {
+    let sink = on_event.clone();
+    let on_delta: crate::ai::DeltaSink = Box::new(move |delta| {
+        let _ = sink.send(StreamEvent::Delta { delta });
+    });
+    match registry.complete_stream(&backend_id, request, on_delta).await {
+        Ok(resp) => {
+            let _ = on_event.send(StreamEvent::Done {
+                content: resp.content,
+            });
+        }
+        Err(e) => {
+            let _ = on_event.send(StreamEvent::Error {
+                message: e.to_string(),
+            });
+        }
+    }
+    Ok(())
 }
 
 /// UI에 노출되는 백엔드 정보. api_key 자체는 절대 반환 안 함.
