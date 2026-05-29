@@ -17,6 +17,7 @@ import {
   AppSettings,
   loadSettings,
   saveSettings,
+  matchesBinding,
   PANEL_MIN_WIDTH,
   PANEL_MAX_WIDTH,
 } from "./settings";
@@ -1000,42 +1001,53 @@ function App() {
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (editingTabId) return;
+      const kb = settings.keybindings;
 
-      if (
-        e.key === "F2" &&
-        !e.ctrlKey &&
-        !e.metaKey &&
-        !e.shiftKey &&
-        !e.altKey
-      ) {
+      // 사용자 정의 단축키 매칭 (각 바인딩이 수정자까지 self-describe).
+      if (matchesBinding(e, kb.renameTab)) {
         if (activeTabId) {
           e.preventDefault();
           setEditingTabId(activeTabId);
         }
         return;
       }
-
-      if (!e.ctrlKey && !e.metaKey) return;
-
-      // Ctrl+Shift+L — 좌우 분할 (vertical)
-      if ((e.key === "l" || e.key === "L") && e.shiftKey) {
+      if (matchesBinding(e, kb.newTab)) {
+        e.preventDefault();
+        newLocalTab();
+        return;
+      }
+      if (matchesBinding(e, kb.closeTab)) {
+        e.preventDefault();
+        if (activeTabId) closeTab(activeTabId);
+        return;
+      }
+      if (matchesBinding(e, kb.splitVertical)) {
         e.preventDefault();
         splitActivePane("vertical");
         return;
       }
-      // Ctrl+Shift+S — 상하 분할 (horizontal)
-      // 와이어프레임은 Ctrl+Shift+D 였으나 '탭 복제'와 충돌해 S로 이전. 메뉴 텍스트만 일관 유지.
-      if ((e.key === "s" || e.key === "S") && e.shiftKey) {
+      if (matchesBinding(e, kb.splitHorizontal)) {
         e.preventDefault();
         splitActivePane("horizontal");
         return;
       }
-      // Ctrl+Shift+D — 탭 복제
-      if ((e.key === "d" || e.key === "D") && e.shiftKey) {
+      if (matchesBinding(e, kb.duplicateTab)) {
         e.preventDefault();
         if (activeTabId) duplicateTab(activeTabId);
         return;
       }
+      if (matchesBinding(e, kb.nextTab) || matchesBinding(e, kb.prevTab)) {
+        e.preventDefault();
+        const idx = tabs.findIndex((t) => t.id === activeTabId);
+        if (idx < 0) return;
+        const step = matchesBinding(e, kb.prevTab) ? -1 : 1;
+        const nextIdx = (idx + step + tabs.length) % tabs.length;
+        setActiveTabId(tabs[nextIdx].id);
+        return;
+      }
+
+      // 고정 단축키(다중키라 재지정 불가): Ctrl/⌘ 필요.
+      if (!e.ctrlKey && !e.metaKey) return;
       // Ctrl+Shift+방향키 — 분할이 있으면 패널 포커스 이동, 아니면 탭 좌/우 이동
       if (
         e.shiftKey &&
@@ -1046,28 +1058,6 @@ function App() {
       ) {
         e.preventDefault();
         focusNeighborOrSwitchTab(e.key);
-        return;
-      }
-      // Ctrl+T — 새 로컬 셸 탭
-      if (e.key === "t" || e.key === "T") {
-        e.preventDefault();
-        newLocalTab();
-        return;
-      }
-      // Ctrl+W — 활성 탭 닫기
-      if (e.key === "w" || e.key === "W") {
-        e.preventDefault();
-        if (activeTabId) closeTab(activeTabId);
-        return;
-      }
-      // Ctrl+Tab / Ctrl+Shift+Tab — 다음/이전 탭
-      if (e.key === "Tab") {
-        e.preventDefault();
-        const idx = tabs.findIndex((t) => t.id === activeTabId);
-        if (idx < 0) return;
-        const step = e.shiftKey ? -1 : 1;
-        const nextIdx = (idx + step + tabs.length) % tabs.length;
-        setActiveTabId(tabs[nextIdx].id);
         return;
       }
       // Ctrl+숫자 — N번째 탭
@@ -1082,7 +1072,7 @@ function App() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs, activeTabId, editingTabId, activeTab, focusedLeaf]);
+  }, [tabs, activeTabId, editingTabId, activeTab, focusedLeaf, settings.keybindings]);
 
   // 탭 드래그 분리: pointer가 탭바 아래로 충분히 내려가면 active, 거기서 떼면 새 창으로 분리.
   useEffect(() => {

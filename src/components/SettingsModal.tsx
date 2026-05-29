@@ -1,7 +1,15 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getVersion } from "@tauri-apps/api/app";
-import { AppSettings, SHORTCUTS, Lang, LANGS } from "../settings";
+import {
+  AppSettings,
+  Lang,
+  LANGS,
+  ShortcutAction,
+  KeyBinding,
+  DEFAULT_KEYBINDINGS,
+  formatBinding,
+} from "../settings";
 import { LangDict, useT } from "../i18n";
 import { Group, SshHost, Tag } from "../types";
 
@@ -596,29 +604,155 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
           )}
 
           {tab === "shortcuts" && (
-            <Section>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
-                <tbody>
-                  {SHORTCUTS.map((s) => (
-                    <tr key={s.keys}>
-                      <td style={{ padding: "5px 8px", color: "#9aa", whiteSpace: "nowrap" }}>
-                        <kbd style={kbdStyle}>{s.keys}</kbd>
-                      </td>
-                      <td style={{ padding: "5px 8px" }}>{s.action}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <div style={{ color: "#789", fontSize: 11, marginTop: 8 }}>
-                {t.readonlyNote}
-              </div>
-            </Section>
+            <ShortcutsTab settings={settings} onChange={onChange} />
           )}
 
           {tab === "backup" && <BackupTab />}
         </div>
       </div>
     </div>
+  );
+}
+
+// 단축키 탭 전용 문자열 (큰 STR을 안 건드리도록 별도; en 필수, 나머지는 en 폴백).
+const SC_STR: LangDict<{
+  rebind: string;
+  recording: string;
+  resetDefaults: string;
+  fixedNote: string;
+  hint: string;
+}> = {
+  en: {
+    rebind: "Rebind",
+    recording: "Press keys…",
+    resetDefaults: "Reset to defaults",
+    fixedNote:
+      "Fixed: Ctrl/⌘ + 1–9 (jump to tab), Ctrl/⌘ + Shift + Arrows (focus pane / move tab).",
+    hint: "Click Rebind, then press the new key combination.",
+  },
+  ko: {
+    rebind: "재지정",
+    recording: "키 입력…",
+    resetDefaults: "기본값 복원",
+    fixedNote:
+      "고정: Ctrl/⌘ + 1~9 (탭 이동), Ctrl/⌘ + Shift + 화살표 (패널 포커스 / 탭 이동).",
+    hint: "재지정을 누른 뒤 새 키 조합을 입력하세요.",
+  },
+};
+
+const ACTION_LABELS: LangDict<Record<ShortcutAction, string>> = {
+  en: {
+    newTab: "New tab",
+    closeTab: "Close tab",
+    nextTab: "Next tab",
+    prevTab: "Previous tab",
+    splitVertical: "Split left/right",
+    splitHorizontal: "Split top/bottom",
+    duplicateTab: "Duplicate tab",
+    renameTab: "Rename tab",
+  },
+  ko: {
+    newTab: "새 탭",
+    closeTab: "탭 닫기",
+    nextTab: "다음 탭",
+    prevTab: "이전 탭",
+    splitVertical: "좌우 분할",
+    splitHorizontal: "상하 분할",
+    duplicateTab: "탭 복제",
+    renameTab: "탭 이름 변경",
+  },
+};
+
+const SHORTCUT_ACTIONS: ShortcutAction[] = [
+  "newTab",
+  "closeTab",
+  "nextTab",
+  "prevTab",
+  "splitVertical",
+  "splitHorizontal",
+  "duplicateTab",
+  "renameTab",
+];
+
+function ShortcutsTab({
+  settings,
+  onChange,
+}: {
+  settings: AppSettings;
+  onChange: (s: AppSettings) => void;
+}) {
+  const sc = useT(SC_STR);
+  const labels = useT(ACTION_LABELS);
+  const [recording, setRecording] = useState<ShortcutAction | null>(null);
+
+  useEffect(() => {
+    if (!recording) return;
+    const action: ShortcutAction = recording;
+    function onKey(e: KeyboardEvent) {
+      // 캡처 단계에서 가로채 앱 전역 단축키가 발동하지 않게 한다.
+      e.preventDefault();
+      e.stopPropagation();
+      if (["Shift", "Control", "Alt", "Meta"].includes(e.key)) return; // 수정자 단독은 무시
+      if (e.key === "Escape") {
+        setRecording(null);
+        return;
+      }
+      const binding: KeyBinding = {
+        key: e.key.length === 1 ? e.key.toLowerCase() : e.key,
+        mod: e.ctrlKey || e.metaKey,
+        shift: e.shiftKey,
+        alt: e.altKey,
+      };
+      onChange({
+        ...settings,
+        keybindings: { ...settings.keybindings, [action]: binding },
+      });
+      setRecording(null);
+    }
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [recording, settings, onChange]);
+
+  return (
+    <Section>
+      <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 12 }}>
+        <tbody>
+          {SHORTCUT_ACTIONS.map((a) => (
+            <tr key={a}>
+              <td style={{ padding: "5px 8px" }}>{labels[a]}</td>
+              <td style={{ padding: "5px 8px", textAlign: "right" }}>
+                <kbd style={kbdStyle}>{formatBinding(settings.keybindings[a])}</kbd>
+              </td>
+              <td style={{ padding: "5px 8px", width: 90, textAlign: "right" }}>
+                <button
+                  onClick={() => setRecording(a)}
+                  style={{
+                    ...btnStyle,
+                    padding: "3px 8px",
+                    background: recording === a ? "#0a5380" : "#3a3a3a",
+                    borderColor: recording === a ? "#4a9eff" : "#555",
+                  }}
+                >
+                  {recording === a ? sc.recording : sc.rebind}
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+        <span style={{ color: "#789", fontSize: 11 }}>{sc.hint}</span>
+        <button
+          onClick={() =>
+            onChange({ ...settings, keybindings: { ...DEFAULT_KEYBINDINGS } })
+          }
+          style={btnStyle}
+        >
+          {sc.resetDefaults}
+        </button>
+      </div>
+      <div style={{ color: "#789", fontSize: 11, marginTop: 6 }}>{sc.fixedNote}</div>
+    </Section>
   );
 }
 

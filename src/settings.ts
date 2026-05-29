@@ -63,10 +63,66 @@ export interface LayoutSettings {
   aiPanelWidth: number;
 }
 
+// ---- 사용자 정의 단축키 (#32) ----
+
+/** 단일 키 조합. mod = Ctrl(Win/Linux) 또는 ⌘(macOS) — 둘을 같은 주 수정자로 취급. */
+export interface KeyBinding {
+  key: string; // 예: "t", "Tab", "F2"
+  mod: boolean;
+  shift: boolean;
+  alt: boolean;
+}
+
+/** 재지정 가능한 액션. (Ctrl+숫자=탭 이동, Ctrl+Shift+화살표=패널/탭 이동은 다중키라 고정) */
+export type ShortcutAction =
+  | "newTab"
+  | "closeTab"
+  | "nextTab"
+  | "prevTab"
+  | "splitVertical"
+  | "splitHorizontal"
+  | "duplicateTab"
+  | "renameTab";
+
+export type Keybindings = Record<ShortcutAction, KeyBinding>;
+
+export const DEFAULT_KEYBINDINGS: Keybindings = {
+  newTab: { key: "t", mod: true, shift: false, alt: false },
+  closeTab: { key: "w", mod: true, shift: false, alt: false },
+  nextTab: { key: "Tab", mod: true, shift: false, alt: false },
+  prevTab: { key: "Tab", mod: true, shift: true, alt: false },
+  splitVertical: { key: "l", mod: true, shift: true, alt: false },
+  splitHorizontal: { key: "s", mod: true, shift: true, alt: false },
+  duplicateTab: { key: "d", mod: true, shift: true, alt: false },
+  renameTab: { key: "F2", mod: false, shift: false, alt: false },
+};
+
+/** 키보드 이벤트가 바인딩과 일치하는지. Ctrl/⌘는 동일하게 본다. */
+export function matchesBinding(e: KeyboardEvent, b: KeyBinding): boolean {
+  const mod = e.ctrlKey || e.metaKey;
+  return (
+    mod === b.mod &&
+    e.shiftKey === b.shift &&
+    e.altKey === b.alt &&
+    e.key.toLowerCase() === b.key.toLowerCase()
+  );
+}
+
+/** 표시용 문자열 (예: "Ctrl/⌘ + Shift + L"). */
+export function formatBinding(b: KeyBinding): string {
+  const parts: string[] = [];
+  if (b.mod) parts.push("Ctrl/⌘");
+  if (b.shift) parts.push("Shift");
+  if (b.alt) parts.push("Alt");
+  parts.push(b.key.length === 1 ? b.key.toUpperCase() : b.key);
+  return parts.join(" + ");
+}
+
 export interface AppSettings {
   general: GeneralSettings;
   terminal: TerminalSettings;
   layout: LayoutSettings;
+  keybindings: Keybindings;
 }
 
 /** 패널 폭 허용 범위(px). */
@@ -96,6 +152,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     hostPanelWidth: 280,
     aiPanelWidth: 320,
   },
+  keybindings: DEFAULT_KEYBINDINGS,
 };
 
 const KEY = "wowterminal-settings";
@@ -118,6 +175,7 @@ export function loadSettings(): AppSettings {
       general,
       terminal: { ...DEFAULT_SETTINGS.terminal, ...(parsed.terminal ?? {}) },
       layout: { ...DEFAULT_SETTINGS.layout, ...(parsed.layout ?? {}) },
+      keybindings: { ...DEFAULT_KEYBINDINGS, ...(parsed.keybindings ?? {}) },
     };
   } catch {
     return { ...DEFAULT_SETTINGS, general: { ...DEFAULT_SETTINGS.general, language: detectLang() } };
