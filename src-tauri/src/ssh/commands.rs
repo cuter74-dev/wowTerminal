@@ -267,9 +267,18 @@ fn resolve_auth(
 ) -> Result<ResolvedAuth, SshError> {
     match method {
         SshAuthMethod::Password { secret_id } => {
-            let store = secrets.ok_or_else(|| SshError::Auth("secret store not unlocked".into()))?;
-            let pw = store.load(secret_id).map_err(|e| SshError::Auth(e.to_string()))?;
-            ResolvedAuth::from_method(method, Some(pw.as_slice()), None, None)
+            // 저장된 비밀번호를 우선 사용. 없으면(예: secret 저장소 이전 후) 모달 입력으로 폴백.
+            if let Some(store) = secrets {
+                if let Ok(pw) = store.load(secret_id) {
+                    return ResolvedAuth::from_method(method, Some(pw.as_slice()), None, None);
+                }
+            }
+            let pw = prompted_password.ok_or_else(|| SshError::PasswordRequired {
+                host: host.to_string(),
+                port,
+                user: user.to_string(),
+            })?;
+            Ok(ResolvedAuth::Password(pw.to_string()))
         }
         SshAuthMethod::PasswordPrompt => {
             let pw = prompted_password.ok_or_else(|| SshError::PasswordRequired {

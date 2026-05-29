@@ -8,13 +8,21 @@ use std::sync::Arc;
 
 use ai::registry::AiRegistry;
 use pty::commands::PtyState;
-use secrets::{KeyringStore, SecretStore};
+use secrets::{EncryptedFileStore, SecretStore};
 use tauri::Manager;
 use windows::DetachedRegistry;
 
 #[tauri::command]
 fn greet(name: &str) -> String {
     format!("Hello, {}! Welcome to wowTerminal.", name)
+}
+
+/// 머신 고유 ID에서 secret 파일 암호화용 패스프레이즈를 파생한다.
+/// 입력 없이 무프롬프트로 동작하지만, OS 키링과 달리 같은 머신·같은 사용자면 복호화 가능
+/// (개인 개발/사용 용도의 trade-off). 머신 ID 조회 실패 시 고정 폴백.
+fn machine_passphrase() -> String {
+    let id = machine_uid::get().unwrap_or_else(|_| "wowterminal-fallback-machine".to_string());
+    format!("wowterminal-secret-v1:{id}")
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -38,13 +46,26 @@ pub fn run() {
             let config_dir = dirs::config_dir()
                 .map(|p| p.join("wowterminal"))
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
+            let _ = std::fs::create_dir_all(&config_dir);
+
+            // secret 저장: OS 키링 대신 머신 키 기반 암호화 파일(EncryptedFileStore).
+            // unsigned 빌드에서 macOS Keychain이 매 실행 권한을 묻는 문제를 피한다.
+            // ssh/ai가 같은 store를 공유(키는 각자 id로 네임스페이스).
+            let secret_store: Arc<dyn SecretStore> = Arc::new(
+                EncryptedFileStore::open_or_create(
+                    config_dir.join("secrets.enc"),
+                    &machine_passphrase(),
+                )
+                .expect("open encrypted secret store"),
+            );
 
             // AI backends.toml 로드 후 registry에 등록.
-            let ai_state = ai::commands::build_state(config_dir.join("backends.toml"));
+            let mut ai_state = ai::commands::build_state(config_dir.join("backends.toml"));
+            ai_state.secrets = secret_store.clone();
             let registry = app.state::<AiRegistry>().inner().clone();
             let state_for_bootstrap = ai::commands::AiState {
                 backends: ai::store::BackendsStore::new(config_dir.join("backends.toml")),
-                secrets: ai_state.secrets.clone(),
+                secrets: secret_store.clone(),
             };
             tauri::async_runtime::spawn(async move {
                 ai::commands::bootstrap_registry(&state_for_bootstrap, &registry).await;
@@ -63,10 +84,7 @@ pub fn run() {
                 tags_path,
                 keys_path,
             );
-            // OS 키링을 기본 secret store로 활성화. macOS는 Keychain, Linux는 Secret Service,
-            // Windows는 Credential Manager. KeyringStore::save 시 OS가 사용자에게 권한 prompt 가능.
-            let keyring: Arc<dyn SecretStore> = Arc::new(KeyringStore::new("wowterminal"));
-            ssh_state.secrets = Some(keyring);
+            ssh_state.secrets = Some(secret_store.clone());
             app.manage(ssh_state);
             Ok(())
         })
