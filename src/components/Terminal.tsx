@@ -333,6 +333,23 @@ export function Terminal({
       }
       return false; // 다른 핸들러도 볼 수 있게(특별히 막을 필요 없음)
     });
+
+    // OSC 52: 앱이 클립보드에 복사(`\e]52;c;<base64>\a`). tmux(set-clipboard on)/vim 등이
+    // copy 시 이 시퀀스를 보내면 시스템 클립보드에 반영한다. 보안상 쓰기만 허용하고
+    // 읽기 요청("?")은 무시한다(원격이 클립보드를 읽지 못하게).
+    term.parser.registerOscHandler(52, (payload) => {
+      const semi = payload.indexOf(";");
+      if (semi < 0) return true;
+      const data = payload.slice(semi + 1); // 셀렉션(c/p/...) 다음의 base64
+      if (data === "" || data === "?") return true; // 읽기 요청 — 응답 안 함
+      try {
+        const text = new TextDecoder().decode(base64ToBytes(data));
+        if (text) void navigator.clipboard.writeText(text);
+      } catch {
+        // 잘못된 base64 등은 무시.
+      }
+      return true; // 처리 완료
+    });
     let disposed = false;
 
     const encoder = new TextEncoder();
@@ -428,6 +445,18 @@ export function Terminal({
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // ⌘C 복사: xterm 선택은 DOM 선택이 아니라 자체 모델이라 OS 기본 복사가 빈 내용을
+      // 복사한다. 선택이 있으면 직접 가로채 term.getSelection()을 클립보드에 쓴다.
+      // (선택이 없으면 통과 — Ctrl-C는 SIGINT라 metaKey 조건으로만 가로챈다.)
+      if (e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "c" || e.key === "C")) {
+        if (term.hasSelection()) {
+          e.preventDefault();
+          const sel = term.getSelection();
+          if (sel) void navigator.clipboard.writeText(sel);
+          return false;
+        }
+        return true;
+      }
       // IME 조합 키: xterm의 깨진 조합 처리를 막고 위 input 미러가 담당.
       if (e.keyCode === 229) {
         imeActive = true;
@@ -503,6 +532,18 @@ export function Terminal({
       } catch {}
     });
     ro.observe(containerRef.current);
+
+    // Edit 메뉴 / 우클릭 Copy 등 keydown 없이 발생하는 복사도 가로채 xterm 선택을 넣는다.
+    // (컨테이너 스코프라 다른 입력 필드 복사엔 영향 없음.)
+    const copyTarget = containerRef.current;
+    const onCopy = (ev: ClipboardEvent) => {
+      if (!term.hasSelection()) return;
+      const sel = term.getSelection();
+      if (!sel) return;
+      ev.clipboardData?.setData("text/plain", sel);
+      ev.preventDefault();
+    };
+    copyTarget.addEventListener("copy", onCopy);
 
     // AIPanel이 이 패널의 출력을 컨텍스트로 가져가거나 명령을 주입할 수 있도록 등록.
     if (paneId) {
@@ -645,6 +686,7 @@ export function Terminal({
     return () => {
       disposed = true;
       if (paneId) unregisterTerminal(paneId);
+      copyTarget.removeEventListener("copy", onCopy);
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
