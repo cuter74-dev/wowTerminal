@@ -39,6 +39,7 @@ const STR: LangDict<{
     light: string;
     cursorBlink: string;
     scrollback: string;
+    altScreenWheelScroll: string;
     applyNote: string;
     readonlyNote: string;
     export: string;
@@ -70,6 +71,7 @@ const STR: LangDict<{
     light: "Light",
     cursorBlink: "Cursor blink",
     scrollback: "Scrollback (lines)",
+    altScreenWheelScroll: "Wheel scroll in alt-screen (less/vim)",
     applyNote: "Applied to all terminals immediately.",
     readonlyNote: "v1 is read-only. Custom key bindings later.",
     export: "Export (hosts/groups/tags)",
@@ -103,6 +105,7 @@ const STR: LangDict<{
     light: "라이트",
     cursorBlink: "커서 깜빡임",
     scrollback: "스크롤백 (줄)",
+    altScreenWheelScroll: "대체 화면 휠 스크롤 (less/vim)",
     applyNote: "변경 즉시 모든 터미널에 적용됩니다.",
     readonlyNote: "v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.",
     export: "내보내기 (호스트/그룹/태그)",
@@ -136,6 +139,7 @@ const STR: LangDict<{
     light: "Claro",
     cursorBlink: "Parpadeo del cursor",
     scrollback: "Desplazamiento (líneas)",
+    altScreenWheelScroll: "Rueda en pantalla alternativa (less/vim)",
     applyNote: "Aplicado a todas las terminales de inmediato.",
     readonlyNote: "v1 es de solo lectura. Atajos personalizados más adelante.",
     export: "Exportar (hosts/grupos/etiquetas)",
@@ -169,6 +173,7 @@ const STR: LangDict<{
     light: "浅色",
     cursorBlink: "光标闪烁",
     scrollback: "回滚（行数）",
+    altScreenWheelScroll: "备用屏幕滚轮滚动 (less/vim)",
     applyNote: "立即应用到所有终端。",
     readonlyNote: "v1 为只读。自定义按键绑定稍后推出。",
     export: "导出（主机/分组/标签）",
@@ -202,6 +207,7 @@ const STR: LangDict<{
     light: "ライト",
     cursorBlink: "カーソルの点滅",
     scrollback: "スクロールバック（行）",
+    altScreenWheelScroll: "代替画面でホイールスクロール (less/vim)",
     applyNote: "すべてのターミナルに即座に適用されます。",
     readonlyNote: "v1 は読み取り専用です。カスタムキーバインドは後日。",
     export: "エクスポート（ホスト/グループ/タグ）",
@@ -235,6 +241,7 @@ const STR: LangDict<{
     light: "Светлая",
     cursorBlink: "Мигание курсора",
     scrollback: "Прокрутка (строки)",
+    altScreenWheelScroll: "Колесо в alt-экране (less/vim)",
     applyNote: "Применяется ко всем терминалам мгновенно.",
     readonlyNote: "v1 только для чтения. Пользовательские сочетания клавиш позже.",
     export: "Экспорт (хосты/группы/теги)",
@@ -268,6 +275,7 @@ const STR: LangDict<{
     light: "Clair",
     cursorBlink: "Clignotement du curseur",
     scrollback: "Défilement arrière (lignes)",
+    altScreenWheelScroll: "Molette en écran alternatif (less/vim)",
     applyNote: "Appliqué immédiatement à tous les terminaux.",
     readonlyNote: "v1 est en lecture seule. Raccourcis personnalisés plus tard.",
     export: "Exporter (hôtes/groupes/étiquettes)",
@@ -301,6 +309,7 @@ const STR: LangDict<{
     light: "Hell",
     cursorBlink: "Cursor-Blinken",
     scrollback: "Rückblättern (Zeilen)",
+    altScreenWheelScroll: "Mausrad im Alt-Bildschirm (less/vim)",
     applyNote: "Wird sofort auf alle Terminals angewendet.",
     readonlyNote: "v1 ist schreibgeschützt. Benutzerdefinierte Tastenbelegungen später.",
     export: "Exportieren (Hosts/Gruppen/Tags)",
@@ -334,6 +343,7 @@ const STR: LangDict<{
     light: "Sáng",
     cursorBlink: "Nhấp nháy con trỏ",
     scrollback: "Cuộn lại (dòng)",
+    altScreenWheelScroll: "Cuộn chuột ở màn hình thay thế (less/vim)",
     applyNote: "Áp dụng ngay cho tất cả các terminal.",
     readonlyNote: "v1 chỉ đọc. Tùy chỉnh phím tắt sẽ có sau.",
     export: "Xuất (máy chủ/nhóm/thẻ)",
@@ -367,6 +377,7 @@ const STR: LangDict<{
     light: "Terang",
     cursorBlink: "Kedipan kursor",
     scrollback: "Gulir balik (baris)",
+    altScreenWheelScroll: "Gulir roda di layar alternatif (less/vim)",
     applyNote: "Diterapkan ke semua terminal segera.",
     readonlyNote: "v1 hanya-baca. Pengikatan tombol khusus nanti.",
     export: "Ekspor (host/grup/tag)",
@@ -400,6 +411,7 @@ const STR: LangDict<{
     light: "हल्का",
     cursorBlink: "कर्सर ब्लिंक",
     scrollback: "स्क्रॉलबैक (पंक्तियाँ)",
+    altScreenWheelScroll: "ऑल्ट-स्क्रीन में व्हील स्क्रॉल (less/vim)",
     applyNote: "सभी टर्मिनलों पर तुरंत लागू।",
     readonlyNote: "v1 केवल-पढ़ने के लिए है। कस्टम की बाइंडिंग बाद में।",
     export: "निर्यात (होस्ट/समूह/टैग)",
@@ -595,6 +607,15 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                     patchTerminal({ scrollback: parseInt(e.target.value || "1000", 10) })
                   }
                   style={inputStyle}
+                />
+              </Row>
+              <Row label={t.altScreenWheelScroll}>
+                <input
+                  type="checkbox"
+                  checked={settings.terminal.altScreenWheelScroll}
+                  onChange={(e) =>
+                    patchTerminal({ altScreenWheelScroll: e.target.checked })
+                  }
                 />
               </Row>
               <div style={{ color: "#789", fontSize: 11, marginTop: 6 }}>

@@ -280,6 +280,9 @@ export function Terminal({
   const fitRef = useRef<FitAddon | null>(null);
   // 첫 마운트 시점의 설정으로 생성하고, 이후 변경은 아래 별도 effect가 런타임 반영.
   const initialSettings = useRef(termSettings);
+  // 대체 화면 휠→화살표 변환 토글 (휠 핸들러가 최신 값을 읽도록 ref로).
+  const altWheelRef = useRef(termSettings.altScreenWheelScroll);
+  altWheelRef.current = termSettings.altScreenWheelScroll;
 
   // 명령 히스토리 / 인라인 자동완성 (S-051/053)
   const lineBufRef = useRef("");
@@ -469,6 +472,24 @@ export function Terminal({
         return false; // 셸 Tab 완성 대신 우리 제안 수락
       }
       return true;
+    });
+
+    // 대체 화면(less/man/vim 등)은 출력이 xterm 스크롤백에 안 쌓여 휠이 동작하지 않는다.
+    // 대체 화면 + 앱이 마우스 리포팅을 안 켠 경우, 휠을 위/아래 화살표로 변환해 PTY로 보낸다.
+    // (마우스 모드를 켠 앱(tmux mouse on 등)은 그대로 두어 마우스 이벤트가 전달되게 한다.)
+    term.attachCustomWheelEventHandler((e) => {
+      if (!altWheelRef.current) return true;
+      if (term.buffer.active.type !== "alternate") return true;
+      if (term.modes.mouseTrackingMode !== "none") return true;
+      const root = containerRef.current;
+      const cell = root && term.rows ? root.clientHeight / term.rows : 0;
+      let lines = cell > 0 ? Math.round(Math.abs(e.deltaY) / cell) : 0;
+      if (lines < 1) lines = 1;
+      lines = Math.min(lines, term.rows);
+      const appCursor = term.modes.applicationCursorKeysMode;
+      const key = e.deltaY < 0 ? (appCursor ? "\x1bOA" : "\x1b[A") : appCursor ? "\x1bOB" : "\x1b[B";
+      writeToSession(key.repeat(lines));
+      return false; // 기본(빈 스크롤백) 동작 취소
     });
 
     const onResizeDisposable = term.onResize(({ cols, rows }) => {

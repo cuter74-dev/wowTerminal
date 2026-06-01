@@ -6,6 +6,8 @@ export interface TerminalSettings {
   cursorBlink: boolean;
   theme: "dark" | "light";
   scrollback: number;
+  /** 대체 화면(less/man/vim 등)에서 마우스 휠을 위/아래 화살표로 변환해 스크롤. */
+  altScreenWheelScroll: boolean;
 }
 
 export type Lang =
@@ -145,6 +147,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     cursorBlink: true,
     theme: "dark",
     scrollback: 1000,
+    altScreenWheelScroll: true,
   },
   layout: {
     showHostPanel: true,
