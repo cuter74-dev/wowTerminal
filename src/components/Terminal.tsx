@@ -200,9 +200,14 @@ const OSC7_HOOK =
   " __wt7(){ printf '\\033]7;file://%s\\007' \"$PWD\"; }; " +
   'if [ -n "$ZSH_VERSION" ]; then precmd_functions+=(__wt7); ' +
   'elif [ -n "$BASH_VERSION" ]; then PROMPT_COMMAND="__wt7;$PROMPT_COMMAND"; fi; __wt7';
-// 원격(SSH): 원격 rc를 제어할 수 없어 런타임 주입. 배너/MOTD 보존을 위해 주입 직전
-// 저장(ESC 7)한 프롬프트 위치로 복원(ESC 8) 후 그 아래만 지워(ESC[J) 에코된 셋업 줄만 제거.
-const OSC7_SETUP_REMOTE = `${OSC7_HOOK}; printf '\\0338\\033[J'\r`;
+// 원격(SSH): 원격 rc를 제어할 수 없어 런타임 주입. 주입 명령은 readline이 그대로 에코하며,
+// 길어서 여러 줄로 줄바꿈된다(에코 끝 \r\n로 커서가 N줄 아래로 감). 그 N줄만큼 상대로 올라가
+// (ESC[NA) 프롬프트 줄로 복귀 후 아래 전부 지우면(ESC[J) 에코가 사라지고 셸이 프롬프트 하나만
+// 다시 그린다. N은 프롬프트 폭(주입 시점 cursorX)과 명령 길이로 계산 → 스크롤이 나도 정확.
+// (절대 저장/복원 ESC7/ESC8은 에코 줄바꿈이 화면을 스크롤하면 저장 위치가 어긋나 잔상이 남았다.
+//  stty -echo는 셸 readline이 자체 에코라 효과 없음.)
+const makeOsc7Setup = (n: number) =>
+  `${OSC7_HOOK}; printf '\\033[${n}A\\r\\033[J'`;
 
 function commandsFor(source: TerminalSource, password?: string): Commands {
   if (source.kind === "local") {
@@ -428,6 +433,17 @@ export function Terminal({
       // 한글 미러 세션이 시작된 뒤에는 그 줄 전체(공백·영어 포함)를 textarea 미러로
       // 처리한다. xterm과 textarea를 번갈아 만지면 추적이 어긋나 자모가 새기 때문.
       if (imeActive) {
+        // 수정자 단독 키(Shift 등)는 조합 중 함께 눌린다(쌍자음 ㅆ=Shift+ㅅ, 대문자 등).
+        // reset하면 조합과 미러 상태가 깨지므로 그대로 통과시키고 미러 세션을 유지한다.
+        if (
+          e.key === "Shift" ||
+          e.key === "Control" ||
+          e.key === "Alt" ||
+          e.key === "Meta" ||
+          e.key === "CapsLock"
+        ) {
+          return true;
+        }
         const printable =
           e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
         // 일반 문자/스페이스/백스페이스는 textarea가 받아 미러가 보낸다(xterm 차단).
@@ -560,13 +576,21 @@ export function Terminal({
           }
           onSession?.(sessionId);
           // 원격(SSH)은 원격 셸 rc를 제어할 수 없으므로 프롬프트가 준비된 뒤 OSC 7 훅을
-          // 주입한다. 프롬프트 위치 저장(ESC 7) → 셋업 끝에서 복원+아래 지우기로 배너 보존.
+          // 주입한다. 주입 시점의 프롬프트 폭(cursorX)과 명령 길이로 에코가 줄바꿈될 줄 수 N을
+          // 계산해, 셋업 끝 printf가 정확히 N줄 위로 올라가 에코를 지운다(스크롤 안전).
           // (로컬은 pty spawn 시 rc로 이미 심어져 깜빡임 없이 적용됨.)
           if (source.kind === "ssh") {
             setTimeout(() => {
               if (disposed) return;
-              term.write("\x1b7");
-              writeToSession(OSC7_SETUP_REMOTE);
+              const cols = term.cols || 80;
+              const px = term.buffer.active.cursorX; // 프롬프트가 차지한 열 수
+              // 에코되는 명령 길이로 줄바꿈 줄 수 N 수렴 계산(N이 자릿수 바뀌면 길이도 변하므로).
+              let n = 1;
+              for (let i = 0; i < 4; i++) {
+                const clen = makeOsc7Setup(n).length;
+                n = Math.floor((px + clen - 1) / cols) + 1;
+              }
+              writeToSession(makeOsc7Setup(n) + "\r");
             }, 600);
           }
         }
