@@ -517,8 +517,11 @@ export function Terminal({
         if (disposed) return;
 
         if (attachSessionId) {
-          // 기존 세션 인계 — spawn하지 않는다. 백엔드 출력 ring buffer(이전 스크롤백 포함)를
-          // 받아 재생해 이전 출력 전체를 복원한다. 실패/빈 값이면 화면 스냅샷으로 폴백.
+          // 기존 세션 인계 — spawn하지 않는다. 이 창도 세션을 "소유"하므로 sessionId를 보고해
+          // sessionByLeaf를 채운다(이 창에서 또 분리/병합할 때 세션을 찾을 수 있게).
+          onSession?.(attachSessionId);
+          // 백엔드 출력 ring buffer(이전 스크롤백 포함)를 받아 재생해 이전 출력 전체를 복원한다.
+          // 실패/빈 값이면 화면 스냅샷으로 폴백.
           let replayed = false;
           try {
             const b64 = await invoke<string>("session_history", {

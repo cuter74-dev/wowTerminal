@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
+import { emit, listen } from "@tauri-apps/api/event";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
 import { TabContextMenu } from "./components/TabContextMenu";
@@ -550,6 +552,131 @@ function App() {
     })();
   }, []);
 
+  // 창 합치기 수신: 다른 창이 이 창(targetLabel)으로 탭을 보내면 그 세션을 attach하는 탭 추가.
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    const myLabel = CURRENT_WINDOW_LABEL;
+    void listen<{
+      targetLabel: string;
+      source: TerminalSource;
+      label: string;
+      sessionId?: string | null;
+      aiSessionId?: string | null;
+    }>("wt://merge", (event) => {
+      const p = event.payload;
+      if (p.targetLabel !== myLabel) return;
+      const tab =
+        p.source.kind === "local"
+          ? makeLocalTab(p.label)
+          : makeSshTab(p.source.hostId, p.label);
+      setTabs((prev) => [...prev, tab]);
+      setActiveTabId(tab.id);
+      if (p.sessionId && tab.root.kind === "leaf") {
+        const leafId = tab.root.id;
+        setAttachSessionByLeaf((prev) => ({ ...prev, [leafId]: p.sessionId! }));
+      }
+      if (p.aiSessionId) {
+        setAttachAiByTab((prev) => ({ ...prev, [tab.id]: p.aiSessionId! }));
+      }
+      setMergeHover(false);
+      void getCurrentWindow().setFocus();
+    }).then((f) => {
+      un = f;
+    });
+    return () => un?.();
+  }, []);
+
+  // 다른 창이 이 창 위로 드래그되는 중이면 드롭 안내 오버레이를 띄운다.
+  const [mergeHover, setMergeHover] = useState(false);
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    const me = getCurrentWindow();
+    void listen<{ label: string; cx: number; cy: number }>(
+      "wt://winpos",
+      async (event) => {
+        const p = event.payload;
+        if (p.label === CURRENT_WINDOW_LABEL) return;
+        try {
+          const pos = await me.outerPosition();
+          const size = await me.outerSize();
+          const inside =
+            p.cx >= pos.x &&
+            p.cx <= pos.x + size.width &&
+            p.cy >= pos.y &&
+            p.cy <= pos.y + size.height;
+          setMergeHover(inside);
+        } catch {}
+      },
+    ).then((f) => {
+      un = f;
+    });
+    return () => un?.();
+  }, []);
+
+  // 창 합치기 소스: 어떤 창이든(메인/분리 구분 없음) 이 창을 다른 창 위로 드래그(OS 이동)해
+  // 놓으면 그 창에 합쳐진다. onMoved로 이동 감지 → 위치를 다른 창에 알려 드롭 오버레이 표시
+  // → 멈추면(release) 타이틀바 지점이 다른 창 영역 안이면 그 창으로 합치고 이 창을 닫는다.
+  // (단, 탭이 1개뿐일 때만 창이 닫히고, 여러 개면 활성 탭만 이동.)
+  useEffect(() => {
+    const me = getCurrentWindow();
+    const openedAt = Date.now();
+    let settle: ReturnType<typeof setTimeout> | undefined;
+    let lastEmit = 0;
+    let un: (() => void) | undefined;
+
+    async function titlebarPoint(payload: { x: number; y: number }) {
+      const size = await me.outerSize();
+      return { cx: payload.x + size.width / 2, cy: payload.y + 16 };
+    }
+
+    async function trySettle(cx: number, cy: number) {
+      try {
+        const wins = await getAllWebviewWindows();
+        for (const w of wins) {
+          if (w.label === CURRENT_WINDOW_LABEL) continue;
+          const pos = await w.outerPosition();
+          const size = await w.outerSize();
+          if (
+            cx >= pos.x &&
+            cx <= pos.x + size.width &&
+            cy >= pos.y &&
+            cy <= pos.y + size.height
+          ) {
+            await mergeActiveTabInto(w.label);
+            return;
+          }
+        }
+      } catch {}
+      // 대상 없음 → 다른 창의 오버레이 제거.
+      void emit("wt://winpos", {
+        label: CURRENT_WINDOW_LABEL,
+        cx: -1e9,
+        cy: -1e9,
+      });
+    }
+
+    void me
+      .onMoved(async ({ payload }) => {
+        if (Date.now() - openedAt < 800) return; // 생성 직후 위치잡기 무시
+        const { cx, cy } = await titlebarPoint(payload);
+        const now = Date.now();
+        if (now - lastEmit > 70) {
+          void emit("wt://winpos", { label: CURRENT_WINDOW_LABEL, cx, cy });
+          lastEmit = now;
+        }
+        if (settle) clearTimeout(settle);
+        settle = setTimeout(() => void trySettle(cx, cy), 300);
+      })
+      .then((f) => {
+        un = f;
+      });
+    return () => {
+      un?.();
+      if (settle) clearTimeout(settle);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tabs, activeTabId]);
+
   const localSeq = useRef(1);
 
   const labelForHost = useCallback(
@@ -785,7 +912,10 @@ function App() {
       setFirstContact(null);
   }
 
-  async function detachLeafToNewWindow(tabId: string) {
+  async function detachLeafToNewWindow(
+    tabId: string,
+    pos?: { x: number; y: number },
+  ) {
     const tab = tabs.find((t) => t.id === tabId);
     if (!tab) return;
     const leaf = findLeaf(tab.root, tab.focusedPaneId);
@@ -808,12 +938,49 @@ function App() {
         sessionId: sessionId ?? null,
         screen,
         aiSessionId,
+        x: pos?.x ?? null,
+        y: pos?.y ?? null,
       });
       // 원본 leaf/탭 제거. markSessionDetached 덕분에 cleanup이 kill하지 않음.
       if (tab.root.kind === "leaf") {
         closeTab(tab.id);
       } else {
         closePane(tab.id, leaf.id);
+      }
+    } catch (e) {
+      alert(tr.detachWindowFail(String(e)));
+    }
+  }
+
+  // 창 합치기: 이 (분리)창의 활성 탭 세션을 targetLabel 창으로 보낸다. 글로벌 이벤트로
+  // 세션 정보를 넘기고, 이 창은 탭/창을 닫는다.
+  async function mergeActiveTabInto(targetLabel: string) {
+    const tab = tabs.find((t) => t.id === activeTabId);
+    if (!tab) return;
+    const leaf = findLeaf(tab.root, tab.focusedPaneId);
+    if (!leaf || leaf.kind !== "leaf") return;
+    const source = leaf.source;
+    const sessionId = sessionByLeaf.current[leaf.id];
+    const aiSessionId = aiSessionByTab.current[tab.id] ?? null;
+    try {
+      if (sessionId) {
+        // 대상 창이 attach할 동안 이 창의 cleanup kill이 세션을 죽이지 않도록 보호 등록.
+        await invoke("mark_session_detached", { sessionId, kind: source.kind });
+      }
+      await emit("wt://merge", {
+        targetLabel,
+        source:
+          source.kind === "local"
+            ? { kind: "local" }
+            : { kind: "ssh", hostId: source.hostId },
+        label: tab.label,
+        sessionId: sessionId ?? null,
+        aiSessionId,
+      });
+      if (tabs.length <= 1) {
+        await getCurrentWindow().close();
+      } else {
+        closeTab(tab.id);
       }
     } catch (e) {
       alert(tr.detachWindowFail(String(e)));
@@ -1074,20 +1241,32 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs, activeTabId, editingTabId, activeTab, focusedLeaf, settings.keybindings]);
 
-  // 탭 드래그 분리: pointer가 탭바 아래로 충분히 내려가면 active, 거기서 떼면 새 창으로 분리.
+  // 탭 드래그 분리: 탭을 창 밖으로 끌어내 떼면 그 위치에 새 창. (창 경계 밖 또는 탭바
+  // 아래로 충분히 내려가면 active.) 떼는 지점의 화면 좌표를 새 창 위치로 쓴다.
   useEffect(() => {
     if (!drag) return;
-    const THRESHOLD_Y = 110; // 타이틀바(32)+탭바(34) 아래로 충분히
+    const THRESHOLD_Y = 110; // 탭바 아래로 충분히
+    const isOutside = (e: MouseEvent) =>
+      e.clientX < 0 ||
+      e.clientY < 0 ||
+      e.clientX > window.innerWidth ||
+      e.clientY > window.innerHeight;
     function move(e: MouseEvent) {
-      if (e.clientY > THRESHOLD_Y) {
+      if (isOutside(e) || e.clientY > THRESHOLD_Y) {
         setDrag((d) => (d && !d.active ? { ...d, active: true } : d));
       }
     }
     function up(e: MouseEvent) {
       const tabId = drag!.tabId;
-      const detach = drag!.active && e.clientY > THRESHOLD_Y;
+      const detach = drag!.active && (isOutside(e) || e.clientY > THRESHOLD_Y);
       setDrag(null);
-      if (detach) void detachLeafToNewWindow(tabId);
+      // 떼는 지점(스크린 좌표)에 새 창을 띄운다. 화면 밖으로 약간 벗어나도 보이도록 보정.
+      if (detach) {
+        void detachLeafToNewWindow(tabId, {
+          x: Math.max(0, e.screenX - 40),
+          y: Math.max(0, e.screenY - 20),
+        });
+      }
     }
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") setDrag(null);
@@ -1366,6 +1545,12 @@ function App() {
 
       {drag?.active && <DropZoneOverlay />}
 
+      {mergeHover && (
+        <MergeDropOverlay
+          label={lang === "ko" ? "여기에 놓으면 합쳐집니다" : "Drop here to merge"}
+        />
+      )}
+
       {contextMenu &&
         (() => {
           const target = tabs.find((t) => t.id === contextMenu.tabId);
@@ -1496,6 +1681,33 @@ function DropZoneOverlay() {
       <div style={{ fontSize: 32 }}>🔲</div>
       <div style={{ fontSize: 16 }}>{t.dropToDetach}</div>
       <div style={{ fontSize: 12, color: "#bcd" }}>{t.escCancel}</div>
+    </div>
+  );
+}
+
+/** 창 합치기 안내: 다른 창이 이 창 위로 드래그되는 동안 표시. */
+function MergeDropOverlay({ label }: { label: string }) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(10, 16, 32, 0.5)",
+        border: "3px dashed #4a9eff",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 10,
+        zIndex: 950,
+        color: "#fff",
+        textAlign: "center",
+        userSelect: "none",
+        pointerEvents: "none",
+      }}
+    >
+      <div style={{ fontSize: 40 }}>⊕</div>
+      <div style={{ fontSize: 18 }}>{label}</div>
     </div>
   );
 }

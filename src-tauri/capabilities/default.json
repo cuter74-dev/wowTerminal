@@ -5,6 +5,10 @@
   "windows": ["main", "detached-*"],
   "permissions": [
     "core:default",
+    "core:window:allow-close",
+    "core:window:allow-set-focus",
+    "core:event:allow-emit",
+    "core:event:allow-listen",
     "opener:default",
     "dialog:default",
     "updater:default",

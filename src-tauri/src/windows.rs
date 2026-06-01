@@ -55,6 +55,8 @@ pub async fn open_detached_window(
     session_id: Option<String>,
     screen: Option<String>,
     ai_session_id: Option<String>,
+    x: Option<f64>,
+    y: Option<f64>,
 ) -> Result<String, String> {
     let id = Uuid::new_v4().to_string();
     // window label은 capability matcher와 맞춰 `detached-*` 패턴 유지.
@@ -83,14 +85,19 @@ pub async fn open_detached_window(
             },
         );
 
-    WebviewWindowBuilder::new(
+    let mut builder = WebviewWindowBuilder::new(
         &app,
         window_label.clone(),
         WebviewUrl::App("index.html".into()),
     )
     .title(format!("wowTerminal — {label_hint}"))
-    .inner_size(900.0, 650.0)
-    .build()
+    .inner_size(900.0, 650.0);
+    // 드롭 위치가 주어지면 그 자리에 새 창을 띄운다 (탭을 창 밖으로 끌어다 놓은 지점).
+    if let (Some(x), Some(y)) = (x, y) {
+        builder = builder.position(x, y);
+    }
+    builder
+        .build()
     .map_err(|e| {
         // 윈도우 생성 실패 시 registry 항목 정리.
         if let Ok(mut g) = registry.entries.lock() {
@@ -100,6 +107,24 @@ pub async fn open_detached_window(
     })?;
 
     Ok(window_label)
+}
+
+/// 세션을 인계 보호 등록한다 (재결합용). 분리 창이 닫히며 일어나는 cleanup kill을
+/// 백엔드가 1회 무시해 세션을 살려두고, 다른 창이 attach할 수 있게 한다.
+/// open_detached_window와 동일한 detach_guard 메커니즘.
+#[tauri::command]
+pub async fn mark_session_detached(
+    session_id: String,
+    kind: String,
+    ssh_state: State<'_, crate::ssh::commands::SshState>,
+    pty_state: State<'_, crate::pty::commands::PtyState>,
+) -> Result<(), String> {
+    if kind == "ssh" {
+        ssh_state.manager.mark_detached(&session_id).await;
+    } else {
+        pty_state.0.mark_detached(&session_id);
+    }
+    Ok(())
 }
 
 #[tauri::command]

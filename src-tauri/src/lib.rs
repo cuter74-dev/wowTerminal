@@ -145,6 +145,7 @@ pub fn run() {
             ssh::commands::local_read_text,
             ssh::commands::local_read_bytes,
             windows::open_detached_window,
+            windows::mark_session_detached,
             windows::detached_init,
         ])
         .run(tauri::generate_context!())
