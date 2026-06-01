@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
 import {
   BackendInfo,
@@ -17,6 +17,57 @@ import {
   saveSessions,
   titleFromMessages,
 } from "../chatSessions";
+
+/**
+ * AI 마크 — 그라데이션 스파클(✨ 모티프). 이모지 🤖 대신 고급스러운 인라인 SVG.
+ * 큰 4점 별 + 작은 보조 별 + 부드러운 글로우. gradient id는 useId로 인스턴스별 유니크.
+ */
+function AiMark({ size = 40 }: { size?: number }) {
+  const uid = useId().replace(/[^a-zA-Z0-9_-]/g, "");
+  const grad = `aiMarkGrad-${uid}`;
+  const glow = `aiMarkGlow-${uid}`;
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: "block", margin: "0 auto" }}
+    >
+      <defs>
+        <linearGradient
+          id={grad}
+          x1="3"
+          y1="3"
+          x2="21"
+          y2="21"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop stopColor="#7cc0ff" />
+          <stop offset="0.55" stopColor="#8e9bff" />
+          <stop offset="1" stopColor="#c08bff" />
+        </linearGradient>
+        <radialGradient id={glow} cx="0.5" cy="0.5" r="0.5">
+          <stop stopColor="#8ea8ff" stopOpacity="0.45" />
+          <stop offset="1" stopColor="#8ea8ff" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <circle cx="12" cy="12" r="11" fill={`url(#${glow})`} />
+      {/* 큰 4점 별 — 가운데 */}
+      <path
+        d="M12 2.2c.62 4.9 2.28 6.56 7.18 7.18C14.28 10 12.62 11.66 12 16.56 11.38 11.66 9.72 10 4.82 9.38 9.72 8.76 11.38 7.1 12 2.2Z"
+        fill={`url(#${grad})`}
+      />
+      {/* 작은 보조 별 — 우하단 */}
+      <path
+        d="M18.4 13.2c.28 1.9.92 2.54 2.82 2.82-1.9.28-2.54.92-2.82 2.82-.28-1.9-.92-2.54-2.82-2.82 1.9-.28 2.54-.92 2.82-2.82Z"
+        fill={`url(#${grad})`}
+        opacity="0.85"
+      />
+    </svg>
+  );
+}
 
 // 백엔드 ai_complete_stream이 Channel로 보내는 스트리밍 이벤트.
 type StreamEvent =
@@ -844,7 +895,9 @@ export function AIPanel({
         {!current && <EmptyState onSetup={() => setShowSetup(true)} />}
         {current && messages.length === 0 && !busy && (
           <div style={{ color: "#789", textAlign: "center", marginTop: 24 }}>
-            <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+            <div style={{ marginBottom: 10 }}>
+              <AiMark size={44} />
+            </div>
             <div style={{ fontSize: 12 }}>
               {t.askAnything(current.displayName)}
             </div>
@@ -1084,7 +1137,9 @@ function EmptyState({ onSetup }: { onSetup: () => void }) {
         color: "#789",
       }}
     >
-      <div style={{ fontSize: 28, marginBottom: 8 }}>🤖</div>
+      <div style={{ marginBottom: 10 }}>
+        <AiMark size={44} />
+      </div>
       <div style={{ marginBottom: 8 }}>{t.noBackendConfigured}</div>
       <button
         onClick={onSetup}

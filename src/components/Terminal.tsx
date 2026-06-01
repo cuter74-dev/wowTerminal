@@ -194,20 +194,10 @@ type Commands = {
   spawnArgs: (cols: number, rows: number) => Record<string, unknown>;
 };
 
-// 셸에 주입하는 OSC 7 훅: 프롬프트마다 현재 디렉토리를 `\e]7;file://$PWD\a`로 출력한다.
-// (printf의 \033/\007은 셸이 해석하도록 리터럴 텍스트로 보낸다. 앞 공백은 히스토리 제외용.)
-const OSC7_HOOK =
-  " __wt7(){ printf '\\033]7;file://%s\\007' \"$PWD\"; }; " +
-  'if [ -n "$ZSH_VERSION" ]; then precmd_functions+=(__wt7); ' +
-  'elif [ -n "$BASH_VERSION" ]; then PROMPT_COMMAND="__wt7;$PROMPT_COMMAND"; fi; __wt7';
-// 원격(SSH): 원격 rc를 제어할 수 없어 런타임 주입. 주입 명령은 readline이 그대로 에코하며,
-// 길어서 여러 줄로 줄바꿈된다(에코 끝 \r\n로 커서가 N줄 아래로 감). 그 N줄만큼 상대로 올라가
-// (ESC[NA) 프롬프트 줄로 복귀 후 아래 전부 지우면(ESC[J) 에코가 사라지고 셸이 프롬프트 하나만
-// 다시 그린다. N은 프롬프트 폭(주입 시점 cursorX)과 명령 길이로 계산 → 스크롤이 나도 정확.
-// (절대 저장/복원 ESC7/ESC8은 에코 줄바꿈이 화면을 스크롤하면 저장 위치가 어긋나 잔상이 남았다.
-//  stty -echo는 셸 readline이 자체 에코라 효과 없음.)
-const makeOsc7Setup = (n: number) =>
-  `${OSC7_HOOK}; printf '\\033[${n}A\\r\\033[J'`;
+// 파일 브라우저 cwd 동기화를 원하는 사용자가 원격 ~/.bashrc(zsh는 ~/.zshrc)에 직접 넣을 수
+// 있는 OSC 7 훅. 우리는 더 이상 런타임 주입하지 않고(프롬프트 잔상 유발), 수신 핸들러만 둔다.
+//   __wt7(){ printf '\033]7;file://%s\007' "$PWD"; }
+//   if [ -n "$ZSH_VERSION" ]; then precmd_functions+=(__wt7); else PROMPT_COMMAND="__wt7;$PROMPT_COMMAND"; fi
 
 function commandsFor(source: TerminalSource, password?: string): Commands {
   if (source.kind === "local") {
@@ -349,6 +339,17 @@ export function Terminal({
         // 잘못된 base64 등은 무시.
       }
       return true; // 처리 완료
+    });
+
+    // 대체화면 TUI(vim/tmux/Claude Code 등)가 마우스 추적 모드를 켠 뒤 끄지 않고 종료하면,
+    // 일반 셸 프롬프트에서 클릭/드래그 시 좌표가 텍스트로 찍힌다(`\e[<0;30;5M` 등이 셸로 감).
+    // 일반 화면으로 복귀할 때 추적/포커스 리포팅 모드를 끈다(일반 셸은 안 쓰므로 안전).
+    const onBufChange = term.buffer.onBufferChange((b) => {
+      if (b.type === "normal") {
+        term.write(
+          "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1005l\x1b[?1006l\x1b[?1015l",
+        );
+      }
     });
     let disposed = false;
 
@@ -637,24 +638,10 @@ export function Terminal({
             onSshConnected?.();
           }
           onSession?.(sessionId);
-          // 원격(SSH)은 원격 셸 rc를 제어할 수 없으므로 프롬프트가 준비된 뒤 OSC 7 훅을
-          // 주입한다. 주입 시점의 프롬프트 폭(cursorX)과 명령 길이로 에코가 줄바꿈될 줄 수 N을
-          // 계산해, 셋업 끝 printf가 정확히 N줄 위로 올라가 에코를 지운다(스크롤 안전).
-          // (로컬은 pty spawn 시 rc로 이미 심어져 깜빡임 없이 적용됨.)
-          if (source.kind === "ssh") {
-            setTimeout(() => {
-              if (disposed) return;
-              const cols = term.cols || 80;
-              const px = term.buffer.active.cursorX; // 프롬프트가 차지한 열 수
-              // 에코되는 명령 길이로 줄바꿈 줄 수 N 수렴 계산(N이 자릿수 바뀌면 길이도 변하므로).
-              let n = 1;
-              for (let i = 0; i < 4; i++) {
-                const clen = makeOsc7Setup(n).length;
-                n = Math.floor((px + clen - 1) / cols) + 1;
-              }
-              writeToSession(makeOsc7Setup(n) + "\r");
-            }, 600);
-          }
+          // OSC 7 cwd 훅의 런타임 주입은 제거했다. 주입 명령 에코를 지우는 커서 정리가
+          // 프롬프트 폭/줄바꿈/tmux 대체화면 등에 취약해 상단 프롬프트 잔상을 반복적으로
+          // 만들었다(여러 차례 수정 시도에도). 대신 OSC 7 *수신* 핸들러는 유지하므로,
+          // 사용자가 원격 ~/.bashrc에 직접 훅을 넣으면(문서 참고) 깔끔하게 cwd 추적이 된다.
         }
       } catch (err) {
         if (source.kind === "ssh" && isSshConnectError(err)) {
@@ -687,6 +674,7 @@ export function Terminal({
       disposed = true;
       if (paneId) unregisterTerminal(paneId);
       copyTarget.removeEventListener("copy", onCopy);
+      onBufChange.dispose();
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
