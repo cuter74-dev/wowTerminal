@@ -1,0 +1,72 @@
+# 변경 이력 (Changelog)
+
+이 파일은 wowTerminal의 버전별 주요 변경사항을 기록합니다.
+형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따르며, 버전은 [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 사용합니다.
+
+분류: **추가**(새 기능) · **변경**(기존 동작 변경) · **수정**(버그 수정) · **제거**(기능 삭제)
+
+## [미배포]
+
+- (다음 릴리스에 포함될 변경사항을 여기 누적)
+
+## [0.5.0] — 2026-06-01
+
+### 추가
+- 터미널 선택 텍스트 복사: ⌘C 및 Edit 메뉴/우클릭 Copy로 시스템 클립보드 복사 (#36)
+- OSC 52 클립보드 지원: tmux(`set-clipboard on`)/vim 등이 복사 시 시스템 클립보드 반영. 보안상 쓰기만 허용하고 읽기 요청은 무시 (#36)
+- AI 패널 아이콘을 그라데이션 스파클 SVG로 교체(🤖 이모지 대체) (#38)
+
+### 수정
+- SSH 접속 시 상단에 프롬프트가 잔상으로 남던 문제를 근본 해결 — OSC 7 cwd 훅의 런타임 주입을 제거. (수신 핸들러는 유지되어 원격 `~/.bashrc`에 훅 한 줄을 넣으면 cwd 동기화 가능) (#37)
+- 대체화면 TUI(tmux/vim/Claude Code 등) 종료 후 일반 셸에서 마우스 클릭이 좌표 텍스트로 찍히던 문제 — 일반 화면 복귀 시 마우스 추적 모드 자동 해제 (#37)
+
+## [0.4.0] — 2026-06-01
+
+### 추가
+- 대체 화면(less/man/vim 등) 마우스 휠 스크롤 — 휠을 위/아래 화살표로 변환. 설정 토글 제공 (#35)
+
+### 수정
+- 한글 쌍자음(있/았/껐 등) IME 입력이 깨지고 삭제되지 않던 문제 — 조합 중 수정자 키(Shift 등)가 IME 미러를 리셋하던 버그 수정 (#34)
+- SSH 접속 시 프롬프트가 두 번 찍히던 잔상 수정 (#34)
+
+## [0.3.0] — 2026-06-01
+
+### 추가
+- 사용자 정의 키보드 단축키 (#32)
+- 창 간 드래그-병합 및 탭을 창 밖으로 드래그해 새 창 생성 (#33)
+
+## [0.2.0] — 2026-05-29
+
+### 추가
+- LLM 응답 스트리밍 (SSE + Tauri Channel) (#29)
+- SFTP 이미지/로컬 미리보기, 더블클릭 미리보기, 파일 브라우저가 터미널 cwd에서 시작 (#30)
+- 세션 인계 시 스크롤백 보존(출력 ring buffer) (#31)
+- 머신키 기반 암호화 파일 secret 저장소(OS Keychain 프롬프트 제거)
+
+### 수정
+- WKWebView(macOS) 한글/CJK IME 입력 수정
+- 표시 버전을 `getVersion()`과 동기화(하드코딩 제거)
+
+## [0.1.1] — 2026-05-29
+
+### 변경
+- 앱 내 자동 업데이트(tauri-plugin-updater) 첫 활성화 — updater 서명/latest.json 파이프라인 정착
+
+## [0.1.0] — 2026-05-28
+
+### 추가
+- 기획서 71개 와이어프레임 1차 구현: 온보딩·스플래시, 멀티탭/분할/멀티윈도우, SSH 호스트·키 관리, SFTP 이중패널 파일 브라우저(전송 큐/진행률/미리보기/권한/검색), LLM/AI(백엔드·채팅·컨텍스트·명령 카드·이력), 명령 히스토리·Ctrl-R, 설정, 다국어 11개 언어
+- SSH 매니저(russh), known_hosts TOFU 검증, 호스트키 불일치/최초접속 확인 모달
+- PTY 코어(portable-pty) + xterm.js 터미널
+- AI 백엔드(OpenAI 호환 어댑터 + 레지스트리)
+- secret 저장소(keyring + Argon2id/AES-256-GCM 파일 폴백)
+
+---
+
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.5.0
+[0.4.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.4.0
+[0.3.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.3.0
+[0.2.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.2.0
+[0.1.1]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.1.1
+[0.1.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.1.0

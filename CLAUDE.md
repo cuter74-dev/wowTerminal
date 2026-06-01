@@ -19,6 +19,16 @@
    - work-log에 "무엇을 / 왜 / 어떻게" 정리
    - 이슈에 결과 코멘트 (`gh issue comment`) 후 `gh issue close`
 
+## 버전/릴리스 문서화 (Required)
+
+- 모든 사용자 영향이 있는 변경은 `CHANGELOG.md`에 누적한다.
+  - 작업을 커밋할 때 `CHANGELOG.md`의 `[미배포]` 섹션에 **추가/변경/수정/제거**로 분류해 한 줄씩 적고 `(#이슈번호)`를 붙인다.
+- "버전 올리고 배포해"(릴리스) 시:
+  1. `[미배포]` 항목을 새 버전 섹션 `## [X.Y.Z] — YYYY-MM-DD`으로 옮기고, 하단 비교 링크를 갱신한다.
+  2. 버전을 올린다: `package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock`(`cargo update -p wowterminal --precise X.Y.Z`).
+  3. 커밋 후 `vX.Y.Z` 태그 푸시 → GitHub Actions가 빌드/서명/draft Release 생성.
+- 형식은 Keep a Changelog, 버전은 SemVer.
+
 ## 핵심 디렉토리
 
 - `src/` — React + TypeScript 프론트엔드
