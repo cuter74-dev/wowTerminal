@@ -218,14 +218,15 @@ export function TabContextMenu(props: TabContextMenuProps) {
       if (e.key === "Escape") props.onDismiss();
     }
     // 다음 tick에 바인딩 — 메뉴를 띄운 그 우클릭 이벤트가 즉시 닫게 만들지 않도록.
+    // 캡처 단계(true)로 — xterm 등이 mousedown을 stopPropagation해도 바깥 클릭을 잡도록.
     const t = setTimeout(() => {
-      window.addEventListener("mousedown", onClickOutside);
-      window.addEventListener("keydown", onKey);
+      window.addEventListener("mousedown", onClickOutside, true);
+      window.addEventListener("keydown", onKey, true);
     }, 0);
     return () => {
       clearTimeout(t);
-      window.removeEventListener("mousedown", onClickOutside);
-      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("mousedown", onClickOutside, true);
+      window.removeEventListener("keydown", onKey, true);
     };
   }, [props]);
 

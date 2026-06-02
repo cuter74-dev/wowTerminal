@@ -167,6 +167,26 @@ const STR: LangDict<{
   },
 };
 
+// 우클릭 컨텍스트 메뉴 라벨 (복사/붙여넣기/전체선택/지우기).
+const CTX_STR: LangDict<{
+  copy: string;
+  paste: string;
+  selectAll: string;
+  clear: string;
+}> = {
+  en: { copy: "Copy", paste: "Paste", selectAll: "Select all", clear: "Clear" },
+  ko: { copy: "복사", paste: "붙여넣기", selectAll: "전체 선택", clear: "지우기" },
+  es: { copy: "Copiar", paste: "Pegar", selectAll: "Seleccionar todo", clear: "Limpiar" },
+  zh: { copy: "复制", paste: "粘贴", selectAll: "全选", clear: "清屏" },
+  ja: { copy: "コピー", paste: "貼り付け", selectAll: "すべて選択", clear: "クリア" },
+  ru: { copy: "Копировать", paste: "Вставить", selectAll: "Выделить всё", clear: "Очистить" },
+  fr: { copy: "Copier", paste: "Coller", selectAll: "Tout sélectionner", clear: "Effacer" },
+  de: { copy: "Kopieren", paste: "Einfügen", selectAll: "Alles auswählen", clear: "Leeren" },
+  vi: { copy: "Sao chép", paste: "Dán", selectAll: "Chọn tất cả", clear: "Xóa" },
+  id: { copy: "Salin", paste: "Tempel", selectAll: "Pilih semua", clear: "Bersihkan" },
+  hi: { copy: "कॉपी", paste: "पेस्ट", selectAll: "सभी चुनें", clear: "साफ़ करें" },
+};
+
 type OutputPayload = {
   session_id: string;
   data_b64: string;
@@ -279,6 +299,9 @@ export function Terminal({
   const suggestionRef = useRef<string | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [historySearch, setHistorySearch] = useState(false);
+  // 우클릭 컨텍스트 메뉴 (복사/붙여넣기/전체선택/지우기).
+  const ctx = useT(CTX_STR);
+  const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // 세션에 입력을 보내는 함수 (Ctrl-R 선택 / 제안 수락에서 사용). effect에서 채움.
   const sendToSessionRef = useRef<((text: string) => void) | null>(null);
 
@@ -497,15 +520,23 @@ export function Terminal({
         setHistorySearch(true);
         return false; // PTY로 보내지 않음 — 앱이 처리
       }
-      if (e.key === "Tab" && suggestionRef.current) {
-        const rest = suggestionRef.current.slice(lineBufRef.current.length);
-        if (rest) {
-          writeToSession(rest);
-          lineBufRef.current = suggestionRef.current;
-          suggestionRef.current = null;
-          setSuggestion(null);
+      if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // Tab은 항상 브라우저 기본 포커스 이동을 막는다(포커스가 AI 패널 등으로 넘어가는 것 방지).
+        e.preventDefault();
+        if (!e.shiftKey && suggestionRef.current) {
+          // 인라인 제안 수락(셸 Tab 완성 대신).
+          const rest = suggestionRef.current.slice(lineBufRef.current.length);
+          if (rest) {
+            writeToSession(rest);
+            lineBufRef.current = suggestionRef.current;
+            suggestionRef.current = null;
+            setSuggestion(null);
+          }
+          return false;
         }
-        return false; // 셸 Tab 완성 대신 우리 제안 수락
+        // 제안 없음 → 셸로 Tab 전달(Shift+Tab은 역탭 \e[Z).
+        writeToSession(e.shiftKey ? "\x1b[Z" : "\t");
+        return false;
       }
       return true;
     });
@@ -722,8 +753,33 @@ export function Terminal({
     }
   }, [termSettings]);
 
+  const ctxAction = (fn: () => void) => {
+    fn();
+    setCtxMenu(null);
+    termRef.current?.focus();
+  };
+  const doCopy = () =>
+    ctxAction(() => {
+      const sel = termRef.current?.getSelection();
+      if (sel) void navigator.clipboard.writeText(sel);
+    });
+  const doPaste = () =>
+    ctxAction(() => {
+      void navigator.clipboard.readText().then((txt) => {
+        if (txt) sendToSessionRef.current?.(txt);
+      });
+    });
+  const doSelectAll = () => ctxAction(() => termRef.current?.selectAll());
+  const doClear = () => ctxAction(() => termRef.current?.clear());
+
   return (
-    <div style={{ position: "relative", width: "100%", height: "100%" }}>
+    <div
+      style={{ position: "relative", width: "100%", height: "100%" }}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        setCtxMenu({ x: e.clientX, y: e.clientY });
+      }}
+    >
       <div
         ref={containerRef}
         style={{
@@ -732,6 +788,19 @@ export function Terminal({
           background: TERMINAL_THEMES[termSettings.theme].background,
         }}
       />
+      {ctxMenu && (
+        <TerminalContextMenu
+          x={ctxMenu.x}
+          y={ctxMenu.y}
+          hasSelection={!!termRef.current?.hasSelection()}
+          labels={ctx}
+          onClose={() => setCtxMenu(null)}
+          onCopy={doCopy}
+          onPaste={doPaste}
+          onSelectAll={doSelectAll}
+          onClear={doClear}
+        />
+      )}
       {suggestion && !historySearch && (
         <div
           style={{
@@ -769,6 +838,108 @@ export function Terminal({
           }}
         />
       )}
+    </div>
+  );
+}
+
+function TerminalContextMenu({
+  x,
+  y,
+  hasSelection,
+  labels,
+  onClose,
+  onCopy,
+  onPaste,
+  onSelectAll,
+  onClear,
+}: {
+  x: number;
+  y: number;
+  hasSelection: boolean;
+  labels: { copy: string; paste: string; selectAll: string; clear: string };
+  onClose: () => void;
+  onCopy: () => void;
+  onPaste: () => void;
+  onSelectAll: () => void;
+  onClear: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    // window 레벨로 바깥 클릭/우클릭/ESC를 잡는다(오버레이 div는 stacking context에 따라
+    // AI 패널·탭바를 못 덮어 안 닫히는 문제가 있어 window 리스너로 처리).
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    // 메뉴를 띄운 그 우클릭이 즉시 닫지 않도록 다음 tick에 바인딩.
+    // 캡처 단계(true)로 — xterm이 mousedown을 가로채도 바깥 클릭을 먼저 잡아 닫는다.
+    const tid = setTimeout(() => {
+      window.addEventListener("mousedown", onDown, true);
+      window.addEventListener("keydown", onKey, true);
+    }, 0);
+    return () => {
+      clearTimeout(tid);
+      window.removeEventListener("mousedown", onDown, true);
+      window.removeEventListener("keydown", onKey, true);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const items: { label: string; onClick: () => void; disabled?: boolean }[] = [
+    { label: labels.copy, onClick: onCopy, disabled: !hasSelection },
+    { label: labels.paste, onClick: onPaste },
+    { label: labels.selectAll, onClick: onSelectAll },
+    { label: labels.clear, onClick: onClear },
+  ];
+
+  // 화면 밖으로 넘치지 않게 대략 보정.
+  const left = Math.min(x, window.innerWidth - 180);
+  const top = Math.min(y, window.innerHeight - 160);
+
+  return (
+    <div
+      ref={ref}
+      role="menu"
+      style={{
+        position: "fixed",
+        left,
+        top,
+        zIndex: 1501,
+        minWidth: 160,
+        background: "#23232a",
+        border: "1px solid #3a3a44",
+        borderRadius: 6,
+        boxShadow: "0 6px 24px rgba(0,0,0,0.45)",
+        padding: 4,
+        fontSize: 13,
+        userSelect: "none",
+      }}
+    >
+      {items.map((it, i) => (
+        <div
+          key={i}
+          onClick={() => {
+            if (!it.disabled) it.onClick();
+          }}
+          style={{
+            padding: "6px 12px",
+            borderRadius: 4,
+            color: it.disabled ? "#666" : "#e6e6e6",
+            cursor: it.disabled ? "default" : "pointer",
+          }}
+          onMouseEnter={(e) => {
+            if (!it.disabled)
+              (e.currentTarget as HTMLDivElement).style.background = "#34343e";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLDivElement).style.background = "transparent";
+          }}
+        >
+          {it.label}
+        </div>
+      ))}
     </div>
   );
 }

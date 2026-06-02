@@ -495,6 +495,7 @@ export function HostList({
         fontSize: 13,
         boxSizing: "border-box",
         overflow: "hidden",
+        userSelect: "none", // 호스트 목록은 UI 영역이라 드래그 텍스트 선택 비활성.
       }}
     >
       <button
