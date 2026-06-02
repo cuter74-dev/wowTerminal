@@ -7,15 +7,17 @@
 
 ## [미배포]
 
+- (다음 릴리스에 포함될 변경사항을 여기 누적)
+
+## [0.8.0] — 2026-06-02
+
 ### 추가
 - LLM 설정에서 Ollama(또는 OpenAI 호환 로컬 서버) 선택 시 로컬 설치 모델을 모델 선택 드롭다운에 표시 — `/models` 조회 + 새로고침 버튼 (#46)
 
 ### 변경
+- AI 패널에서 와이어프레임 화면 ID(S-048) 노출 제거 및 '컨텍스트 자동 첨부는 후속' 안내를 실제 동작에 맞는 문구로 교체 (11개 언어) (#45)
 - AI 패널 헤더의 모델 드롭다운·아이콘 버튼이 작아 잘 안 보이던 것 — 글자/아이콘 크기 키움. LLM 설정 버튼은 흐릿한 ⚙ 글리프 대신 선명한 SVG 톱니바퀴 아이콘으로 교체 (#47)
 - '활성 패널 출력을 컨텍스트로 포함' 시 첨부하는 터미널 출력을 60줄 → 100줄로 확대
-
-### 변경
-- AI 패널에서 와이어프레임 화면 ID(S-048) 노출 제거 및 '컨텍스트 자동 첨부는 후속' 안내를 실제 동작에 맞는 문구로 교체 (11개 언어) (#45)
 
 ## [0.7.0] — 2026-06-02
 
@@ -90,7 +92,8 @@
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.7.0...HEAD
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.8.0
 [0.7.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.7.0
 [0.6.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.6.0
 [0.5.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.5.0
