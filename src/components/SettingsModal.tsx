@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { save, open } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
 import {
   AppSettings,
@@ -43,11 +44,14 @@ const STR: LangDict<{
     applyNote: string;
     readonlyNote: string;
     export: string;
+    exportFile: string;
+    importFile: string;
     copy: string;
     import: string;
     backupPlaceholder: string;
     secretsNote: string;
     exportDone: string;
+    exportFileDone: (path: string) => string;
     exportFail: (e: string) => string;
     importDone: (h: number, g: number, t: number) => string;
     importFail: (e: string) => string;
@@ -80,10 +84,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "Exported JSON appears here. To import, paste JSON and click [Import].",
     secretsNote:
-      "Secrets (passwords/keys) stay in the Keychain and are not included in the export.",
+      "Secrets (passwords/keys) stay in the Keychain and are not included in the export. But host addresses and usernames ARE included — avoid cloud-synced locations.",
     exportDone:
       "Export complete — copy the JSON below to keep it. (Secrets are not included)",
     exportFail: (e) => `Export failed: ${e}`,
+    exportFile: "Export to file…",
+    importFile: "Import from file…",
+    exportFileDone: (p) => `Saved to ${p}`,
     importDone: (h, g, t) => `Import complete: hosts ${h} / groups ${g} / tags ${t}`,
     importFail: (e) => `Import failed: ${e}`,
   },
@@ -114,10 +121,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "내보낸 JSON이 여기 표시됩니다. 가져오려면 JSON을 붙여넣고 [가져오기].",
     secretsNote:
-      "시크릿(비밀번호/키)은 Keychain에 남고 export에 포함되지 않습니다.",
+      "시크릿(비밀번호/키)은 Keychain에 남고 export에 포함되지 않습니다. 단, 호스트 주소·계정명은 포함되니 클라우드 동기화 위치는 피하세요.",
     exportDone:
       "내보내기 완료 — 아래 JSON을 복사해 보관하세요. (시크릿은 포함되지 않습니다)",
     exportFail: (e) => `내보내기 실패: ${e}`,
+    exportFile: "파일로 내보내기…",
+    importFile: "파일에서 가져오기…",
+    exportFileDone: (p) => `저장됨: ${p}`,
     importDone: (h, g, t) => `가져오기 완료: 호스트 ${h} / 그룹 ${g} / 태그 ${t}`,
     importFail: (e) => `가져오기 실패: ${e}`,
   },
@@ -148,10 +158,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "El JSON exportado aparece aquí. Para importar, pega el JSON y haz clic en [Importar].",
     secretsNote:
-      "Los secretos (contraseñas/claves) permanecen en el Keychain y no se incluyen en la exportación.",
+      "Los secretos (contraseñas/claves) permanecen en el Keychain y no se incluyen en la exportación. Pero las direcciones de host y los nombres de usuario SÍ se incluyen; evita ubicaciones sincronizadas en la nube.",
     exportDone:
       "Exportación completa — copia el JSON de abajo para conservarlo. (Los secretos no se incluyen)",
     exportFail: (e) => `Exportación fallida: ${e}`,
+    exportFile: "Exportar a archivo…",
+    importFile: "Importar desde archivo…",
+    exportFileDone: (p) => `Guardado en ${p}`,
     importDone: (h, g, t) => `Importación completa: hosts ${h} / grupos ${g} / etiquetas ${t}`,
     importFail: (e) => `Importación fallida: ${e}`,
   },
@@ -182,10 +195,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "导出的 JSON 显示在这里。要导入，请粘贴 JSON 并点击 [导入]。",
     secretsNote:
-      "密钥（密码/密钥）保留在 Keychain 中，不包含在导出内容中。",
+      "密钥（密码/密钥）保留在 Keychain 中，不包含在导出内容中。但主机地址和用户名会包含在内，请避免使用云同步位置。",
     exportDone:
       "导出完成 — 复制下方的 JSON 进行保存。（不包含密钥）",
     exportFail: (e) => `导出失败: ${e}`,
+    exportFile: "导出到文件…",
+    importFile: "从文件导入…",
+    exportFileDone: (p) => `已保存到 ${p}`,
     importDone: (h, g, t) => `导入完成: 主机 ${h} / 分组 ${g} / 标签 ${t}`,
     importFail: (e) => `导入失败: ${e}`,
   },
@@ -216,10 +232,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "エクスポートした JSON がここに表示されます。インポートするには JSON を貼り付けて [インポート] をクリック。",
     secretsNote:
-      "シークレット（パスワード/キー）は Keychain に残り、エクスポートには含まれません。",
+      "シークレット（パスワード/キー）は Keychain に残り、エクスポートには含まれません。ただしホストアドレスとユーザー名は含まれます。クラウド同期先は避けてください。",
     exportDone:
       "エクスポート完了 — 下の JSON をコピーして保管してください。（シークレットは含まれません）",
     exportFail: (e) => `エクスポート失敗: ${e}`,
+    exportFile: "ファイルに書き出し…",
+    importFile: "ファイルから読み込み…",
+    exportFileDone: (p) => `保存しました: ${p}`,
     importDone: (h, g, t) => `インポート完了: ホスト ${h} / グループ ${g} / タグ ${t}`,
     importFail: (e) => `インポート失敗: ${e}`,
   },
@@ -250,10 +269,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "Экспортированный JSON появится здесь. Чтобы импортировать, вставьте JSON и нажмите [Импорт].",
     secretsNote:
-      "Секреты (пароли/ключи) остаются в Keychain и не включаются в экспорт.",
+      "Секреты (пароли/ключи) остаются в Keychain и не включаются в экспорт. Но адреса хостов и имена пользователей включаются — избегайте облачных папок.",
     exportDone:
       "Экспорт завершён — скопируйте JSON ниже, чтобы сохранить его. (Секреты не включены)",
     exportFail: (e) => `Ошибка экспорта: ${e}`,
+    exportFile: "Экспорт в файл…",
+    importFile: "Импорт из файла…",
+    exportFileDone: (p) => `Сохранено: ${p}`,
     importDone: (h, g, t) => `Импорт завершён: хосты ${h} / группы ${g} / теги ${t}`,
     importFail: (e) => `Ошибка импорта: ${e}`,
   },
@@ -284,10 +306,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "Le JSON exporté apparaît ici. Pour importer, collez le JSON et cliquez sur [Importer].",
     secretsNote:
-      "Les secrets (mots de passe/clés) restent dans le Keychain et ne sont pas inclus dans l'exportation.",
+      "Les secrets (mots de passe/clés) restent dans le Keychain et ne sont pas inclus dans l'exportation. Mais les adresses d'hôte et les noms d'utilisateur SONT inclus — évitez les emplacements synchronisés dans le cloud.",
     exportDone:
       "Exportation terminée — copiez le JSON ci-dessous pour le conserver. (Les secrets ne sont pas inclus)",
     exportFail: (e) => `Échec de l'exportation : ${e}`,
+    exportFile: "Exporter vers un fichier…",
+    importFile: "Importer depuis un fichier…",
+    exportFileDone: (p) => `Enregistré : ${p}`,
     importDone: (h, g, t) => `Importation terminée : hôtes ${h} / groupes ${g} / étiquettes ${t}`,
     importFail: (e) => `Échec de l'importation : ${e}`,
   },
@@ -318,10 +343,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "Exportiertes JSON erscheint hier. Zum Importieren JSON einfügen und auf [Importieren] klicken.",
     secretsNote:
-      "Geheimnisse (Passwörter/Schlüssel) bleiben im Keychain und sind nicht im Export enthalten.",
+      "Geheimnisse (Passwörter/Schlüssel) bleiben im Keychain und sind nicht im Export enthalten. Hostadressen und Benutzernamen sind jedoch enthalten – meiden Sie Cloud-synchronisierte Orte.",
     exportDone:
       "Export abgeschlossen — kopieren Sie das JSON unten, um es aufzubewahren. (Geheimnisse sind nicht enthalten)",
     exportFail: (e) => `Export fehlgeschlagen: ${e}`,
+    exportFile: "In Datei exportieren…",
+    importFile: "Aus Datei importieren…",
+    exportFileDone: (p) => `Gespeichert: ${p}`,
     importDone: (h, g, t) => `Import abgeschlossen: Hosts ${h} / Gruppen ${g} / Tags ${t}`,
     importFail: (e) => `Import fehlgeschlagen: ${e}`,
   },
@@ -352,10 +380,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "JSON đã xuất hiển thị ở đây. Để nhập, dán JSON và nhấp [Nhập].",
     secretsNote:
-      "Các bí mật (mật khẩu/khóa) vẫn nằm trong Keychain và không được bao gồm trong bản xuất.",
+      "Các bí mật (mật khẩu/khóa) vẫn nằm trong Keychain và không được bao gồm trong bản xuất. Nhưng địa chỉ máy chủ và tên người dùng CÓ được bao gồm — tránh các vị trí đồng bộ đám mây.",
     exportDone:
       "Xuất hoàn tất — sao chép JSON bên dưới để lưu giữ. (Không bao gồm bí mật)",
     exportFail: (e) => `Xuất thất bại: ${e}`,
+    exportFile: "Xuất ra tệp…",
+    importFile: "Nhập từ tệp…",
+    exportFileDone: (p) => `Đã lưu: ${p}`,
     importDone: (h, g, t) => `Nhập hoàn tất: máy chủ ${h} / nhóm ${g} / thẻ ${t}`,
     importFail: (e) => `Nhập thất bại: ${e}`,
   },
@@ -386,10 +417,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "JSON yang diekspor muncul di sini. Untuk mengimpor, tempel JSON dan klik [Impor].",
     secretsNote:
-      "Rahasia (kata sandi/kunci) tetap di Keychain dan tidak disertakan dalam ekspor.",
+      "Rahasia (kata sandi/kunci) tetap di Keychain dan tidak disertakan dalam ekspor. Namun alamat host dan nama pengguna DISERTAKAN — hindari lokasi yang disinkronkan ke cloud.",
     exportDone:
       "Ekspor selesai — salin JSON di bawah untuk menyimpannya. (Rahasia tidak disertakan)",
     exportFail: (e) => `Ekspor gagal: ${e}`,
+    exportFile: "Ekspor ke berkas…",
+    importFile: "Impor dari berkas…",
+    exportFileDone: (p) => `Disimpan ke ${p}`,
     importDone: (h, g, t) => `Impor selesai: host ${h} / grup ${g} / tag ${t}`,
     importFail: (e) => `Impor gagal: ${e}`,
   },
@@ -420,10 +454,13 @@ const STR: LangDict<{
     backupPlaceholder:
       "निर्यात किया गया JSON यहाँ दिखता है। आयात करने के लिए, JSON पेस्ट करें और [आयात] पर क्लिक करें।",
     secretsNote:
-      "रहस्य (पासवर्ड/कुंजियाँ) Keychain में रहते हैं और निर्यात में शामिल नहीं होते।",
+      "रहस्य (पासवर्ड/कुंजियाँ) Keychain में रहते हैं और निर्यात में शामिल नहीं होते। लेकिन होस्ट पते और उपयोगकर्ता नाम शामिल होते हैं — क्लाउड-सिंक स्थानों से बचें।",
     exportDone:
       "निर्यात पूर्ण — इसे रखने के लिए नीचे का JSON कॉपी करें। (रहस्य शामिल नहीं हैं)",
     exportFail: (e) => `निर्यात विफल: ${e}`,
+    exportFile: "फ़ाइल में निर्यात…",
+    importFile: "फ़ाइल से आयात…",
+    exportFileDone: (p) => `सहेजा गया: ${p}`,
     importDone: (h, g, t) => `आयात पूर्ण: होस्ट ${h} / समूह ${g} / टैग ${t}`,
     importFail: (e) => `आयात विफल: ${e}`,
   },
@@ -782,16 +819,30 @@ function BackupTab() {
   const [text, setText] = useState("");
   const [msg, setMsg] = useState<string | null>(null);
 
+  async function buildExportJson(): Promise<string> {
+    const [hosts, groups, tags] = await Promise.all([
+      invoke<SshHost[]>("ssh_list_hosts"),
+      invoke<Group[]>("ssh_list_groups"),
+      invoke<Tag[]>("ssh_list_tags"),
+    ]);
+    return JSON.stringify({ version: 1, hosts, groups, tags }, null, 2);
+  }
+
+  async function applyImportJson(json: string): Promise<string> {
+    const parsed = JSON.parse(json);
+    const groups: Group[] = parsed.groups ?? [];
+    const tags: Tag[] = parsed.tags ?? [];
+    const hosts: SshHost[] = parsed.hosts ?? [];
+    for (const g of groups) await invoke("ssh_save_group", { group: g });
+    for (const t2 of tags) await invoke("ssh_save_tag", { tag: t2 });
+    for (const h of hosts) await invoke("ssh_save_host", { host: h });
+    return t.importDone(hosts.length, groups.length, tags.length);
+  }
+
   async function doExport() {
     setMsg(null);
     try {
-      const [hosts, groups, tags] = await Promise.all([
-        invoke<SshHost[]>("ssh_list_hosts"),
-        invoke<Group[]>("ssh_list_groups"),
-        invoke<Tag[]>("ssh_list_tags"),
-      ]);
-      const payload = { version: 1, hosts, groups, tags };
-      setText(JSON.stringify(payload, null, 2));
+      setText(await buildExportJson());
       setMsg(t.exportDone);
     } catch (e) {
       setMsg(t.exportFail(String(e)));
@@ -801,14 +852,44 @@ function BackupTab() {
   async function doImport() {
     setMsg(null);
     try {
-      const parsed = JSON.parse(text);
-      const groups: Group[] = parsed.groups ?? [];
-      const tags: Tag[] = parsed.tags ?? [];
-      const hosts: SshHost[] = parsed.hosts ?? [];
-      for (const g of groups) await invoke("ssh_save_group", { group: g });
-      for (const t2 of tags) await invoke("ssh_save_tag", { tag: t2 });
-      for (const h of hosts) await invoke("ssh_save_host", { host: h });
-      setMsg(t.importDone(hosts.length, groups.length, tags.length));
+      setMsg(await applyImportJson(text));
+    } catch (e) {
+      setMsg(t.importFail(String(e)));
+    }
+  }
+
+  // 파일로 내보내기: 저장 다이얼로그 → JSON 파일 쓰기.
+  async function doExportFile() {
+    setMsg(null);
+    try {
+      const json = await buildExportJson();
+      setText(json);
+      const path = await save({
+        defaultPath: "wowterminal-hosts.json",
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!path) return; // 취소
+      await invoke("local_write_text", { path, content: json });
+      setMsg(t.exportFileDone(path));
+    } catch (e) {
+      setMsg(t.exportFail(String(e)));
+    }
+  }
+
+  // 파일에서 가져오기: 열기 다이얼로그 → JSON 파일 읽기 → 적용.
+  async function doImportFile() {
+    setMsg(null);
+    try {
+      const sel = await open({
+        multiple: false,
+        directory: false,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      const path = Array.isArray(sel) ? sel[0] : sel;
+      if (!path) return; // 취소
+      const json = await invoke<string>("local_read_text", { path });
+      setText(json);
+      setMsg(await applyImportJson(json));
     } catch (e) {
       setMsg(t.importFail(String(e)));
     }
@@ -816,8 +897,18 @@ function BackupTab() {
 
   return (
     <Section>
-      <div style={{ display: "flex", gap: 8 }}>
-        <button onClick={() => void doExport()} style={primaryBtnStyle}>
+      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+        <button onClick={() => void doExportFile()} style={primaryBtnStyle}>
+          {t.exportFile}
+        </button>
+        <button onClick={() => void doImportFile()} style={primaryBtnStyle}>
+          {t.importFile}
+        </button>
+      </div>
+      <div
+        style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 4 }}
+      >
+        <button onClick={() => void doExport()} style={btnStyle}>
           {t.export}
         </button>
         <button

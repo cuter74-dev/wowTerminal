@@ -303,7 +303,13 @@ export function Terminal({
     const serializeAddon = new SerializeAddon();
     term.loadAddon(serializeAddon);
     term.open(containerRef.current);
-    fit.fit();
+    // 컨테이너에 실제 크기가 있을 때만 fit(0 크기면 cols/rows가 최소로 줄어 spawn 크기가 깨짐).
+    if (
+      containerRef.current.clientWidth >= 8 &&
+      containerRef.current.clientHeight >= 8
+    ) {
+      fit.fit();
+    }
 
     const cmds = commandsFor(source, password);
     let sessionId: string | null = null;
@@ -527,11 +533,18 @@ export function Terminal({
       void invoke(cmds.resizeCmd, { sessionId, cols, rows });
     });
 
-    const ro = new ResizeObserver(() => {
+    // 숨김(배경) 탭은 컨테이너가 0 크기가 된다. 이때 fit()하면 cols/rows가 최소값으로
+    // 줄고, 그 작은 크기가 PTY/원격으로 전달된다. 여러 탭이 같은 tmux 세션에 attach돼
+    // 있으면 tmux가 가장 작은 클라이언트에 맞춰 폭을 1~2칸으로 줄여 화면이 깨진다.
+    // 실제 크기가 있을 때만 fit한다.
+    const safeFit = () => {
+      const el = containerRef.current;
+      if (!el || el.clientWidth < 8 || el.clientHeight < 8) return;
       try {
         fit.fit();
       } catch {}
-    });
+    };
+    const ro = new ResizeObserver(safeFit);
     ro.observe(containerRef.current);
 
     // Edit 메뉴 / 우클릭 Copy 등 keydown 없이 발생하는 복사도 가로채 xterm 선택을 넣는다.
@@ -566,11 +579,7 @@ export function Terminal({
             dataB64: bytesToBase64(encoder.encode(text)),
           });
         },
-        fit: () => {
-          try {
-            fit.fit();
-          } catch {}
-        },
+        fit: safeFit,
         serialize: () => {
           try {
             return serializeAddon.serialize();
@@ -589,7 +598,11 @@ export function Terminal({
 
         unlistenOutput = await listen<OutputPayload>(cmds.outputEvent, (event) => {
           const payload = event.payload;
-          if (sessionId && payload.session_id !== sessionId) return;
+          // outputEvent(pty:output/ssh:output)는 모든 세션이 공유하는 전역 이벤트다.
+          // sessionId가 아직 설정 전(spawn 진행 중)이면 아무것도 쓰지 않는다 — 안 그러면
+          // 그 사이 다른 세션(예: 다른 탭에서 실행 중인 셸)의 출력이 이 터미널에 새어 들어와
+          // 상단에 엉뚱한 프롬프트/내용이 찍힌다. 설정 후엔 자기 세션 것만 쓴다.
+          if (!sessionId || payload.session_id !== sessionId) return;
           term.write(base64ToBytes(payload.data_b64));
         });
 
@@ -617,9 +630,9 @@ export function Terminal({
           }
           const finishAttach = () => {
             if (disposed) return;
-            try {
-              fit.fit();
-            } catch {}
+            const el = containerRef.current;
+            if (!el || el.clientWidth < 8 || el.clientHeight < 8) return;
+            safeFit();
             void invoke(cmds.resizeCmd, {
               sessionId: attachSessionId,
               cols: term.cols,
@@ -700,9 +713,13 @@ export function Terminal({
     term.options.cursorBlink = termSettings.cursorBlink;
     term.options.scrollback = termSettings.scrollback;
     term.options.theme = TERMINAL_THEMES[termSettings.theme];
-    try {
-      fitRef.current?.fit();
-    } catch {}
+    // 숨김 탭(0 크기)에서 fit하면 작은 크기가 원격에 전달돼 tmux가 쪼그라든다. 보일 때만.
+    const el = containerRef.current;
+    if (el && el.clientWidth >= 8 && el.clientHeight >= 8) {
+      try {
+        fitRef.current?.fit();
+      } catch {}
+    }
   }, [termSettings]);
 
   return (

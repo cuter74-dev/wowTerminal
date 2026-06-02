@@ -721,6 +721,12 @@ pub fn local_read_text(path: String) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&buf).to_string())
 }
 
+/// 로컬 파일에 텍스트를 쓴다 (설정 내보내기용). 경로는 저장 다이얼로그에서 받은 것.
+#[tauri::command]
+pub fn local_write_text(path: String, content: String) -> Result<(), String> {
+    std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
+}
+
 /// 로컬 파일을 base64로 읽는다 (이미지 미리보기용, 상한 8MB).
 #[tauri::command]
 pub fn local_read_bytes(path: String) -> Result<String, String> {
