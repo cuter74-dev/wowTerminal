@@ -27,6 +27,8 @@
   1. `[미배포]` 항목을 새 버전 섹션 `## [X.Y.Z] — YYYY-MM-DD`으로 옮기고, 하단 비교 링크를 갱신한다.
   2. 버전을 올린다: `package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock`(`cargo update -p wowterminal --precise X.Y.Z`).
   3. 커밋 후 `vX.Y.Z` 태그 푸시 → GitHub Actions가 빌드/서명/draft Release 생성.
+  4. **자동 publish (사용자 지시)**: 워크플로가 success로 끝나면(에셋 확인 후) draft를 바로 공개한다.
+     `gh release edit vX.Y.Z --draft=false --latest` — 매번 묻지 않고 진행(기존 사용자에게 자동 업데이트 배포됨).
 - 형식은 Keep a Changelog, 버전은 SemVer.
 
 ## 핵심 디렉토리
