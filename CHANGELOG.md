@@ -7,6 +7,10 @@
 
 ## [미배포]
 
+- (다음 릴리스에 포함될 변경사항을 여기 누적)
+
+## [0.7.0] — 2026-06-02
+
 ### 추가
 - 터미널 우클릭 컨텍스트 메뉴 — 복사/붙여넣기/전체 선택/지우기 (11개 언어) (#43)
 
@@ -78,7 +82,8 @@
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.6.0...HEAD
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.7.0
 [0.6.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.6.0
 [0.5.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.5.0
 [0.4.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.4.0
