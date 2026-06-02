@@ -7,8 +7,12 @@
 
 ## [미배포]
 
+- (다음 릴리스에 포함될 변경사항을 여기 누적)
+
+## [0.6.0] — 2026-06-02
+
 ### 추가
-- 설정 백업(호스트/그룹/태그) 내보내기/가져오기를 **JSON 파일**로 — 저장/열기 네이티브 다이얼로그 지원(기존 클립보드 텍스트 방식도 유지). 시크릿은 미포함 (#41)
+- 설정 백업(호스트/그룹/태그) 내보내기/가져오기를 **JSON 파일**로 — 저장/열기 네이티브 다이얼로그 지원(기존 클립보드 텍스트 방식도 유지). 시크릿은 미포함, 호스트 주소·계정명은 포함되므로 클라우드 동기화 위치 주의 안내 추가 (#41)
 
 ### 수정
 - 새 탭으로 SSH 접속 시 다른 세션(다른 탭에서 실행 중인 셸)의 출력이 새어 상단에 엉뚱한 프롬프트가 찍히던 문제 — 전역 출력 이벤트 필터가 sessionId 설정 전에 모든 출력을 통과시키던 버그 수정 (#39)
@@ -68,7 +72,8 @@
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.5.0...HEAD
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.6.0
 [0.5.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.5.0
 [0.4.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.4.0
 [0.3.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.3.0
