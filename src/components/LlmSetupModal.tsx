@@ -89,6 +89,7 @@ const STR: LangDict<{
     displayNamePlaceholder: string;
     apiBaseLabel: string;
     defaultModelLabel: string;
+    refreshModels: string;
     apiKeyKeep: string;
     apiKeyOptional: string;
     requiredError: string;
@@ -123,6 +124,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "e.g. OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "Refresh model list",
     apiKeyKeep: "API Key (leave blank to keep existing key)",
     apiKeyOptional:
       "API Key (optional — leave blank for local servers without auth)",
@@ -158,6 +160,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "예: OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "모델 목록 새로고침",
     apiKeyKeep: "API Key (비우면 기존 키 유지)",
     apiKeyOptional: "API Key (선택 — 인증 불필요한 로컬 서버는 비워두기)",
     requiredError: "id / displayName / apiBase / defaultModel은 필수입니다.",
@@ -192,6 +195,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "p. ej. OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "Actualizar lista de modelos",
     apiKeyKeep: "API Key (dejar en blanco para conservar la clave existente)",
     apiKeyOptional:
       "API Key (opcional — dejar en blanco para servidores locales sin autenticación)",
@@ -227,6 +231,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "例如 OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "刷新模型列表",
     apiKeyKeep: "API Key（留空以保留现有密钥）",
     apiKeyOptional:
       "API Key（可选 — 无需认证的本地服务器请留空）",
@@ -262,6 +267,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "例: OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "モデル一覧を更新",
     apiKeyKeep: "API Key（空欄にすると既存のキーを保持）",
     apiKeyOptional:
       "API Key（任意 — 認証不要なローカルサーバーは空欄）",
@@ -297,6 +303,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "напр. OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "Обновить список моделей",
     apiKeyKeep: "API Key (оставьте пустым, чтобы сохранить текущий ключ)",
     apiKeyOptional:
       "API Key (необязательно — оставьте пустым для локальных серверов без аутентификации)",
@@ -332,6 +339,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "ex. OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "Actualiser la liste des modèles",
     apiKeyKeep: "API Key (laisser vide pour conserver la clé existante)",
     apiKeyOptional:
       "API Key (facultatif — laisser vide pour les serveurs locaux sans authentification)",
@@ -367,6 +375,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "z. B. OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "Modellliste aktualisieren",
     apiKeyKeep: "API Key (leer lassen, um den vorhandenen Schlüssel zu behalten)",
     apiKeyOptional:
       "API Key (optional — für lokale Server ohne Authentifizierung leer lassen)",
@@ -402,6 +411,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "vd. OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "Làm mới danh sách mô hình",
     apiKeyKeep: "API Key (để trống để giữ khóa hiện có)",
     apiKeyOptional:
       "API Key (tùy chọn — để trống cho máy chủ cục bộ không cần xác thực)",
@@ -437,6 +447,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "mis. OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "Segarkan daftar model",
     apiKeyKeep: "API Key (kosongkan untuk mempertahankan kunci yang ada)",
     apiKeyOptional:
       "API Key (opsional — kosongkan untuk server lokal tanpa autentikasi)",
@@ -472,6 +483,7 @@ const STR: LangDict<{
     displayNamePlaceholder: "जैसे OpenAI",
     apiBaseLabel: "API Base URL",
     defaultModelLabel: "Default Model",
+    refreshModels: "मॉडल सूची ताज़ा करें",
     apiKeyKeep: "API Key (मौजूदा कुंजी बनाए रखने के लिए खाली छोड़ें)",
     apiKeyOptional:
       "API Key (वैकल्पिक — बिना प्रमाणीकरण वाले लोकल सर्वर के लिए खाली छोड़ें)",
@@ -700,6 +712,41 @@ function BackendForm({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Ollama 등 OpenAI 호환 서버의 설치된 모델 목록을 받아 모델 선택을 드롭다운으로 보인다.
+  const [models, setModels] = useState<string[]>([]);
+  const [modelsBusy, setModelsBusy] = useState(false);
+  const [modelsErr, setModelsErr] = useState<string | null>(null);
+  // Ollama로 보이는 apiBase면(로컬 11434 또는 ollama 포함) 모델 목록을 자동 조회.
+  const isOllama = /11434/.test(apiBase) || /ollama/i.test(apiBase);
+
+  async function refreshModels() {
+    if (!apiBase.trim()) return;
+    setModelsErr(null);
+    setModelsBusy(true);
+    try {
+      const list = await invoke<string[]>("ai_list_models", {
+        apiBase: apiBase.trim(),
+        apiKey: apiKey || null,
+      });
+      setModels(list);
+    } catch (e) {
+      setModels([]);
+      setModelsErr(String(e));
+    } finally {
+      setModelsBusy(false);
+    }
+  }
+
+  // Ollama면 apiBase가 정해질 때 자동으로 모델 목록을 가져온다.
+  useEffect(() => {
+    if (isOllama && apiBase.trim()) void refreshModels();
+    else {
+      setModels([]);
+      setModelsErr(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [apiBase, isOllama]);
+
   function applyPreset(idx: number) {
     setPresetIdx(idx);
     if (idx < 0) return;
@@ -798,12 +845,59 @@ function BackendForm({
       </Field>
 
       <Field label={t.defaultModelLabel}>
-        <input
-          value={defaultModel}
-          onChange={(e) => setDefaultModel(e.target.value)}
-          placeholder="gpt-4o-mini"
-          style={inputStyle}
-        />
+        <div style={{ display: "flex", gap: 6 }}>
+          {isOllama && models.length > 0 ? (
+            <select
+              value={defaultModel}
+              onChange={(e) => setDefaultModel(e.target.value)}
+              style={{ ...inputStyle, flex: 1 }}
+            >
+              {defaultModel && !models.includes(defaultModel) && (
+                <option value={defaultModel}>{defaultModel}</option>
+              )}
+              {models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input
+              value={defaultModel}
+              onChange={(e) => setDefaultModel(e.target.value)}
+              placeholder="gpt-4o-mini"
+              list={models.length ? "llm-model-list" : undefined}
+              style={{ ...inputStyle, flex: 1 }}
+            />
+          )}
+          <button
+            type="button"
+            onClick={() => void refreshModels()}
+            disabled={!apiBase.trim() || modelsBusy}
+            title={t.refreshModels}
+            style={{
+              background: "#2a2a32",
+              color: "#ccc",
+              border: "1px solid #3a3a44",
+              borderRadius: 4,
+              padding: "0 10px",
+              cursor: apiBase.trim() && !modelsBusy ? "pointer" : "default",
+              fontSize: 14,
+            }}
+          >
+            {modelsBusy ? "…" : "↻"}
+          </button>
+          <datalist id="llm-model-list">
+            {models.map((m) => (
+              <option key={m} value={m} />
+            ))}
+          </datalist>
+        </div>
+        {modelsErr && (
+          <div style={{ color: "#e88", fontSize: 11, marginTop: 4 }}>
+            {modelsErr}
+          </div>
+        )}
       </Field>
 
       <Field

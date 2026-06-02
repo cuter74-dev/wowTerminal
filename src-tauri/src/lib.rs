@@ -99,6 +99,7 @@ pub fn run() {
             ai::commands::ai_complete,
             ai::commands::ai_complete_stream,
             ai::commands::ai_list_backend_configs,
+            ai::commands::ai_list_models,
             ai::commands::ai_save_backend,
             ai::commands::ai_delete_backend,
             pty::commands::pty_spawn,

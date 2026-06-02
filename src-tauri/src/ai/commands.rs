@@ -120,6 +120,43 @@ pub async fn ai_list_backend_configs(
     Ok(out)
 }
 
+#[derive(Deserialize)]
+struct ModelsResp {
+    data: Vec<ModelEntry>,
+}
+#[derive(Deserialize)]
+struct ModelEntry {
+    id: String,
+}
+
+/// OpenAI 호환 `/models` 엔드포인트로 사용 가능한 모델 목록을 가져온다.
+/// Ollama(`http://localhost:11434/v1`)의 `/v1/models`로 로컬 설치 모델을 나열하는 용도.
+#[tauri::command]
+pub async fn ai_list_models(
+    api_base: String,
+    api_key: Option<String>,
+) -> Result<Vec<String>, String> {
+    let base = api_base.trim().trim_end_matches('/');
+    let url = if base.ends_with("/models") {
+        base.to_string()
+    } else {
+        format!("{base}/models")
+    };
+    let client = reqwest::Client::new();
+    let mut req = client.get(&url);
+    if let Some(k) = api_key.as_deref().map(str::trim).filter(|s| !s.is_empty()) {
+        req = req.bearer_auth(k);
+    }
+    let resp = req.send().await.map_err(|e| format!("요청 실패: {e}"))?;
+    if !resp.status().is_success() {
+        return Err(format!("HTTP {}", resp.status()));
+    }
+    let parsed: ModelsResp = resp.json().await.map_err(|e| format!("파싱 실패: {e}"))?;
+    let mut models: Vec<String> = parsed.data.into_iter().map(|m| m.id).collect();
+    models.sort();
+    Ok(models)
+}
+
 /// 프론트가 보내는 백엔드 저장 payload. apiKey가 비어있지 않으면 keyring에 저장한다.
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
