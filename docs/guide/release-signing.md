@@ -40,6 +40,38 @@ builds are signed and notarized.
 > `APPLE_API_ISSUER`, `APPLE_API_KEY`, and `APPLE_API_KEY_PATH` instead of
 > `APPLE_ID` / `APPLE_PASSWORD`.
 
+### ⚠️ The `.p12` MUST include the intermediate certificate
+
+The single most common failure. Symptom — the CI macOS build prints:
+
+```
+1 identity imported.
+failed to bundle project failed codesign application: failed to resolve signing identity
+```
+
+`1 identity imported` means `APPLE_CERTIFICATE` + `APPLE_CERTIFICATE_PASSWORD` are
+**correct** (import succeeded). The resolve failure is because the `.p12` contains only the
+leaf certificate + private key, **not the "Developer ID Certification Authority (G2)"
+intermediate**. Tauri locates the identity with `security find-identity -v` (valid only),
+and on the CI's fresh keychain an identity without its chain is not valid — so it can't be
+found. (It works locally because Xcode installs the intermediate on your Mac, which makes
+local sign tests misleadingly pass.)
+
+**Fix — export a chain-included `.p12`:**
+
+- **Keychain Access (GUI):** select the **"Developer ID Application"** identity **and**
+  ⌘-click the **"Developer ID Certification Authority" (OU=G2)** intermediate, then
+  right-click → export **both** items as one `.p12`. A chain-included file is noticeably
+  larger (~2.5 KB → ~4.5 KB; its base64 grows accordingly).
+- **CLI:** download `https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer`,
+  convert to PEM, and pass it via `openssl pkcs12 -export … -certfile DeveloperIDG2CA.pem`.
+
+Then update `APPLE_CERTIFICATE` (new base64) and `APPLE_CERTIFICATE_PASSWORD`, and re-run.
+
+> If `find-identity` resolution still fails with the chain present, double-check
+> `APPLE_SIGNING_IDENTITY` has **no surrounding quotes or whitespace** — it must be exactly
+> `Developer ID Application: <name> (TEAMID)`.
+
 ## Windows
 
 `tauri-action` does not sign Windows builds automatically; the right approach depends on
