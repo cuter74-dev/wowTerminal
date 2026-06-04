@@ -9,7 +9,11 @@ import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
-import { registerTerminal, unregisterTerminal } from "../terminalRegistry";
+import {
+  registerTerminal,
+  unregisterTerminal,
+  broadcastInput,
+} from "../terminalRegistry";
 import { askAI } from "../aiBus";
 import { emitCommandDone } from "../commandBus";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
@@ -530,6 +534,7 @@ export function Terminal({
         if (cp >= 0x3130 && cp <= 0x318f) return;
       }
       writeToSession(data);
+      broadcastInput(paneId ?? "", data); // 브로드캐스트 ON이면 다른 패널에도.
 
       // 입력 라인 추적 (단순): 타이핑/백스페이스/엔터만 정확. 화살표 등은 라인 리셋.
       for (const ch of data) {
@@ -581,7 +586,10 @@ export function Terminal({
           let out = "";
           for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
           out += full.slice(c);
-          if (out) writeToSession(out);
+          if (out) {
+            writeToSession(out);
+            broadcastInput(paneId ?? "", out);
+          }
           imeSent = full;
         },
         true,

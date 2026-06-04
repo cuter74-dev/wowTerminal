@@ -8,6 +8,9 @@ interface Props {
   canOpenFiles: boolean;
   onOpenFiles: () => void;
   onOpenSettings: () => void;
+  /** 입력 브로드캐스트(#59) 켜짐 여부 + 토글. */
+  broadcast: boolean;
+  onToggleBroadcast: () => void;
 }
 
 type Strings = {
@@ -21,6 +24,7 @@ type Strings = {
   files: string;
   settingsTitle: string;
   settings: string;
+  broadcast: string;
 };
 
 const STR: LangDict<Strings> = {
@@ -35,6 +39,7 @@ const STR: LangDict<Strings> = {
     files: "📁 Files",
     settingsTitle: "Settings (S-054)",
     settings: "⚙ Settings",
+    broadcast: "Broadcast input to all panes",
   },
   ko: {
     ready: "준비됨",
@@ -47,6 +52,7 @@ const STR: LangDict<Strings> = {
     files: "📁 파일",
     settingsTitle: "설정 (S-054)",
     settings: "⚙ 설정",
+    broadcast: "모든 패널에 입력 브로드캐스트",
   },
   es: {
     ready: "Listo",
@@ -59,6 +65,7 @@ const STR: LangDict<Strings> = {
     files: "📁 Archivos",
     settingsTitle: "Configuración (S-054)",
     settings: "⚙ Configuración",
+    broadcast: "Difundir entrada a todos los paneles",
   },
   zh: {
     ready: "就绪",
@@ -71,6 +78,7 @@ const STR: LangDict<Strings> = {
     files: "📁 文件",
     settingsTitle: "设置 (S-054)",
     settings: "⚙ 设置",
+    broadcast: "向所有面板广播输入",
   },
   ja: {
     ready: "準備完了",
@@ -83,6 +91,7 @@ const STR: LangDict<Strings> = {
     files: "📁 ファイル",
     settingsTitle: "設定 (S-054)",
     settings: "⚙ 設定",
+    broadcast: "すべてのペインに入力をブロードキャスト",
   },
   ru: {
     ready: "Готово",
@@ -95,6 +104,7 @@ const STR: LangDict<Strings> = {
     files: "📁 Файлы",
     settingsTitle: "Настройки (S-054)",
     settings: "⚙ Настройки",
+    broadcast: "Транслировать ввод во все панели",
   },
   fr: {
     ready: "Prêt",
@@ -107,6 +117,7 @@ const STR: LangDict<Strings> = {
     files: "📁 Fichiers",
     settingsTitle: "Paramètres (S-054)",
     settings: "⚙ Paramètres",
+    broadcast: "Diffuser la saisie à tous les volets",
   },
   de: {
     ready: "Bereit",
@@ -119,6 +130,7 @@ const STR: LangDict<Strings> = {
     files: "📁 Dateien",
     settingsTitle: "Einstellungen (S-054)",
     settings: "⚙ Einstellungen",
+    broadcast: "Eingabe an alle Bereiche senden",
   },
   vi: {
     ready: "Sẵn sàng",
@@ -131,6 +143,7 @@ const STR: LangDict<Strings> = {
     files: "📁 Tệp",
     settingsTitle: "Cài đặt (S-054)",
     settings: "⚙ Cài đặt",
+    broadcast: "Phát đầu vào tới tất cả khung",
   },
   id: {
     ready: "Siap",
@@ -143,6 +156,7 @@ const STR: LangDict<Strings> = {
     files: "📁 Berkas",
     settingsTitle: "Pengaturan (S-054)",
     settings: "⚙ Pengaturan",
+    broadcast: "Siarkan input ke semua panel",
   },
   hi: {
     ready: "तैयार",
@@ -155,6 +169,7 @@ const STR: LangDict<Strings> = {
     files: "📁 फ़ाइलें",
     settingsTitle: "सेटिंग्स (S-054)",
     settings: "⚙ सेटिंग्स",
+    broadcast: "सभी पैनल में इनपुट प्रसारित करें",
   },
 };
 
@@ -171,6 +186,8 @@ export function TitleBar({
   canOpenFiles,
   onOpenFiles,
   onOpenSettings,
+  broadcast,
+  onToggleBroadcast,
 }: Props) {
   const t = useT(STR);
   const subtitle = activeTab ? subtitleFor(activeTab, t) : t.ready;
@@ -192,6 +209,22 @@ export function TitleBar({
       <strong style={{ marginRight: 16, color: "#fff" }}>AI Terminal</strong>
       <span style={{ color: "#9aa", flex: 1 }}>{subtitle}</span>
       <span style={{ color: "#888", marginRight: 12 }}>{t.tabCount(tabCount)}</span>
+      <button
+        onClick={onToggleBroadcast}
+        title={t.broadcast}
+        style={{
+          background: broadcast ? "#7a1f1f" : "transparent",
+          border: broadcast ? "1px solid #c0504d" : "1px solid transparent",
+          color: broadcast ? "#ffd0d0" : "#cccccc",
+          cursor: "pointer",
+          fontSize: 13,
+          borderRadius: 4,
+          padding: "1px 6px",
+          marginRight: 8,
+        }}
+      >
+        📡
+      </button>
       <button
         onClick={onOpenFiles}
         disabled={!canOpenFiles}

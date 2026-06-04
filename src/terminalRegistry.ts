@@ -30,5 +30,22 @@ export function getTerminal(id: string | null | undefined): TerminalHandle | und
   return registry.get(id);
 }
 
+// --- 입력 브로드캐스트 (#59): 켜면 한 패널에 친 입력을 다른 모든 패널에도 보낸다. ---
+let broadcastEnabled = false;
+export function setBroadcastEnabled(v: boolean): void {
+  broadcastEnabled = v;
+}
+export function isBroadcastEnabled(): boolean {
+  return broadcastEnabled;
+}
+/** origin을 제외한 모든 등록 터미널에 text를 입력으로 보낸다(브로드캐스트 ON일 때만).
+ *  sendInput은 PTY로 직접 쓰므로 대상 패널의 onData를 다시 거치지 않아 루프가 없다. */
+export function broadcastInput(originId: string, text: string): void {
+  if (!broadcastEnabled) return;
+  registry.forEach((h, id) => {
+    if (id !== originId) h.sendInput(text);
+  });
+}
+
 // 세션 인계 보호는 백엔드(SshManager/PtyManager의 detach_guard)에서 처리한다.
 // 원본 창의 kill 명령은 그대로 보내되, 백엔드가 인계된 세션의 첫 kill을 무시한다.

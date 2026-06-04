@@ -45,7 +45,7 @@ import {
   PasswordPromptInfo,
 } from "./components/PasswordPromptModal";
 import { ConnectionErrorModal } from "./components/ConnectionErrorModal";
-import { getTerminal } from "./terminalRegistry";
+import { getTerminal, setBroadcastEnabled } from "./terminalRegistry";
 import {
   Pane,
   SshConnectError,
@@ -429,6 +429,11 @@ function App() {
   const tr = useT(STR);
   const pal = useT(PAL_STR);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  // #59 입력 브로드캐스트: 켜면 한 패널 입력이 모든 패널로. 모듈 레지스트리에 동기화.
+  const [broadcast, setBroadcast] = useState(false);
+  useEffect(() => {
+    setBroadcastEnabled(broadcast);
+  }, [broadcast]);
   // detached 윈도우는 백엔드 registry에서 source를 받기 전까지 빈 상태로 시작 — 메인은 즉시 로컬셸.
   const [tabs, setTabs] = useState<Tab[]>(() =>
     IS_DETACHED_WINDOW ? [] : [makeLocalTab(tr.localShellN(1))],
@@ -1472,6 +1477,8 @@ function App() {
           }
         }}
         onOpenSettings={() => setShowSettings(true)}
+        broadcast={broadcast}
+        onToggleBroadcast={() => setBroadcast((v) => !v)}
       />
       <TabBar
         tabs={tabs}
