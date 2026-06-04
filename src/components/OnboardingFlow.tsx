@@ -311,7 +311,7 @@ export function OnboardingFlow({ onComplete }: Props) {
               <img
                 src="/logo.png"
                 alt="AI Terminal"
-                style={{ width: 72, height: 72, objectFit: "contain" }}
+                style={{ width: 72, height: 72, objectFit: "contain", borderRadius: 16 }}
               />
               <h1 style={{ fontSize: 22, margin: "10px 0 4px", color: "#fff" }}>
                 {t.welcomeTitle}

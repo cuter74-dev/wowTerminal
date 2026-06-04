@@ -44,7 +44,7 @@ export function SplashScreen() {
       <img
         src="/logo.png"
         alt="AI Terminal"
-        style={{ width: 96, height: 96, objectFit: "contain" }}
+        style={{ width: 96, height: 96, objectFit: "contain", borderRadius: 20 }}
       />
       <div style={{ fontSize: 22, fontWeight: 700, color: "#fff" }}>AI Terminal</div>
       <div style={{ fontSize: 12, color: "#789" }}>

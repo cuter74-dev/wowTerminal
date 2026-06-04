@@ -741,7 +741,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   <img
                     src="/logo.png"
                     alt="AI Terminal"
-                    style={{ width: 32, height: 32, objectFit: "contain" }}
+                    style={{ width: 32, height: 32, objectFit: "contain", borderRadius: 7 }}
                   />
                   <div>
                     <div style={{ fontWeight: 700, color: "#fff" }}>AI Terminal</div>
