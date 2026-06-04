@@ -7,6 +7,10 @@
 
 ## [미배포]
 
+- (다음 릴리스에 포함될 변경사항을 여기 누적)
+
+## [0.9.0] — 2026-06-04
+
 ### 추가
 - 터미널 스크롤백 검색(⌘F) — 검색창에서 다음/이전 이동·하이라이트 (#48)
 - 터미널 출력의 URL을 클릭하면 기본 브라우저로 열기 (#48)
@@ -98,7 +102,8 @@
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.8.0...HEAD
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.9.0
 [0.8.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.8.0
 [0.7.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.7.0
 [0.6.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.6.0
