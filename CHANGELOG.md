@@ -7,6 +7,8 @@
 
 ## [미배포]
 
+## [0.10.0] — 2026-06-04
+
 ### 추가
 - 설정에 UI 글꼴 선택 옵션 — 호스트 목록·AI 패널 등 UI 글꼴을 프리셋에서 선택(터미널 폰트와 별개) (#54)
 - 긴 명령 완료 알림 — 백그라운드 탭에서 8초↑ 명령이 끝나면 데스크톱 알림 + 탭 배지(OSC 133 기반) (#55)
@@ -23,6 +25,7 @@
 
 ### 변경
 - 타이틀바 대시보드·브로드캐스트 아이콘을 이모지(📊/📡) 대신 설정 톱니와 같은 stroke SVG 아이콘으로 교체 (#72)
+- macOS 빌드를 Developer ID로 코드 서명 + 공증(notarize) — 다운로드 시 "손상됨" Gatekeeper 경고 제거 (#73)
 
 ## [0.9.0] — 2026-06-04
 
@@ -117,7 +120,8 @@
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.9.0...HEAD
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.9.0
 [0.8.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.8.0
 [0.7.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.7.0
