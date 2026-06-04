@@ -14,6 +14,7 @@ import {
 } from "../settings";
 import { LangDict, useT } from "../i18n";
 import { Group, SshHost, Tag } from "../types";
+import { Snippet, loadSnippets, saveSnippets } from "../snippets";
 
 interface Props {
   settings: AppSettings;
@@ -21,13 +22,20 @@ interface Props {
   onClose: () => void;
 }
 
-type TabId = "general" | "terminal" | "shortcuts" | "backup";
+type TabId = "general" | "terminal" | "shortcuts" | "snippets" | "backup";
 
 const STR: LangDict<{
     settings: string;
     tabGeneral: string;
     tabTerminal: string;
     tabShortcuts: string;
+    tabSnippets: string;
+    snippetNamePh: string;
+    snippetCmdPh: string;
+    snippetAdd: string;
+    snippetNone: string;
+    snippetDelete: string;
+    snippetHint: string;
     tabBackup: string;
     language: string;
     uiFontLabel: string;
@@ -67,6 +75,13 @@ const STR: LangDict<{
     tabGeneral: "General",
     tabTerminal: "Terminal/Theme",
     tabShortcuts: "Shortcuts",
+    tabSnippets: "Snippets",
+    snippetNamePh: "Name",
+    snippetCmdPh: "Command",
+    snippetAdd: "Add",
+    snippetNone: "No snippets yet.",
+    snippetDelete: "Delete",
+    snippetHint: "Run snippets from the ⌘K command palette.",
     tabBackup: "Import/Export",
     language: "Language",
     uiFontLabel: "UI font",
@@ -108,6 +123,13 @@ const STR: LangDict<{
     tabGeneral: "일반",
     tabTerminal: "터미널/테마",
     tabShortcuts: "단축키",
+    tabSnippets: "스니펫",
+    snippetNamePh: "이름",
+    snippetCmdPh: "명령",
+    snippetAdd: "추가",
+    snippetNone: "스니펫 없음.",
+    snippetDelete: "삭제",
+    snippetHint: "스니펫은 ⌘K 명령 팔레트에서 실행합니다.",
     tabBackup: "가져오기/내보내기",
     language: "언어",
     uiFontLabel: "UI 글꼴",
@@ -149,6 +171,13 @@ const STR: LangDict<{
     tabGeneral: "General",
     tabTerminal: "Terminal/Tema",
     tabShortcuts: "Atajos",
+    tabSnippets: "Fragmentos",
+    snippetNamePh: "Nombre",
+    snippetCmdPh: "Comando",
+    snippetAdd: "Añadir",
+    snippetNone: "Sin fragmentos.",
+    snippetDelete: "Eliminar",
+    snippetHint: "Ejecuta fragmentos desde la paleta de comandos ⌘K.",
     tabBackup: "Importar/Exportar",
     language: "Idioma",
     uiFontLabel: "Fuente de interfaz",
@@ -190,6 +219,13 @@ const STR: LangDict<{
     tabGeneral: "常规",
     tabTerminal: "终端/主题",
     tabShortcuts: "快捷键",
+    tabSnippets: "片段",
+    snippetNamePh: "名称",
+    snippetCmdPh: "命令",
+    snippetAdd: "添加",
+    snippetNone: "暂无片段。",
+    snippetDelete: "删除",
+    snippetHint: "在 ⌘K 命令面板中运行片段。",
     tabBackup: "导入/导出",
     language: "语言",
     uiFontLabel: "界面字体",
@@ -231,6 +267,13 @@ const STR: LangDict<{
     tabGeneral: "一般",
     tabTerminal: "ターミナル/テーマ",
     tabShortcuts: "ショートカット",
+    tabSnippets: "スニペット",
+    snippetNamePh: "名前",
+    snippetCmdPh: "コマンド",
+    snippetAdd: "追加",
+    snippetNone: "スニペットなし。",
+    snippetDelete: "削除",
+    snippetHint: "⌘K コマンドパレットからスニペットを実行。",
     tabBackup: "インポート/エクスポート",
     language: "言語",
     uiFontLabel: "UI フォント",
@@ -272,6 +315,13 @@ const STR: LangDict<{
     tabGeneral: "Общие",
     tabTerminal: "Терминал/Тема",
     tabShortcuts: "Сочетания клавиш",
+    tabSnippets: "Сниппеты",
+    snippetNamePh: "Имя",
+    snippetCmdPh: "Команда",
+    snippetAdd: "Добавить",
+    snippetNone: "Нет сниппетов.",
+    snippetDelete: "Удалить",
+    snippetHint: "Запускайте сниппеты из палитры команд ⌘K.",
     tabBackup: "Импорт/Экспорт",
     language: "Язык",
     uiFontLabel: "Шрифт интерфейса",
@@ -313,6 +363,13 @@ const STR: LangDict<{
     tabGeneral: "Général",
     tabTerminal: "Terminal/Thème",
     tabShortcuts: "Raccourcis",
+    tabSnippets: "Extraits",
+    snippetNamePh: "Nom",
+    snippetCmdPh: "Commande",
+    snippetAdd: "Ajouter",
+    snippetNone: "Aucun extrait.",
+    snippetDelete: "Supprimer",
+    snippetHint: "Exécutez les extraits depuis la palette de commandes ⌘K.",
     tabBackup: "Importer/Exporter",
     language: "Langue",
     uiFontLabel: "Police de l'interface",
@@ -354,6 +411,13 @@ const STR: LangDict<{
     tabGeneral: "Allgemein",
     tabTerminal: "Terminal/Design",
     tabShortcuts: "Tastenkürzel",
+    tabSnippets: "Snippets",
+    snippetNamePh: "Name",
+    snippetCmdPh: "Befehl",
+    snippetAdd: "Hinzufügen",
+    snippetNone: "Keine Snippets.",
+    snippetDelete: "Löschen",
+    snippetHint: "Snippets über die Befehlspalette ⌘K ausführen.",
     tabBackup: "Importieren/Exportieren",
     language: "Sprache",
     uiFontLabel: "UI-Schriftart",
@@ -395,6 +459,13 @@ const STR: LangDict<{
     tabGeneral: "Chung",
     tabTerminal: "Terminal/Giao diện",
     tabShortcuts: "Phím tắt",
+    tabSnippets: "Đoạn mã",
+    snippetNamePh: "Tên",
+    snippetCmdPh: "Lệnh",
+    snippetAdd: "Thêm",
+    snippetNone: "Chưa có đoạn mã.",
+    snippetDelete: "Xóa",
+    snippetHint: "Chạy đoạn mã từ bảng lệnh ⌘K.",
     tabBackup: "Nhập/Xuất",
     language: "Ngôn ngữ",
     uiFontLabel: "Phông chữ giao diện",
@@ -436,6 +507,13 @@ const STR: LangDict<{
     tabGeneral: "Umum",
     tabTerminal: "Terminal/Tema",
     tabShortcuts: "Pintasan",
+    tabSnippets: "Cuplikan",
+    snippetNamePh: "Nama",
+    snippetCmdPh: "Perintah",
+    snippetAdd: "Tambah",
+    snippetNone: "Belum ada cuplikan.",
+    snippetDelete: "Hapus",
+    snippetHint: "Jalankan cuplikan dari palet perintah ⌘K.",
     tabBackup: "Impor/Ekspor",
     language: "Bahasa",
     uiFontLabel: "Font UI",
@@ -477,6 +555,13 @@ const STR: LangDict<{
     tabGeneral: "सामान्य",
     tabTerminal: "टर्मिनल/थीम",
     tabShortcuts: "शॉर्टकट",
+    tabSnippets: "स्निपेट",
+    snippetNamePh: "नाम",
+    snippetCmdPh: "कमांड",
+    snippetAdd: "जोड़ें",
+    snippetNone: "कोई स्निपेट नहीं।",
+    snippetDelete: "हटाएं",
+    snippetHint: "⌘K कमांड पैलेट से स्निपेट चलाएं।",
     tabBackup: "आयात/निर्यात",
     language: "भाषा",
     uiFontLabel: "UI फ़ॉन्ट",
@@ -529,6 +614,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
     { id: "general", label: t.tabGeneral },
     { id: "terminal", label: t.tabTerminal },
     { id: "shortcuts", label: t.tabShortcuts },
+    { id: "snippets", label: t.tabSnippets },
     { id: "backup", label: t.tabBackup },
   ];
 
@@ -727,6 +813,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
             <ShortcutsTab settings={settings} onChange={onChange} />
           )}
 
+          {tab === "snippets" && <SnippetsTab />}
           {tab === "backup" && <BackupTab />}
         </div>
       </div>
@@ -1076,6 +1163,100 @@ function BackupTab() {
       {msg && <div style={{ color: "#9cf", fontSize: 11, marginTop: 6 }}>{msg}</div>}
       <div style={{ color: "#789", fontSize: 11, marginTop: 4 }}>
         {t.secretsNote}
+      </div>
+    </Section>
+  );
+}
+
+function SnippetsTab() {
+  const t = useT(STR);
+  const [list, setList] = useState<Snippet[]>(() => loadSnippets());
+  const [name, setName] = useState("");
+  const [command, setCommand] = useState("");
+  const persist = (next: Snippet[]) => {
+    setList(next);
+    saveSnippets(next);
+  };
+  const add = () => {
+    if (!name.trim() || !command.trim()) return;
+    persist([
+      ...list,
+      { id: crypto.randomUUID(), name: name.trim(), command: command.trim() },
+    ]);
+    setName("");
+    setCommand("");
+  };
+  return (
+    <Section>
+      <div style={{ display: "flex", gap: 6 }}>
+        <input
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          placeholder={t.snippetNamePh}
+          style={{ ...inputStyle, width: 130 }}
+        />
+        <input
+          value={command}
+          onChange={(e) => setCommand(e.target.value)}
+          onKeyDown={(e) => e.key === "Enter" && add()}
+          placeholder={t.snippetCmdPh}
+          style={{ ...inputStyle, flex: 1, fontFamily: "monospace" }}
+        />
+        <button onClick={add} style={primaryBtnStyle}>
+          {t.snippetAdd}
+        </button>
+      </div>
+      {list.length === 0 ? (
+        <div style={{ color: "#789", fontSize: 12, marginTop: 8 }}>
+          {t.snippetNone}
+        </div>
+      ) : (
+        <div
+          style={{
+            marginTop: 8,
+            display: "flex",
+            flexDirection: "column",
+            gap: 4,
+          }}
+        >
+          {list.map((s) => (
+            <div
+              key={s.id}
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "6px 8px",
+                background: "#1d1d24",
+                borderRadius: 4,
+              }}
+            >
+              <span style={{ fontWeight: 600, minWidth: 90 }}>{s.name}</span>
+              <span
+                style={{
+                  flex: 1,
+                  fontFamily: "monospace",
+                  fontSize: 12,
+                  color: "#9cd",
+                  whiteSpace: "nowrap",
+                  overflow: "hidden",
+                  textOverflow: "ellipsis",
+                }}
+              >
+                {s.command}
+              </span>
+              <button
+                onClick={() => persist(list.filter((x) => x.id !== s.id))}
+                style={btnStyle}
+              >
+                {t.snippetDelete}
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ color: "#789", fontSize: 11, marginTop: 8 }}>
+        {t.snippetHint}
       </div>
     </Section>
   );

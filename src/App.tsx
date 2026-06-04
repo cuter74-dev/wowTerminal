@@ -11,6 +11,7 @@ import {
 } from "@tauri-apps/plugin-notification";
 import { onCommandDone } from "./commandBus";
 import { getHistory } from "./commandHistory";
+import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
@@ -411,18 +412,19 @@ const PAL_STR: LangDict<{
   openFiles: string;
   connect: string;
   run: string;
+  snippet: string;
 }> = {
-  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run" },
-  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행" },
-  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar" },
-  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行" },
-  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行" },
-  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить" },
-  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter" },
-  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen" },
-  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy" },
-  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan" },
-  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं" },
+  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet" },
+  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫" },
+  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento" },
+  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段" },
+  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット" },
+  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет" },
+  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait" },
+  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet" },
+  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã" },
+  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan" },
+  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट" },
 };
 
 function App() {
@@ -813,6 +815,14 @@ function App() {
     }
     const focused = activeTab?.focusedPaneId;
     if (focused) {
+      for (const sn of loadSnippets()) {
+        out.push({
+          id: `snip-${sn.id}`,
+          label: `${pal.snippet}: ${sn.name}`,
+          hint: sn.command,
+          action: () => getTerminal(focused)?.sendInput(sn.command),
+        });
+      }
       const recent = [...getHistory()].reverse().slice(0, 30);
       for (let i = 0; i < recent.length; i++) {
         const cmd = recent[i];
