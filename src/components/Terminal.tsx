@@ -1,12 +1,16 @@
 import { useEffect, useRef, useState } from "react";
-import { Terminal as XTerm } from "@xterm/xterm";
+import { Terminal as XTerm, IMarker } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
+import { SearchAddon } from "@xterm/addon-search";
+import { WebLinksAddon } from "@xterm/addon-web-links";
 import { invoke } from "@tauri-apps/api/core";
+import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
 import { registerTerminal, unregisterTerminal } from "../terminalRegistry";
+import { askAI } from "../aiBus";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { LangDict, useT } from "../i18n";
@@ -167,24 +171,25 @@ const STR: LangDict<{
   },
 };
 
-// 우클릭 컨텍스트 메뉴 라벨 (복사/붙여넣기/전체선택/지우기).
+// 우클릭 컨텍스트 메뉴 + 검색 라벨.
 const CTX_STR: LangDict<{
   copy: string;
   paste: string;
   selectAll: string;
   clear: string;
+  searchPlaceholder: string;
 }> = {
-  en: { copy: "Copy", paste: "Paste", selectAll: "Select all", clear: "Clear" },
-  ko: { copy: "복사", paste: "붙여넣기", selectAll: "전체 선택", clear: "지우기" },
-  es: { copy: "Copiar", paste: "Pegar", selectAll: "Seleccionar todo", clear: "Limpiar" },
-  zh: { copy: "复制", paste: "粘贴", selectAll: "全选", clear: "清屏" },
-  ja: { copy: "コピー", paste: "貼り付け", selectAll: "すべて選択", clear: "クリア" },
-  ru: { copy: "Копировать", paste: "Вставить", selectAll: "Выделить всё", clear: "Очистить" },
-  fr: { copy: "Copier", paste: "Coller", selectAll: "Tout sélectionner", clear: "Effacer" },
-  de: { copy: "Kopieren", paste: "Einfügen", selectAll: "Alles auswählen", clear: "Leeren" },
-  vi: { copy: "Sao chép", paste: "Dán", selectAll: "Chọn tất cả", clear: "Xóa" },
-  id: { copy: "Salin", paste: "Tempel", selectAll: "Pilih semua", clear: "Bersihkan" },
-  hi: { copy: "कॉपी", paste: "पेस्ट", selectAll: "सभी चुनें", clear: "साफ़ करें" },
+  en: { copy: "Copy", paste: "Paste", selectAll: "Select all", clear: "Clear", searchPlaceholder: "Find in terminal" },
+  ko: { copy: "복사", paste: "붙여넣기", selectAll: "전체 선택", clear: "지우기", searchPlaceholder: "터미널에서 찾기" },
+  es: { copy: "Copiar", paste: "Pegar", selectAll: "Seleccionar todo", clear: "Limpiar", searchPlaceholder: "Buscar en el terminal" },
+  zh: { copy: "复制", paste: "粘贴", selectAll: "全选", clear: "清屏", searchPlaceholder: "在终端中查找" },
+  ja: { copy: "コピー", paste: "貼り付け", selectAll: "すべて選択", clear: "クリア", searchPlaceholder: "ターミナル内を検索" },
+  ru: { copy: "Копировать", paste: "Вставить", selectAll: "Выделить всё", clear: "Очистить", searchPlaceholder: "Поиск в терминале" },
+  fr: { copy: "Copier", paste: "Coller", selectAll: "Tout sélectionner", clear: "Effacer", searchPlaceholder: "Rechercher dans le terminal" },
+  de: { copy: "Kopieren", paste: "Einfügen", selectAll: "Alles auswählen", clear: "Leeren", searchPlaceholder: "Im Terminal suchen" },
+  vi: { copy: "Sao chép", paste: "Dán", selectAll: "Chọn tất cả", clear: "Xóa", searchPlaceholder: "Tìm trong terminal" },
+  id: { copy: "Salin", paste: "Tempel", selectAll: "Pilih semua", clear: "Bersihkan", searchPlaceholder: "Cari di terminal" },
+  hi: { copy: "कॉपी", paste: "पेस्ट", selectAll: "सभी चुनें", clear: "साफ़ करें", searchPlaceholder: "टर्मिनल में खोजें" },
 };
 
 type OutputPayload = {
@@ -203,6 +208,58 @@ function bytesToBase64(bytes: Uint8Array): string {
   let bin = "";
   for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
   return btoa(bin);
+}
+
+// OSC 133 커맨드 블록 배지를 해당 명령 줄에 decoration으로 단다.
+// 상태 배지(✓/✗+시간) 클릭 = 블록 출력 복사, ✨ 클릭 = 그 블록을 AI에 질문.
+function addCommandBadge(
+  term: XTerm,
+  marker: IMarker | undefined,
+  exit: number,
+  durMs: number,
+  block: string,
+): void {
+  if (!marker) return;
+  const dec = term.registerDecoration({ marker, x: 0, width: term.cols });
+  if (!dec) return;
+  dec.onRender((el) => {
+    if (el.dataset.wtBadge) return;
+    el.dataset.wtBadge = "1";
+    el.style.pointerEvents = "none"; // 컨테이너는 클릭 통과, 자식만 클릭 가능
+    el.style.display = "flex";
+    el.style.justifyContent = "flex-end";
+    el.style.alignItems = "center";
+    el.style.gap = "4px";
+    el.style.paddingRight = "8px";
+    const ok = exit === 0;
+    const dur =
+      durMs >= 1000 ? `${(durMs / 1000).toFixed(1)}s` : `${durMs}ms`;
+
+    const badge = document.createElement("span");
+    badge.textContent = ok ? `✓ ${dur}` : `✗ ${exit} · ${dur}`;
+    badge.title = "Copy output";
+    badge.style.cssText =
+      "pointer-events:auto;cursor:pointer;font-size:10px;line-height:15px;border-radius:8px;padding:0 6px;" +
+      (ok
+        ? "background:#15301f;color:#7fe0a0;border:1px solid #2c5740;"
+        : "background:#341a1a;color:#ff9a9a;border:1px solid #5a2f2f;");
+    badge.onclick = () => {
+      void navigator.clipboard.writeText(block);
+      const prev = badge.textContent;
+      badge.textContent = "✓ copied";
+      setTimeout(() => (badge.textContent = prev), 900);
+    };
+
+    const ask = document.createElement("span");
+    ask.textContent = "✨";
+    ask.title = "Ask AI about this command";
+    ask.style.cssText =
+      "pointer-events:auto;cursor:pointer;font-size:11px;line-height:15px;border-radius:8px;padding:0 5px;background:#1e2740;color:#aaccee;border:1px solid #2f3f60;";
+    ask.onclick = () => askAI(block);
+
+    el.appendChild(badge);
+    el.appendChild(ask);
+  });
 }
 
 type Commands = {
@@ -288,6 +345,9 @@ export function Terminal({
   const containerRef = useRef<HTMLDivElement>(null);
   const termRef = useRef<XTerm | null>(null);
   const fitRef = useRef<FitAddon | null>(null);
+  const searchRef = useRef<SearchAddon | null>(null);
+  // 터미널 검색(⌘F) 오버레이 표시 여부.
+  const [searchOpen, setSearchOpen] = useState(false);
   // 첫 마운트 시점의 설정으로 생성하고, 이후 변경은 아래 별도 effect가 런타임 반영.
   const initialSettings = useRef(termSettings);
   // 대체 화면 휠→화살표 변환 토글 (휠 핸들러가 최신 값을 읽도록 ref로).
@@ -325,6 +385,16 @@ export function Terminal({
     term.loadAddon(fit);
     const serializeAddon = new SerializeAddon();
     term.loadAddon(serializeAddon);
+    // 스크롤백 검색(⌘F).
+    const searchAddon = new SearchAddon();
+    term.loadAddon(searchAddon);
+    searchRef.current = searchAddon;
+    // 출력의 URL을 클릭하면 기본 브라우저로 연다(Tauri opener).
+    term.loadAddon(
+      new WebLinksAddon((_event, uri) => {
+        void openUrl(uri).catch(() => {});
+      }),
+    );
     term.open(containerRef.current);
     // 컨테이너에 실제 크기가 있을 때만 fit(0 크기면 cols/rows가 최소로 줄어 spawn 크기가 깨짐).
     if (
@@ -368,6 +438,44 @@ export function Terminal({
         // 잘못된 base64 등은 무시.
       }
       return true; // 처리 완료
+    });
+
+    // OSC 133 셸 시맨틱 통합: 명령 시작(C)·종료(D;exit)를 받아 명령별 종료코드·실행시간 배지.
+    // (로컬 zsh는 spawn 시 ZDOTDIR로 훅 주입됨. SSH/기타 셸은 사용자가 rc에 넣으면 동작.)
+    let cmdStart = 0;
+    let cMarker: IMarker | undefined;
+    const cmdMarkers: IMarker[] = []; // ⌘↑/↓ 명령 점프용.
+    term.parser.registerOscHandler(133, (payload) => {
+      const kind = payload[0];
+      if (kind === "C") {
+        cmdStart = Date.now();
+        cMarker = term.registerMarker(0);
+      } else if (kind === "D") {
+        const exit = parseInt(payload.split(";")[1] ?? "", 10);
+        if (cMarker && cmdStart) {
+          // 블록 텍스트(명령 줄 + 출력) 추출: cMarker.line-1 ~ 현재 줄.
+          const buf = term.buffer.active;
+          const start = Math.max(0, cMarker.line - 1);
+          const end = buf.baseY + buf.cursorY;
+          let block = "";
+          for (let i = start; i < end; i++) {
+            const ln = buf.getLine(i);
+            if (ln) block += ln.translateToString(true) + "\n";
+          }
+          block = block.replace(/\n{3,}/g, "\n\n").trim();
+          addCommandBadge(
+            term,
+            cMarker,
+            isNaN(exit) ? 0 : exit,
+            Date.now() - cmdStart,
+            block,
+          );
+          cmdMarkers.push(cMarker);
+        }
+        cmdStart = 0;
+        cMarker = undefined;
+      }
+      return true;
     });
 
     // 대체화면 TUI(vim/tmux/Claude Code 등)가 마우스 추적 모드를 켠 뒤 끄지 않고 종료하면,
@@ -475,6 +583,35 @@ export function Terminal({
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // ⌘F: 터미널 스크롤백 검색 오버레이 열기.
+      if (e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "f" || e.key === "F")) {
+        e.preventDefault();
+        setSearchOpen(true);
+        return false;
+      }
+      // ⌘↑ / ⌘↓: 이전/다음 명령(OSC 133 마크)으로 점프.
+      if (
+        e.metaKey &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.shiftKey &&
+        (e.key === "ArrowUp" || e.key === "ArrowDown")
+      ) {
+        const lines = cmdMarkers
+          .filter((m) => m && !m.isDisposed && m.line >= 0)
+          .map((m) => m.line)
+          .sort((a, b) => a - b);
+        if (lines.length) {
+          e.preventDefault();
+          const top = term.buffer.active.viewportY;
+          const target =
+            e.key === "ArrowUp"
+              ? [...lines].reverse().find((l) => l < top)
+              : lines.find((l) => l > top + 1);
+          if (target !== undefined) term.scrollToLine(Math.max(0, target - 1));
+          return false;
+        }
+      }
       // ⌘C 복사: xterm 선택은 DOM 선택이 아니라 자체 모델이라 OS 기본 복사가 빈 내용을
       // 복사한다. 선택이 있으면 직접 가로채 term.getSelection()을 클립보드에 쓴다.
       // (선택이 없으면 통과 — Ctrl-C는 SIGINT라 metaKey 조건으로만 가로챈다.)
@@ -788,6 +925,32 @@ export function Terminal({
           background: TERMINAL_THEMES[termSettings.theme].background,
         }}
       />
+      {searchOpen && (
+        <TerminalSearchOverlay
+          labels={ctx}
+          onFind={(q, dir) => {
+            const opts = {
+              decorations: {
+                matchBackground: "#5a4a00",
+                activeMatchBackground: "#b58900",
+                matchOverviewRuler: "#b58900",
+                activeMatchColorOverviewRuler: "#ffd75f",
+              },
+            };
+            if (!q) {
+              searchRef.current?.clearDecorations();
+              return;
+            }
+            if (dir === "prev") searchRef.current?.findPrevious(q, opts);
+            else searchRef.current?.findNext(q, opts);
+          }}
+          onClose={() => {
+            searchRef.current?.clearDecorations();
+            setSearchOpen(false);
+            termRef.current?.focus();
+          }}
+        />
+      )}
       {ctxMenu && (
         <TerminalContextMenu
           x={ctxMenu.x}
@@ -838,6 +1001,89 @@ export function Terminal({
           }}
         />
       )}
+    </div>
+  );
+}
+
+function TerminalSearchOverlay({
+  labels,
+  onFind,
+  onClose,
+}: {
+  labels: { searchPlaceholder: string };
+  onFind: (query: string, dir: "next" | "prev") => void;
+  onClose: () => void;
+}) {
+  const [q, setQ] = useState("");
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  const btnStyle: React.CSSProperties = {
+    background: "#2a2a32",
+    color: "#ccc",
+    border: "1px solid #3a3a44",
+    borderRadius: 4,
+    padding: "0 8px",
+    height: 26,
+    cursor: "pointer",
+    fontSize: 14,
+  };
+
+  return (
+    <div
+      style={{
+        position: "absolute",
+        top: 8,
+        right: 12,
+        zIndex: 60,
+        display: "flex",
+        alignItems: "center",
+        gap: 4,
+        background: "#16161c",
+        border: "1px solid #3a3a44",
+        borderRadius: 6,
+        boxShadow: "0 4px 16px rgba(0,0,0,0.4)",
+        padding: 4,
+      }}
+    >
+      <input
+        ref={inputRef}
+        value={q}
+        onChange={(e) => {
+          setQ(e.target.value);
+          onFind(e.target.value, "next");
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") onClose();
+          else if (e.key === "Enter") {
+            e.preventDefault();
+            onFind(q, e.shiftKey ? "prev" : "next");
+          }
+        }}
+        placeholder={labels.searchPlaceholder}
+        style={{
+          width: 200,
+          background: "#101015",
+          border: "1px solid #444",
+          color: "#fff",
+          borderRadius: 4,
+          padding: "4px 8px",
+          fontSize: 13,
+          height: 26,
+          boxSizing: "border-box",
+        }}
+      />
+      <button style={btnStyle} title="Previous (⇧Enter)" onClick={() => onFind(q, "prev")}>
+        ↑
+      </button>
+      <button style={btnStyle} title="Next (Enter)" onClick={() => onFind(q, "next")}>
+        ↓
+      </button>
+      <button style={btnStyle} title="Close (Esc)" onClick={onClose}>
+        ✕
+      </button>
     </div>
   );
 }

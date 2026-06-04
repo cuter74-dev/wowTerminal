@@ -46,6 +46,9 @@ const STR: LangDict<{
     export: string;
     exportFile: string;
     importFile: string;
+    importSshConfig: string;
+    sshConfigEmpty: string;
+    sshConfigImported: (n: number) => string;
     copy: string;
     import: string;
     backupPlaceholder: string;
@@ -90,6 +93,9 @@ const STR: LangDict<{
     exportFail: (e) => `Export failed: ${e}`,
     exportFile: "Export to file…",
     importFile: "Import from file…",
+    importSshConfig: "Import ~/.ssh/config",
+    sshConfigEmpty: "~/.ssh/config not found or empty.",
+    sshConfigImported: (n) => `Imported ${n} hosts from ~/.ssh/config.`,
     exportFileDone: (p) => `Saved to ${p}`,
     importDone: (h, g, t) => `Import complete: hosts ${h} / groups ${g} / tags ${t}`,
     importFail: (e) => `Import failed: ${e}`,
@@ -127,6 +133,9 @@ const STR: LangDict<{
     exportFail: (e) => `내보내기 실패: ${e}`,
     exportFile: "파일로 내보내기…",
     importFile: "파일에서 가져오기…",
+    importSshConfig: "~/.ssh/config 가져오기",
+    sshConfigEmpty: "~/.ssh/config가 없거나 비어 있습니다.",
+    sshConfigImported: (n) => `~/.ssh/config에서 ${n}개 호스트를 가져왔습니다.`,
     exportFileDone: (p) => `저장됨: ${p}`,
     importDone: (h, g, t) => `가져오기 완료: 호스트 ${h} / 그룹 ${g} / 태그 ${t}`,
     importFail: (e) => `가져오기 실패: ${e}`,
@@ -164,6 +173,9 @@ const STR: LangDict<{
     exportFail: (e) => `Exportación fallida: ${e}`,
     exportFile: "Exportar a archivo…",
     importFile: "Importar desde archivo…",
+    importSshConfig: "Importar ~/.ssh/config",
+    sshConfigEmpty: "~/.ssh/config no encontrado o vacío.",
+    sshConfigImported: (n) => `Se importaron ${n} hosts de ~/.ssh/config.`,
     exportFileDone: (p) => `Guardado en ${p}`,
     importDone: (h, g, t) => `Importación completa: hosts ${h} / grupos ${g} / etiquetas ${t}`,
     importFail: (e) => `Importación fallida: ${e}`,
@@ -201,6 +213,9 @@ const STR: LangDict<{
     exportFail: (e) => `导出失败: ${e}`,
     exportFile: "导出到文件…",
     importFile: "从文件导入…",
+    importSshConfig: "导入 ~/.ssh/config",
+    sshConfigEmpty: "未找到 ~/.ssh/config 或为空。",
+    sshConfigImported: (n) => `已从 ~/.ssh/config 导入 ${n} 个主机。`,
     exportFileDone: (p) => `已保存到 ${p}`,
     importDone: (h, g, t) => `导入完成: 主机 ${h} / 分组 ${g} / 标签 ${t}`,
     importFail: (e) => `导入失败: ${e}`,
@@ -238,6 +253,9 @@ const STR: LangDict<{
     exportFail: (e) => `エクスポート失敗: ${e}`,
     exportFile: "ファイルに書き出し…",
     importFile: "ファイルから読み込み…",
+    importSshConfig: "~/.ssh/config を取り込み",
+    sshConfigEmpty: "~/.ssh/config が見つからないか空です。",
+    sshConfigImported: (n) => `~/.ssh/config から ${n} 件のホストを取り込みました。`,
     exportFileDone: (p) => `保存しました: ${p}`,
     importDone: (h, g, t) => `インポート完了: ホスト ${h} / グループ ${g} / タグ ${t}`,
     importFail: (e) => `インポート失敗: ${e}`,
@@ -275,6 +293,9 @@ const STR: LangDict<{
     exportFail: (e) => `Ошибка экспорта: ${e}`,
     exportFile: "Экспорт в файл…",
     importFile: "Импорт из файла…",
+    importSshConfig: "Импорт ~/.ssh/config",
+    sshConfigEmpty: "~/.ssh/config не найден или пуст.",
+    sshConfigImported: (n) => `Импортировано хостов из ~/.ssh/config: ${n}.`,
     exportFileDone: (p) => `Сохранено: ${p}`,
     importDone: (h, g, t) => `Импорт завершён: хосты ${h} / группы ${g} / теги ${t}`,
     importFail: (e) => `Ошибка импорта: ${e}`,
@@ -312,6 +333,9 @@ const STR: LangDict<{
     exportFail: (e) => `Échec de l'exportation : ${e}`,
     exportFile: "Exporter vers un fichier…",
     importFile: "Importer depuis un fichier…",
+    importSshConfig: "Importer ~/.ssh/config",
+    sshConfigEmpty: "~/.ssh/config introuvable ou vide.",
+    sshConfigImported: (n) => `${n} hôtes importés depuis ~/.ssh/config.`,
     exportFileDone: (p) => `Enregistré : ${p}`,
     importDone: (h, g, t) => `Importation terminée : hôtes ${h} / groupes ${g} / étiquettes ${t}`,
     importFail: (e) => `Échec de l'importation : ${e}`,
@@ -349,6 +373,9 @@ const STR: LangDict<{
     exportFail: (e) => `Export fehlgeschlagen: ${e}`,
     exportFile: "In Datei exportieren…",
     importFile: "Aus Datei importieren…",
+    importSshConfig: "~/.ssh/config importieren",
+    sshConfigEmpty: "~/.ssh/config nicht gefunden oder leer.",
+    sshConfigImported: (n) => `${n} Hosts aus ~/.ssh/config importiert.`,
     exportFileDone: (p) => `Gespeichert: ${p}`,
     importDone: (h, g, t) => `Import abgeschlossen: Hosts ${h} / Gruppen ${g} / Tags ${t}`,
     importFail: (e) => `Import fehlgeschlagen: ${e}`,
@@ -386,6 +413,9 @@ const STR: LangDict<{
     exportFail: (e) => `Xuất thất bại: ${e}`,
     exportFile: "Xuất ra tệp…",
     importFile: "Nhập từ tệp…",
+    importSshConfig: "Nhập ~/.ssh/config",
+    sshConfigEmpty: "Không tìm thấy ~/.ssh/config hoặc trống.",
+    sshConfigImported: (n) => `Đã nhập ${n} máy chủ từ ~/.ssh/config.`,
     exportFileDone: (p) => `Đã lưu: ${p}`,
     importDone: (h, g, t) => `Nhập hoàn tất: máy chủ ${h} / nhóm ${g} / thẻ ${t}`,
     importFail: (e) => `Nhập thất bại: ${e}`,
@@ -423,6 +453,9 @@ const STR: LangDict<{
     exportFail: (e) => `Ekspor gagal: ${e}`,
     exportFile: "Ekspor ke berkas…",
     importFile: "Impor dari berkas…",
+    importSshConfig: "Impor ~/.ssh/config",
+    sshConfigEmpty: "~/.ssh/config tidak ditemukan atau kosong.",
+    sshConfigImported: (n) => `Mengimpor ${n} host dari ~/.ssh/config.`,
     exportFileDone: (p) => `Disimpan ke ${p}`,
     importDone: (h, g, t) => `Impor selesai: host ${h} / grup ${g} / tag ${t}`,
     importFail: (e) => `Impor gagal: ${e}`,
@@ -460,6 +493,9 @@ const STR: LangDict<{
     exportFail: (e) => `निर्यात विफल: ${e}`,
     exportFile: "फ़ाइल में निर्यात…",
     importFile: "फ़ाइल से आयात…",
+    importSshConfig: "~/.ssh/config आयात करें",
+    sshConfigEmpty: "~/.ssh/config नहीं मिला या खाली है।",
+    sshConfigImported: (n) => `~/.ssh/config से ${n} होस्ट आयात किए।`,
     exportFileDone: (p) => `सहेजा गया: ${p}`,
     importDone: (h, g, t) => `आयात पूर्ण: होस्ट ${h} / समूह ${g} / टैग ${t}`,
     importFail: (e) => `आयात विफल: ${e}`,
@@ -814,6 +850,43 @@ function ShortcutsTab({
   );
 }
 
+interface ParsedSshHost {
+  name: string;
+  host: string;
+  user: string;
+  port: number;
+}
+
+/** ~/.ssh/config의 Host 블록을 파싱한다. 와일드카드(*,?) Host는 건너뛴다. */
+function parseSshConfig(text: string): ParsedSshHost[] {
+  const out: ParsedSshHost[] = [];
+  let cur: ParsedSshHost | null = null;
+  const flush = () => {
+    if (cur && cur.name && !/[*?]/.test(cur.name)) out.push(cur);
+    cur = null;
+  };
+  for (const raw of text.split(/\r?\n/)) {
+    const line = raw.trim();
+    if (!line || line.startsWith("#")) continue;
+    const m = /^(\S+)[\s=]+(.+)$/.exec(line);
+    if (!m) continue;
+    const key = m[1].toLowerCase();
+    const val = m[2].trim();
+    if (key === "host") {
+      flush();
+      const alias =
+        val.split(/\s+/).find((a) => !/[*?]/.test(a)) ?? val.split(/\s+/)[0];
+      cur = { name: alias, host: alias, user: "", port: 22 };
+    } else if (cur) {
+      if (key === "hostname") cur.host = val;
+      else if (key === "user") cur.user = val;
+      else if (key === "port") cur.port = parseInt(val, 10) || 22;
+    }
+  }
+  flush();
+  return out;
+}
+
 function BackupTab() {
   const t = useT(STR);
   const [text, setText] = useState("");
@@ -837,6 +910,35 @@ function BackupTab() {
     for (const t2 of tags) await invoke("ssh_save_tag", { tag: t2 });
     for (const h of hosts) await invoke("ssh_save_host", { host: h });
     return t.importDone(hosts.length, groups.length, tags.length);
+  }
+
+  // ~/.ssh/config 가져오기: Host 블록을 파싱해 호스트로 등록(auth는 ssh-agent 기본, 편집 가능).
+  async function doImportSshConfig() {
+    setMsg(null);
+    try {
+      const text = await invoke<string>("ssh_read_config");
+      const parsed = parseSshConfig(text);
+      if (parsed.length === 0) {
+        setMsg(t.sshConfigEmpty);
+        return;
+      }
+      for (const p of parsed) {
+        const host: SshHost = {
+          id: crypto.randomUUID(),
+          name: p.name,
+          host: p.host || p.name,
+          port: p.port,
+          user: p.user,
+          auth: { type: "agent" },
+          tags: [],
+          group_id: null,
+        };
+        await invoke("ssh_save_host", { host });
+      }
+      setMsg(t.sshConfigImported(parsed.length));
+    } catch (e) {
+      setMsg(t.importFail(String(e)));
+    }
   }
 
   async function doExport() {
@@ -903,6 +1005,13 @@ function BackupTab() {
         </button>
         <button onClick={() => void doImportFile()} style={primaryBtnStyle}>
           {t.importFile}
+        </button>
+        <button
+          onClick={() => void doImportSshConfig()}
+          style={btnStyle}
+          title="~/.ssh/config"
+        >
+          {t.importSshConfig}
         </button>
       </div>
       <div

@@ -145,6 +145,7 @@ pub fn run() {
             ssh::commands::local_list_dir,
             ssh::commands::local_read_text,
             ssh::commands::local_write_text,
+            ssh::commands::ssh_read_config,
             ssh::commands::local_read_bytes,
             windows::open_detached_window,
             windows::mark_session_detached,

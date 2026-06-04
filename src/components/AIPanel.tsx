@@ -9,6 +9,7 @@ import {
 } from "../types";
 import { LlmSetupModal } from "./LlmSetupModal";
 import { getTerminal } from "../terminalRegistry";
+import { setAskAIListener } from "../aiBus";
 import { LangDict, useT } from "../i18n";
 import {
   ChatSession,
@@ -94,6 +95,13 @@ const STR: LangDict<{
     sshContext: (label: string) => string;
     errorPrefix: (e: string) => string;
     noPaneToInput: string;
+    qaFixLabel: string;
+    qaFixPrompt: string;
+    qaExplainLabel: string;
+    qaExplainPrompt: string;
+    qaNextLabel: string;
+    qaNextPrompt: string;
+    quickActionsTitle: string;
     runInTerminal: string;
     runInTerminalTitle: string;
     copied: string;
@@ -131,6 +139,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Error] ${e}`,
     noPaneToInput: "No terminal pane to input into.",
+    qaFixLabel: "🔧 Fix error",
+    qaFixPrompt: "Check the current terminal output. If there's an error, explain the cause and give the command(s) to fix it (in a code block).",
+    qaExplainLabel: "❔ Explain",
+    qaExplainPrompt: "Explain what the current terminal output means.",
+    qaNextLabel: "➡️ Next step",
+    qaNextPrompt: "Based on the current state, suggest the next useful command(s) (in a code block).",
+    quickActionsTitle: "Quick actions",
     runInTerminal: "▶ Send to terminal",
     runInTerminalTitle: "Send to active terminal pane (press Enter yourself)",
     copied: "Copied",
@@ -170,6 +185,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[에러] ${e}`,
     noPaneToInput: "입력할 터미널 패널이 없습니다.",
+    qaFixLabel: "🔧 에러 고치기",
+    qaFixPrompt: "현재 터미널 출력을 확인해서 에러가 있으면 원인을 설명하고 해결 명령을 코드블록으로 알려줘.",
+    qaExplainLabel: "❔ 설명",
+    qaExplainPrompt: "현재 터미널 출력이 무슨 의미인지 설명해줘.",
+    qaNextLabel: "➡️ 다음 단계",
+    qaNextPrompt: "지금 상황에서 다음에 실행하면 좋은 명령을 코드블록으로 제안해줘.",
+    quickActionsTitle: "빠른 동작",
     runInTerminal: "▶ 터미널에 입력",
     runInTerminalTitle: "활성 터미널 패널에 입력 (Enter는 직접)",
     copied: "복사됨",
@@ -209,6 +231,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Error] ${e}`,
     noPaneToInput: "No hay panel de terminal donde escribir.",
+    qaFixLabel: "🔧 Corregir error",
+    qaFixPrompt: "Revisa la salida actual del terminal. Si hay un error, explica la causa y da el/los comando(s) para solucionarlo (en bloque de código).",
+    qaExplainLabel: "❔ Explicar",
+    qaExplainPrompt: "Explica qué significa la salida actual del terminal.",
+    qaNextLabel: "➡️ Siguiente",
+    qaNextPrompt: "Según el estado actual, sugiere el/los siguiente(s) comando(s) útil(es) (en bloque de código).",
+    quickActionsTitle: "Acciones rápidas",
     runInTerminal: "▶ Enviar a la terminal",
     runInTerminalTitle: "Enviar al panel de terminal activo (pulsa Enter tú mismo)",
     copied: "Copiado",
@@ -248,6 +277,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[错误] ${e}`,
     noPaneToInput: "没有可输入的终端面板。",
+    qaFixLabel: "🔧 修复错误",
+    qaFixPrompt: "检查当前终端输出。如果有错误，请说明原因并给出修复命令（用代码块）。",
+    qaExplainLabel: "❔ 解释",
+    qaExplainPrompt: "解释当前终端输出的含义。",
+    qaNextLabel: "➡️ 下一步",
+    qaNextPrompt: "根据当前状态，建议接下来有用的命令（用代码块）。",
+    quickActionsTitle: "快捷操作",
     runInTerminal: "▶ 发送到终端",
     runInTerminalTitle: "发送到活动终端面板（请自行按 Enter）",
     copied: "已复制",
@@ -287,6 +323,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[エラー] ${e}`,
     noPaneToInput: "入力できる端末ペインがありません。",
+    qaFixLabel: "🔧 エラー修正",
+    qaFixPrompt: "現在の端末出力を確認して、エラーがあれば原因を説明し、修正コマンドをコードブロックで示して。",
+    qaExplainLabel: "❔ 説明",
+    qaExplainPrompt: "現在の端末出力の意味を説明して。",
+    qaNextLabel: "➡️ 次の手順",
+    qaNextPrompt: "現在の状況で次に実行すると良いコマンドをコードブロックで提案して。",
+    quickActionsTitle: "クイック操作",
     runInTerminal: "▶ 端末に送信",
     runInTerminalTitle: "アクティブな端末ペインに送信（Enter はご自身で）",
     copied: "コピーしました",
@@ -326,6 +369,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Ошибка] ${e}`,
     noPaneToInput: "Нет панели терминала для ввода.",
+    qaFixLabel: "🔧 Исправить ошибку",
+    qaFixPrompt: "Проверь текущий вывод терминала. Если есть ошибка, объясни причину и дай команду(ы) для исправления (в блоке кода).",
+    qaExplainLabel: "❔ Объяснить",
+    qaExplainPrompt: "Объясни, что означает текущий вывод терминала.",
+    qaNextLabel: "➡️ Дальше",
+    qaNextPrompt: "Исходя из текущего состояния, предложи следующие полезные команды (в блоке кода).",
+    quickActionsTitle: "Быстрые действия",
     runInTerminal: "▶ Отправить в терминал",
     runInTerminalTitle: "Отправить в активную панель терминала (Enter нажмите сами)",
     copied: "Скопировано",
@@ -365,6 +415,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Erreur] ${e}`,
     noPaneToInput: "Aucun volet de terminal où saisir.",
+    qaFixLabel: "🔧 Corriger l'erreur",
+    qaFixPrompt: "Vérifie la sortie actuelle du terminal. S'il y a une erreur, explique la cause et donne la ou les commande(s) pour la corriger (dans un bloc de code).",
+    qaExplainLabel: "❔ Expliquer",
+    qaExplainPrompt: "Explique ce que signifie la sortie actuelle du terminal.",
+    qaNextLabel: "➡️ Étape suivante",
+    qaNextPrompt: "D'après l'état actuel, suggère la ou les prochaine(s) commande(s) utile(s) (dans un bloc de code).",
+    quickActionsTitle: "Actions rapides",
     runInTerminal: "▶ Envoyer au terminal",
     runInTerminalTitle: "Envoyer au volet de terminal actif (appuyez vous-même sur Entrée)",
     copied: "Copié",
@@ -404,6 +461,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Fehler] ${e}`,
     noPaneToInput: "Kein Terminalbereich zur Eingabe vorhanden.",
+    qaFixLabel: "🔧 Fehler beheben",
+    qaFixPrompt: "Prüfe die aktuelle Terminalausgabe. Falls ein Fehler vorliegt, erkläre die Ursache und gib die Befehle zur Behebung an (im Codeblock).",
+    qaExplainLabel: "❔ Erklären",
+    qaExplainPrompt: "Erkläre, was die aktuelle Terminalausgabe bedeutet.",
+    qaNextLabel: "➡️ Nächster Schritt",
+    qaNextPrompt: "Schlage basierend auf dem aktuellen Zustand die nächsten nützlichen Befehle vor (im Codeblock).",
+    quickActionsTitle: "Schnellaktionen",
     runInTerminal: "▶ An Terminal senden",
     runInTerminalTitle: "An aktiven Terminalbereich senden (Enter selbst drücken)",
     copied: "Kopiert",
@@ -443,6 +507,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Lỗi] ${e}`,
     noPaneToInput: "Không có khung terminal để nhập.",
+    qaFixLabel: "🔧 Sửa lỗi",
+    qaFixPrompt: "Kiểm tra đầu ra terminal hiện tại. Nếu có lỗi, hãy giải thích nguyên nhân và đưa ra (các) lệnh để sửa (trong khối mã).",
+    qaExplainLabel: "❔ Giải thích",
+    qaExplainPrompt: "Giải thích đầu ra terminal hiện tại có nghĩa là gì.",
+    qaNextLabel: "➡️ Bước tiếp theo",
+    qaNextPrompt: "Dựa trên trạng thái hiện tại, hãy đề xuất (các) lệnh hữu ích tiếp theo (trong khối mã).",
+    quickActionsTitle: "Tác vụ nhanh",
     runInTerminal: "▶ Gửi đến terminal",
     runInTerminalTitle: "Gửi đến khung terminal đang hoạt động (tự nhấn Enter)",
     copied: "Đã sao chép",
@@ -482,6 +553,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Kesalahan] ${e}`,
     noPaneToInput: "Tidak ada panel terminal untuk diketik.",
+    qaFixLabel: "🔧 Perbaiki error",
+    qaFixPrompt: "Periksa keluaran terminal saat ini. Jika ada error, jelaskan penyebabnya dan berikan perintah untuk memperbaikinya (dalam blok kode).",
+    qaExplainLabel: "❔ Jelaskan",
+    qaExplainPrompt: "Jelaskan arti keluaran terminal saat ini.",
+    qaNextLabel: "➡️ Langkah berikutnya",
+    qaNextPrompt: "Berdasarkan kondisi saat ini, sarankan perintah berguna berikutnya (dalam blok kode).",
+    quickActionsTitle: "Aksi cepat",
     runInTerminal: "▶ Kirim ke terminal",
     runInTerminalTitle: "Kirim ke panel terminal aktif (tekan Enter sendiri)",
     copied: "Tersalin",
@@ -521,6 +599,13 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[त्रुटि] ${e}`,
     noPaneToInput: "इनपुट करने के लिए कोई टर्मिनल पैनल नहीं है।",
+    qaFixLabel: "🔧 त्रुटि ठीक करें",
+    qaFixPrompt: "वर्तमान टर्मिनल आउटपुट जांचें। यदि कोई त्रुटि है, तो कारण बताएं और उसे ठीक करने के लिए कमांड दें (कोड ब्लॉक में)।",
+    qaExplainLabel: "❔ समझाएं",
+    qaExplainPrompt: "वर्तमान टर्मिनल आउटपुट का क्या अर्थ है, समझाएं।",
+    qaNextLabel: "➡️ अगला चरण",
+    qaNextPrompt: "वर्तमान स्थिति के आधार पर, अगली उपयोगी कमांड सुझाएं (कोड ब्लॉक में)।",
+    quickActionsTitle: "त्वरित क्रियाएं",
     runInTerminal: "▶ टर्मिनल में भेजें",
     runInTerminalTitle: "सक्रिय टर्मिनल पैनल में भेजें (Enter स्वयं दबाएं)",
     copied: "कॉपी किया गया",
@@ -686,9 +771,15 @@ export function AIPanel({
 
   async function send() {
     const text = input.trim();
+    if (!text) return;
+    setInput("");
+    await sendText(text);
+  }
+
+  // 빠른 동작(에러 고치기 등)은 forceContext=true로 현재 출력을 무조건 첨부한다.
+  async function sendText(text: string, forceContext = false) {
     if (!text || !current || busy) return;
     setError(null);
-    setInput("");
     let sid = activeSessionId;
     if (!sid) {
       sid = newSessionId();
@@ -702,7 +793,7 @@ export function AIPanel({
     setBusy(true);
 
     const reqMessages: ChatMessage[] = [];
-    if (includeContext) {
+    if (includeContext || forceContext) {
       const ctx = getTerminal(focusedPaneId)?.getRecentText(100);
       if (ctx) {
         const where = focusedSource
@@ -775,6 +866,21 @@ export function AIPanel({
     // 개행 없이 입력만 — 사용자가 직접 Enter로 실행하도록 (안전).
     handle.sendInput(code);
   }
+
+  // 터미널 커맨드 블록의 ✨ 버튼 → 그 블록(명령+출력)을 AI에 질문. ref로 최신 sendText 사용.
+  const askRef = useRef<(block: string) => void>(() => {});
+  askRef.current = (block: string) => {
+    if (!current) return;
+    setShowHistory(false);
+    void sendText(
+      `${t.qaExplainPrompt}\n\n\`\`\`\n${block.trim()}\n\`\`\``,
+      false,
+    );
+  };
+  useEffect(() => {
+    setAskAIListener((block) => askRef.current(block));
+    return () => setAskAIListener(null);
+  }, []);
 
   function newChat() {
     setMessages([]);
@@ -946,6 +1052,44 @@ export function AIPanel({
           <button onClick={() => setError(null)} style={{ ...iconBtnStyle, float: "right" }}>
             ×
           </button>
+        </div>
+      )}
+
+      {current && (
+        <div
+          title={t.quickActionsTitle}
+          style={{
+            display: "flex",
+            gap: 6,
+            flexWrap: "wrap",
+            padding: "8px 12px 0",
+          }}
+        >
+          {[
+            { label: t.qaFixLabel, prompt: t.qaFixPrompt },
+            { label: t.qaExplainLabel, prompt: t.qaExplainPrompt },
+            { label: t.qaNextLabel, prompt: t.qaNextPrompt },
+          ].map((qa) => (
+            <button
+              key={qa.label}
+              onClick={() => void sendText(qa.prompt, true)}
+              disabled={busy}
+              title={qa.prompt}
+              style={{
+                background: "#202a38",
+                color: "#cde",
+                border: "1px solid #2f3f52",
+                borderRadius: 14,
+                padding: "3px 10px",
+                fontSize: 11,
+                cursor: busy ? "default" : "pointer",
+                opacity: busy ? 0.5 : 1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {qa.label}
+            </button>
+          ))}
         </div>
       )}
 

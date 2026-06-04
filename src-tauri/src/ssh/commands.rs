@@ -727,6 +727,19 @@ pub fn local_write_text(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
 }
 
+/// 로컬 `~/.ssh/config` 내용을 읽는다 (SSH 호스트 임포트용). 파일이 없으면 빈 문자열.
+#[tauri::command]
+pub fn ssh_read_config() -> Result<String, String> {
+    let home = std::env::var("HOME")
+        .or_else(|_| std::env::var("USERPROFILE"))
+        .map_err(|_| "홈 디렉토리를 찾을 수 없습니다".to_string())?;
+    let path = std::path::Path::new(&home).join(".ssh").join("config");
+    if !path.exists() {
+        return Ok(String::new());
+    }
+    std::fs::read_to_string(&path).map_err(|e| e.to_string())
+}
+
 /// 로컬 파일을 base64로 읽는다 (이미지 미리보기용, 상한 8MB).
 #[tauri::command]
 pub fn local_read_bytes(path: String) -> Result<String, String> {

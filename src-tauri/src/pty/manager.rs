@@ -142,13 +142,14 @@ impl PtyManager {
         let mut cmd = CommandBuilder::new(&prog);
         // zsh는 개행 없이 끝난 줄에 부분 줄 표시(%/PROMPT_SP)를 붙인다. 로그인 메시지가 없는
         // PTY 첫 프롬프트에서 거슬리게 나오므로 promptsp 옵션을 꺼서 시작한다.
-        if std::path::Path::new(&prog)
+        let shell_name = std::path::Path::new(&prog)
             .file_name()
             .and_then(|s| s.to_str())
-            == Some("zsh")
-        {
+            .map(|s| s.to_string());
+        if shell_name.as_deref() == Some("zsh") {
             cmd.arg("+o");
             cmd.arg("promptsp");
+            setup_zsh_integration(&mut cmd);
         }
 
         let child = pair
@@ -249,6 +250,44 @@ impl PtyManager {
 #[cfg(target_family = "unix")]
 fn default_shell() -> String {
     std::env::var("SHELL").unwrap_or_else(|_| "/bin/bash".into())
+}
+
+/// 로컬 zsh에 OSC 133(셸 시맨틱) 통합을 주입한다 — 에코 없이 ZDOTDIR 오버라이드로.
+/// 사용자의 zsh 설정을 다시 source한 뒤 precmd/preexec 훅으로 명령 시작(C)·종료코드(D)를 emit.
+/// 프론트는 이를 받아 명령별 종료코드·실행시간 배지를 표시한다.
+fn setup_zsh_integration(cmd: &mut CommandBuilder) {
+    let dir = std::env::temp_dir().join("wowterminal-zdotdir");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    // 원래 ZDOTDIR(없으면 $HOME)을 기억해 사용자 설정을 다시 source한다.
+    let orig = std::env::var("ZDOTDIR")
+        .ok()
+        .filter(|s| !s.is_empty())
+        .or_else(|| std::env::var("HOME").ok())
+        .unwrap_or_default();
+
+    // .zshenv/.zprofile/.zlogin: 사용자 것 통과(ZDOTDIR 오버라이드로 안 읽히므로 직접 source).
+    for name in [".zshenv", ".zprofile", ".zlogin"] {
+        let body = format!(
+            "[ -f \"$WT_ORIG_ZDOTDIR/{name}\" ] && source \"$WT_ORIG_ZDOTDIR/{name}\"\n"
+        );
+        let _ = std::fs::write(dir.join(name), body);
+    }
+    // .zshrc: 사용자 것 source + OSC 133 훅 + ZDOTDIR 원복.
+    let zshrc = concat!(
+        "[ -f \"$WT_ORIG_ZDOTDIR/.zshrc\" ] && source \"$WT_ORIG_ZDOTDIR/.zshrc\"\n",
+        "autoload -Uz add-zsh-hook 2>/dev/null\n",
+        "__wt_precmd() { print -n \"\\e]133;D;$?\\a\"; }\n",
+        "__wt_preexec() { print -n \"\\e]133;C\\a\"; }\n",
+        "add-zsh-hook precmd __wt_precmd 2>/dev/null\n",
+        "add-zsh-hook preexec __wt_preexec 2>/dev/null\n",
+        "[ -n \"$WT_ORIG_ZDOTDIR\" ] && export ZDOTDIR=\"$WT_ORIG_ZDOTDIR\"\n",
+    );
+    let _ = std::fs::write(dir.join(".zshrc"), zshrc);
+
+    cmd.env("WT_ORIG_ZDOTDIR", orig);
+    cmd.env("ZDOTDIR", dir.to_string_lossy().to_string());
 }
 
 #[cfg(target_family = "windows")]
