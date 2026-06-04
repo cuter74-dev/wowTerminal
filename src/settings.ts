@@ -89,6 +89,18 @@ export const UI_FONTS: { label: string; value: string }[] = [
   },
 ];
 
+/** 터미널(고정폭) 글꼴 프리셋. 값은 CSS font-family 스택(monospace 폴백 포함). */
+export const MONO_FONTS: { label: string; value: string }[] = [
+  { label: "Menlo", value: "Menlo, Consolas, 'Courier New', monospace" },
+  { label: "SF Mono", value: '"SF Mono", "SFMono-Regular", Menlo, monospace' },
+  { label: "Monaco", value: "Monaco, Menlo, monospace" },
+  { label: "JetBrains Mono", value: '"JetBrains Mono", Menlo, monospace' },
+  { label: "Fira Code", value: '"Fira Code", Menlo, monospace' },
+  { label: "Source Code Pro", value: '"Source Code Pro", Menlo, monospace' },
+  { label: "D2Coding", value: "D2Coding, Menlo, monospace" },
+  { label: "Consolas", value: "Consolas, Menlo, monospace" },
+];
+
 export interface LayoutSettings {
   /** 좌측 호스트 패널 표시 여부. */
   showHostPanel: boolean;

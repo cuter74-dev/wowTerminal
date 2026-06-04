@@ -7,6 +7,7 @@ import {
   Lang,
   LANGS,
   UI_FONTS,
+  MONO_FONTS,
   TERMINAL_THEME_LIST,
   ShortcutAction,
   KeyBinding,
@@ -144,8 +145,8 @@ const STR: LangDict<{
     aboutDesc: "컨텍스트를 아는 AI 터미널 — LLM × SSH × SFTP.",
     checkUpdate: "업데이트 확인",
     upToDate: "현재 최신 버전입니다.",
-    fontSize: "폰트 크기",
-    fontFamily: "폰트 패밀리",
+    fontSize: "글꼴 크기",
+    fontFamily: "글꼴",
     theme: "테마",
     dark: "다크",
     light: "라이트",
@@ -793,11 +794,27 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                 />
               </Row>
               <Row label={t.fontFamily}>
-                <input
+                <select
                   value={settings.terminal.fontFamily}
                   onChange={(e) => patchTerminal({ fontFamily: e.target.value })}
-                  style={{ ...inputStyle, width: 240 }}
-                />
+                  style={{
+                    ...inputStyle,
+                    width: 240,
+                    fontFamily: settings.terminal.fontFamily,
+                  }}
+                >
+                  {/* 저장된 값이 프리셋에 없으면(사용자 지정) 그대로 보존해 표시 */}
+                  {!MONO_FONTS.some((f) => f.value === settings.terminal.fontFamily) && (
+                    <option value={settings.terminal.fontFamily}>
+                      {settings.terminal.fontFamily}
+                    </option>
+                  )}
+                  {MONO_FONTS.map((f) => (
+                    <option key={f.label} value={f.value} style={{ fontFamily: f.value }}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
               </Row>
               <Row label={t.theme}>
                 <select
