@@ -10,6 +10,8 @@ import {
   sendNotification,
 } from "@tauri-apps/plugin-notification";
 import { onCommandDone } from "./commandBus";
+import { getHistory } from "./commandHistory";
+import { CommandPalette, PaletteItem } from "./components/CommandPalette";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
 import { TabContextMenu } from "./components/TabContextMenu";
@@ -400,8 +402,33 @@ function cloneRootWithNewIds(root: Pane): Pane {
   };
 }
 
+// 명령 팔레트(⌘K) 라벨.
+const PAL_STR: LangDict<{
+  placeholder: string;
+  noResults: string;
+  newLocalTab: string;
+  settings: string;
+  openFiles: string;
+  connect: string;
+  run: string;
+}> = {
+  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run" },
+  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행" },
+  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar" },
+  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行" },
+  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行" },
+  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить" },
+  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter" },
+  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen" },
+  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy" },
+  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan" },
+  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं" },
+};
+
 function App() {
   const tr = useT(STR);
+  const pal = useT(PAL_STR);
+  const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   // detached 윈도우는 백엔드 registry에서 source를 받기 전까지 빈 상태로 시작 — 메인은 즉시 로컬셸.
   const [tabs, setTabs] = useState<Tab[]>(() =>
     IS_DETACHED_WINDOW ? [] : [makeLocalTab(tr.localShellN(1))],
@@ -764,6 +791,37 @@ function App() {
       return n;
     });
   }, [activeTabId]);
+
+  // #57 명령 팔레트 아이템: 액션 + 호스트 접속 + 최근 명령(활성 터미널에 입력).
+  const paletteItems: PaletteItem[] = useMemo(() => {
+    const out: PaletteItem[] = [
+      { id: "act-newlocal", label: pal.newLocalTab, action: newLocalTab },
+      { id: "act-settings", label: pal.settings, action: () => setShowSettings(true) },
+    ];
+    for (const h of hosts) {
+      out.push({
+        id: `host-${h.id}`,
+        label: `${pal.connect}: ${h.name}`,
+        hint: `${h.user}@${h.host}:${h.port}`,
+        action: () => newSshTab(h.id),
+      });
+    }
+    const focused = activeTab?.focusedPaneId;
+    if (focused) {
+      const recent = [...getHistory()].reverse().slice(0, 30);
+      for (let i = 0; i < recent.length; i++) {
+        const cmd = recent[i];
+        out.push({
+          id: `cmd-${i}`,
+          label: cmd,
+          hint: pal.run,
+          action: () => getTerminal(focused)?.sendInput(cmd),
+        });
+      }
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hosts, pal, activeTab, cmdPaletteOpen]);
 
   // 탭 활성화/전환 시 활성 탭의 모든 leaf를 다시 fit (xterm은 display:none에서 0 크기라
   // 표시될 때 재계산이 필요). 등록 직후 동작하도록 rAF로 지연.
@@ -1223,6 +1281,12 @@ function App() {
   // 키보드 단축키
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      // ⌘K / Ctrl-K: 명령 팔레트 (편집 중이어도 동작).
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K")) {
+        e.preventDefault();
+        setCmdPaletteOpen((v) => !v);
+        return;
+      }
       if (editingTabId) return;
       const kb = settings.keybindings;
 
@@ -1597,6 +1661,15 @@ function App() {
           settings={settings}
           onChange={updateSettings}
           onClose={() => setShowSettings(false)}
+        />
+      )}
+
+      {cmdPaletteOpen && (
+        <CommandPalette
+          items={paletteItems}
+          placeholder={pal.placeholder}
+          emptyText={pal.noResults}
+          onClose={() => setCmdPaletteOpen(false)}
         />
       )}
 
