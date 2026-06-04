@@ -11,6 +11,8 @@ interface Props {
   /** 입력 브로드캐스트(#59) 켜짐 여부 + 토글. */
   broadcast: boolean;
   onToggleBroadcast: () => void;
+  /** 세션 대시보드(#62) 열기. */
+  onOpenDashboard: () => void;
 }
 
 type Strings = {
@@ -25,6 +27,7 @@ type Strings = {
   settingsTitle: string;
   settings: string;
   broadcast: string;
+  dashboard: string;
 };
 
 const STR: LangDict<Strings> = {
@@ -40,6 +43,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "Settings (S-054)",
     settings: "⚙ Settings",
     broadcast: "Broadcast input to all panes",
+    dashboard: "Session dashboard",
   },
   ko: {
     ready: "준비됨",
@@ -53,6 +57,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "설정 (S-054)",
     settings: "⚙ 설정",
     broadcast: "모든 패널에 입력 브로드캐스트",
+    dashboard: "세션 대시보드",
   },
   es: {
     ready: "Listo",
@@ -66,6 +71,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "Configuración (S-054)",
     settings: "⚙ Configuración",
     broadcast: "Difundir entrada a todos los paneles",
+    dashboard: "Panel de sesiones",
   },
   zh: {
     ready: "就绪",
@@ -79,6 +85,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "设置 (S-054)",
     settings: "⚙ 设置",
     broadcast: "向所有面板广播输入",
+    dashboard: "会话仪表板",
   },
   ja: {
     ready: "準備完了",
@@ -92,6 +99,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "設定 (S-054)",
     settings: "⚙ 設定",
     broadcast: "すべてのペインに入力をブロードキャスト",
+    dashboard: "セッションダッシュボード",
   },
   ru: {
     ready: "Готово",
@@ -105,6 +113,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "Настройки (S-054)",
     settings: "⚙ Настройки",
     broadcast: "Транслировать ввод во все панели",
+    dashboard: "Панель сессий",
   },
   fr: {
     ready: "Prêt",
@@ -118,6 +127,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "Paramètres (S-054)",
     settings: "⚙ Paramètres",
     broadcast: "Diffuser la saisie à tous les volets",
+    dashboard: "Tableau de bord des sessions",
   },
   de: {
     ready: "Bereit",
@@ -131,6 +141,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "Einstellungen (S-054)",
     settings: "⚙ Einstellungen",
     broadcast: "Eingabe an alle Bereiche senden",
+    dashboard: "Sitzungs-Dashboard",
   },
   vi: {
     ready: "Sẵn sàng",
@@ -144,6 +155,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "Cài đặt (S-054)",
     settings: "⚙ Cài đặt",
     broadcast: "Phát đầu vào tới tất cả khung",
+    dashboard: "Bảng điều khiển phiên",
   },
   id: {
     ready: "Siap",
@@ -157,6 +169,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "Pengaturan (S-054)",
     settings: "⚙ Pengaturan",
     broadcast: "Siarkan input ke semua panel",
+    dashboard: "Dasbor sesi",
   },
   hi: {
     ready: "तैयार",
@@ -170,6 +183,7 @@ const STR: LangDict<Strings> = {
     settingsTitle: "सेटिंग्स (S-054)",
     settings: "⚙ सेटिंग्स",
     broadcast: "सभी पैनल में इनपुट प्रसारित करें",
+    dashboard: "सत्र डैशबोर्ड",
   },
 };
 
@@ -188,6 +202,7 @@ export function TitleBar({
   onOpenSettings,
   broadcast,
   onToggleBroadcast,
+  onOpenDashboard,
 }: Props) {
   const t = useT(STR);
   const subtitle = activeTab ? subtitleFor(activeTab, t) : t.ready;
@@ -209,6 +224,22 @@ export function TitleBar({
       <strong style={{ marginRight: 16, color: "#fff" }}>AI Terminal</strong>
       <span style={{ color: "#9aa", flex: 1 }}>{subtitle}</span>
       <span style={{ color: "#888", marginRight: 12 }}>{t.tabCount(tabCount)}</span>
+      <button
+        onClick={onOpenDashboard}
+        title={t.dashboard}
+        style={{
+          background: "transparent",
+          border: "1px solid transparent",
+          color: "#cccccc",
+          cursor: "pointer",
+          fontSize: 13,
+          borderRadius: 4,
+          padding: "1px 6px",
+          marginRight: 8,
+        }}
+      >
+        📊
+      </button>
       <button
         onClick={onToggleBroadcast}
         title={t.broadcast}

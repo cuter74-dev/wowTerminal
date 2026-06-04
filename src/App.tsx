@@ -13,6 +13,7 @@ import { onCommandDone } from "./commandBus";
 import { getHistory } from "./commandHistory";
 import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
+import { SessionDashboard, DashRow } from "./components/SessionDashboard";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
 import { TabContextMenu } from "./components/TabContextMenu";
@@ -413,24 +414,33 @@ const PAL_STR: LangDict<{
   connect: string;
   run: string;
   snippet: string;
+  dashboard: string;
 }> = {
-  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet" },
-  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫" },
-  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento" },
-  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段" },
-  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット" },
-  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет" },
-  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait" },
-  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet" },
-  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã" },
-  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan" },
-  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट" },
+  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet", dashboard: "Session dashboard" },
+  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫", dashboard: "세션 대시보드" },
+  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento", dashboard: "Panel de sesiones" },
+  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段", dashboard: "会话仪表板" },
+  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット", dashboard: "セッションダッシュボード" },
+  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет", dashboard: "Панель сессий" },
+  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait", dashboard: "Tableau de bord des sessions" },
+  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet", dashboard: "Sitzungs-Dashboard" },
+  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã", dashboard: "Bảng điều khiển phiên" },
+  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan", dashboard: "Dasbor sesi" },
+  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट", dashboard: "सत्र डैशबोर्ड" },
 };
 
 function App() {
   const tr = useT(STR);
   const pal = useT(PAL_STR);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
+  // #62 세션 대시보드: 열림 여부 + 패널별 명령 통계.
+  const [dashboardOpen, setDashboardOpen] = useState(false);
+  const [sessionStats, setSessionStats] = useState<
+    Record<
+      string,
+      { count: number; lastExit: number; lastDurationMs: number; lastAt: number }
+    >
+  >({});
   // #59 입력 브로드캐스트: 켜면 한 패널 입력이 모든 패널로. 모듈 레지스트리에 동기화.
   const [broadcast, setBroadcast] = useState(false);
   useEffect(() => {
@@ -765,7 +775,21 @@ function App() {
     if (IS_DETACHED_WINDOW) return;
     void requestPermission();
     const off = onCommandDone(({ paneId, durationMs, exit }) => {
-      if (durationMs < 8000 || !paneId) return; // 짧은 명령은 무시(8초 임계).
+      if (!paneId) return;
+      // 세션 대시보드용 통계는 모든 명령에 대해 누적(#62).
+      setSessionStats((prev) => {
+        const cur = prev[paneId];
+        return {
+          ...prev,
+          [paneId]: {
+            count: (cur?.count ?? 0) + 1,
+            lastExit: exit,
+            lastDurationMs: durationMs,
+            lastAt: Date.now(),
+          },
+        };
+      });
+      if (durationMs < 8000) return; // 알림은 8초 이상만(짧은 명령 무시).
       const tab = tabsRef.current.find((t) => findLeaf(t.root, paneId));
       if (!tab) return;
       const foreground = tab.id === activeTabIdRef.current && document.hasFocus();
@@ -799,10 +823,36 @@ function App() {
     });
   }, [activeTabId]);
 
+  // #62 세션 대시보드 행: 모든 탭의 모든 패널을 평탄화 + 세션/통계 결합.
+  const dashRows: DashRow[] = useMemo(() => {
+    const rows: DashRow[] = [];
+    for (const tab of tabs) {
+      for (const leaf of collectLeaves(tab.root)) {
+        const src = leaf.source;
+        const stat = sessionStats[leaf.id];
+        rows.push({
+          tabId: tab.id,
+          tabLabel: tab.label,
+          paneId: leaf.id,
+          kind: src.kind === "ssh" ? "ssh" : "local",
+          hostLabel: src.kind === "ssh" ? labelForHost(src.hostId) : undefined,
+          active: !!sessionByLeaf.current[leaf.id],
+          isActiveTab: tab.id === activeTabId,
+          count: stat?.count ?? 0,
+          lastExit: stat?.lastExit,
+          lastDurationMs: stat?.lastDurationMs,
+          lastAt: stat?.lastAt,
+        });
+      }
+    }
+    return rows;
+  }, [tabs, sessionStats, activeTabId, labelForHost]);
+
   // #57 명령 팔레트 아이템: 액션 + 호스트 접속 + 최근 명령(활성 터미널에 입력).
   const paletteItems: PaletteItem[] = useMemo(() => {
     const out: PaletteItem[] = [
       { id: "act-newlocal", label: pal.newLocalTab, action: newLocalTab },
+      { id: "act-dashboard", label: pal.dashboard, action: () => setDashboardOpen(true) },
       { id: "act-settings", label: pal.settings, action: () => setShowSettings(true) },
     ];
     for (const h of hosts) {
@@ -1489,6 +1539,7 @@ function App() {
         onOpenSettings={() => setShowSettings(true)}
         broadcast={broadcast}
         onToggleBroadcast={() => setBroadcast((v) => !v)}
+        onOpenDashboard={() => setDashboardOpen(true)}
       />
       <TabBar
         tabs={tabs}
@@ -1687,6 +1738,14 @@ function App() {
           placeholder={pal.placeholder}
           emptyText={pal.noResults}
           onClose={() => setCmdPaletteOpen(false)}
+        />
+      )}
+
+      {dashboardOpen && (
+        <SessionDashboard
+          rows={dashRows}
+          onJump={(tabId) => setActiveTabId(tabId)}
+          onClose={() => setDashboardOpen(false)}
         />
       )}
 
