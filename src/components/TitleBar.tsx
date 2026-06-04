@@ -187,6 +187,47 @@ const STR: LangDict<Strings> = {
   },
 };
 
+/** 세션 대시보드 아이콘 (레이아웃/패널 개요). Feather 'layout' 스타일. */
+function DashboardIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: "block" }}
+    >
+      <rect x="3" y="3" width="18" height="18" rx="2" />
+      <line x1="3" y1="9" x2="21" y2="9" />
+      <line x1="9" y1="21" x2="9" y2="9" />
+    </svg>
+  );
+}
+
+/** 입력 브로드캐스트 아이콘 (전파 발신). Feather 'radio' 스타일. */
+function BroadcastIcon() {
+  return (
+    <svg
+      width="15"
+      height="15"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      style={{ display: "block" }}
+    >
+      <circle cx="12" cy="12" r="2" />
+      <path d="M16.24 7.76a6 6 0 0 1 0 8.49m-8.48-.01a6 6 0 0 1 0-8.49m11.31-2.82a10 10 0 0 1 0 14.14m-14.14 0a10 10 0 0 1 0-14.14" />
+    </svg>
+  );
+}
+
 function subtitleFor(tab: Tab, t: Strings): string {
   if (tab.root.kind === "split") return t.split(tab.label);
   return tab.root.source.kind === "ssh"
@@ -228,33 +269,35 @@ export function TitleBar({
         onClick={onOpenDashboard}
         title={t.dashboard}
         style={{
+          display: "flex",
+          alignItems: "center",
           background: "transparent",
           border: "1px solid transparent",
           color: "#cccccc",
           cursor: "pointer",
-          fontSize: 13,
           borderRadius: 4,
-          padding: "1px 6px",
-          marginRight: 8,
+          padding: "3px 6px",
+          marginRight: 6,
         }}
       >
-        📊
+        <DashboardIcon />
       </button>
       <button
         onClick={onToggleBroadcast}
         title={t.broadcast}
         style={{
+          display: "flex",
+          alignItems: "center",
           background: broadcast ? "#7a1f1f" : "transparent",
           border: broadcast ? "1px solid #c0504d" : "1px solid transparent",
           color: broadcast ? "#ffd0d0" : "#cccccc",
           cursor: "pointer",
-          fontSize: 13,
           borderRadius: 4,
-          padding: "1px 6px",
-          marginRight: 8,
+          padding: "3px 6px",
+          marginRight: 6,
         }}
       >
-        📡
+        <BroadcastIcon />
       </button>
       <button
         onClick={onOpenFiles}
