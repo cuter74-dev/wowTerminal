@@ -28,6 +28,8 @@ const STR: LangDict<{
     noKeyPlaceholder: string;
     passphrasePlaceholder: string;
     ungrouped: string;
+    proxyJump: string;
+    proxyDirect: string;
     noTags: string;
     cancel: string;
     saving: string;
@@ -51,6 +53,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "No registered keys — enter a key ID or create one in 🔑",
     passphrasePlaceholder: "passphrase secret_id for the encrypted key",
     ungrouped: "(Ungrouped)",
+    proxyJump: "Jump host (ProxyJump)",
+    proxyDirect: "(Direct — no jump)",
     noTags: "No tags registered — add them via Group/Tag Manager in the sidebar",
     cancel: "Cancel",
     saving: "Saving...",
@@ -73,6 +77,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "등록된 키 없음 — 키 ID 직접 입력 또는 🔑에서 생성",
     passphrasePlaceholder: "암호화된 키의 패스프레이즈 secret_id",
     ungrouped: "(미분류)",
+    proxyJump: "점프 호스트 (ProxyJump)",
+    proxyDirect: "(직접 — 점프 없음)",
     noTags: "등록된 태그 없음 — 사이드바의 그룹/태그 관리로 추가",
     cancel: "취소",
     saving: "저장 중...",
@@ -95,6 +101,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "Sin claves registradas — ingresa un ID de clave o crea una en 🔑",
     passphrasePlaceholder: "secret_id de la passphrase para la clave cifrada",
     ungrouped: "(Sin grupo)",
+    proxyJump: "Host de salto (ProxyJump)",
+    proxyDirect: "(Directo — sin salto)",
     noTags: "No hay etiquetas registradas — agrégalas con el Gestor de grupos/etiquetas en la barra lateral",
     cancel: "Cancelar",
     saving: "Guardando...",
@@ -117,6 +125,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "没有已注册的密钥 — 直接输入 key ID 或在 🔑 中创建",
     passphrasePlaceholder: "加密密钥的 passphrase secret_id",
     ungrouped: "(未分组)",
+    proxyJump: "跳板主机 (ProxyJump)",
+    proxyDirect: "(直连 — 无跳板)",
     noTags: "没有已注册的标签 — 通过侧边栏的分组/标签管理器添加",
     cancel: "取消",
     saving: "保存中...",
@@ -139,6 +149,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "登録済みのキーなし — key ID を直接入力するか 🔑 で作成",
     passphrasePlaceholder: "暗号化キーの passphrase secret_id",
     ungrouped: "(未分類)",
+    proxyJump: "踏み台ホスト (ProxyJump)",
+    proxyDirect: "(直接 — 踏み台なし)",
     noTags: "登録済みのタグなし — サイドバーのグループ/タグ管理から追加",
     cancel: "キャンセル",
     saving: "保存中...",
@@ -161,6 +173,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "Нет зарегистрированных ключей — введите ID ключа или создайте его в 🔑",
     passphrasePlaceholder: "secret_id парольной фразы для зашифрованного ключа",
     ungrouped: "(Без группы)",
+    proxyJump: "Прыжковый хост (ProxyJump)",
+    proxyDirect: "(Прямое — без прыжка)",
     noTags: "Нет зарегистрированных тегов — добавьте их в Менеджере групп/тегов на боковой панели",
     cancel: "Отмена",
     saving: "Сохранение...",
@@ -183,6 +197,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "Aucune clé enregistrée — saisissez un ID de clé ou créez-en une dans 🔑",
     passphrasePlaceholder: "secret_id de la passphrase pour la clé chiffrée",
     ungrouped: "(Sans groupe)",
+    proxyJump: "Hôte de rebond (ProxyJump)",
+    proxyDirect: "(Direct — sans rebond)",
     noTags: "Aucune étiquette enregistrée — ajoutez-les via le Gestionnaire de groupes/étiquettes dans la barre latérale",
     cancel: "Annuler",
     saving: "Enregistrement...",
@@ -205,6 +221,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "Keine registrierten Schlüssel — Schlüssel-ID eingeben oder in 🔑 erstellen",
     passphrasePlaceholder: "passphrase secret_id für den verschlüsselten Schlüssel",
     ungrouped: "(Ohne Gruppe)",
+    proxyJump: "Sprung-Host (ProxyJump)",
+    proxyDirect: "(Direkt — kein Sprung)",
     noTags: "Keine Tags registriert — füge sie über die Gruppen-/Tag-Verwaltung in der Seitenleiste hinzu",
     cancel: "Abbrechen",
     saving: "Wird gespeichert...",
@@ -227,6 +245,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "Không có khóa đã đăng ký — nhập ID khóa hoặc tạo một khóa trong 🔑",
     passphrasePlaceholder: "secret_id của passphrase cho khóa đã mã hóa",
     ungrouped: "(Chưa phân nhóm)",
+    proxyJump: "Máy chủ nhảy (ProxyJump)",
+    proxyDirect: "(Trực tiếp — không nhảy)",
     noTags: "Không có thẻ nào được đăng ký — thêm chúng qua Trình quản lý nhóm/thẻ ở thanh bên",
     cancel: "Hủy",
     saving: "Đang lưu...",
@@ -249,6 +269,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "Tidak ada kunci terdaftar — masukkan ID kunci atau buat di 🔑",
     passphrasePlaceholder: "secret_id passphrase untuk kunci terenkripsi",
     ungrouped: "(Tanpa grup)",
+    proxyJump: "Host lompat (ProxyJump)",
+    proxyDirect: "(Langsung — tanpa lompat)",
     noTags: "Tidak ada tag terdaftar — tambahkan melalui Pengelola grup/tag di bilah sisi",
     cancel: "Batal",
     saving: "Menyimpan...",
@@ -271,6 +293,8 @@ const STR: LangDict<{
     noKeyPlaceholder: "कोई पंजीकृत कुंजी नहीं — key ID दर्ज करें या 🔑 में एक बनाएं",
     passphrasePlaceholder: "एन्क्रिप्टेड कुंजी के लिए passphrase secret_id",
     ungrouped: "(समूह रहित)",
+    proxyJump: "जंप होस्ट (ProxyJump)",
+    proxyDirect: "(सीधा — कोई जंप नहीं)",
     noTags: "कोई टैग पंजीकृत नहीं — साइडबार में समूह/टैग प्रबंधक के माध्यम से जोड़ें",
     cancel: "रद्द करें",
     saving: "सहेजा जा रहा है...",
@@ -300,9 +324,13 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
       : "",
   );
   const [groupId, setGroupId] = useState<string | null>(initial?.group_id ?? null);
+  const [proxyJump, setProxyJump] = useState<string | null>(
+    initial?.proxy_jump ?? null,
+  );
   const [hostTags, setHostTags] = useState<string[]>(initial?.tags ?? []);
   const [groups, setGroups] = useState<Group[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
+  const [allHosts, setAllHosts] = useState<SshHost[]>([]);
   const [sshKeys, setSshKeys] = useState<SshKeyEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -310,14 +338,16 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
   useEffect(() => {
     void (async () => {
       try {
-        const [g, t, k] = await Promise.all([
+        const [g, t, k, h] = await Promise.all([
           invoke<Group[]>("ssh_list_groups"),
           invoke<Tag[]>("ssh_list_tags"),
           invoke<SshKeyEntry[]>("ssh_list_keys"),
+          invoke<SshHost[]>("ssh_list_hosts"),
         ]);
         setGroups(g);
         setTags(t);
         setSshKeys(k);
+        setAllHosts(h);
       } catch (e) {
         // 비치명적
         console.error("load groups/tags failed", e);
@@ -370,6 +400,7 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
       auth,
       tags: hostTags,
       group_id: groupId,
+      proxy_jump: proxyJump,
     };
 
     try {
@@ -527,6 +558,25 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
                 {g.name}
               </option>
             ))}
+          </select>
+        </Field>
+
+        <Field label={t.proxyJump}>
+          <select
+            value={proxyJump ?? ""}
+            onChange={(e) =>
+              setProxyJump(e.target.value === "" ? null : e.target.value)
+            }
+            style={inputStyle}
+          >
+            <option value="">{t.proxyDirect}</option>
+            {allHosts
+              .filter((h) => h.id !== initial?.id)
+              .map((h) => (
+                <option key={h.id} value={h.id}>
+                  {h.name} ({h.user}@{h.host})
+                </option>
+              ))}
           </select>
         </Field>
 

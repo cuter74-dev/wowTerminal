@@ -16,6 +16,9 @@ pub struct SshHost {
     /// 호스트가 속한 그룹의 ID. 미분류는 None.
     #[serde(default)]
     pub group_id: Option<String>,
+    /// ProxyJump 점프 호스트의 ID (#61). 지정되면 이 호스트를 거쳐 접속. None이면 직접.
+    #[serde(default)]
+    pub proxy_jump: Option<String>,
 }
 
 /// 호스트를 묶는 단순 그룹. v1은 flat (parent 없음); 와이어프레임의 3단계 중첩은 후속.

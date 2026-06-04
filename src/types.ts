@@ -15,6 +15,8 @@ export interface SshHost {
   auth: SshAuthMethod;
   tags: string[];
   group_id?: string | null;
+  /** ProxyJump 점프 호스트의 ID (#61). 지정 시 이 호스트를 거쳐 접속. */
+  proxy_jump?: string | null;
 }
 
 export interface Group {

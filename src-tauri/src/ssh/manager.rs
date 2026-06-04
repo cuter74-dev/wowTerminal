@@ -9,7 +9,7 @@ use tokio::sync::Mutex;
 use crate::pty::manager::DataSink;
 
 use super::known_hosts::KnownHostsStore;
-use super::session::{ResolvedAuth, SessionId, SshSession};
+use super::session::{JumpSpec, ResolvedAuth, SessionId, SshSession};
 use super::types::SshHost;
 
 #[derive(Debug, Error)]
@@ -102,6 +102,7 @@ impl SshManager {
         auth: ResolvedAuth,
         cols: u16,
         rows: u16,
+        jump: Option<JumpSpec>,
     ) -> Result<SessionId, SshError> {
         let session_id: SessionId = uuid::Uuid::new_v4().to_string();
         let session = SshSession::connect(
@@ -114,6 +115,7 @@ impl SshManager {
             session_id.clone(),
             self.sink.clone(),
             Arc::clone(&self.known_hosts),
+            jump,
         )
         .await?;
 

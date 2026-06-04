@@ -224,9 +224,36 @@ pub async fn ssh_connect(
     )
     .map_err(SshConnectError::from)?;
 
+    // ProxyJump(#61): proxy_jump가 지정되면 점프 호스트 + 그 인증을 해석해 JumpSpec 구성.
+    // 점프 호스트는 ssh-agent/키체인 저장 인증만 지원(점프용 비밀번호 프롬프트는 후속).
+    let jump = match &host.proxy_jump {
+        Some(jid) if !jid.is_empty() => {
+            let jhost = state
+                .store
+                .get(jid)
+                .map_err(|e| SshConnectError::from_string(e.to_string()))?;
+            let jauth = resolve_auth(
+                &jhost.auth,
+                state.secrets.as_deref(),
+                None,
+                &jhost.host,
+                jhost.port,
+                &jhost.user,
+            )
+            .map_err(SshConnectError::from)?;
+            Some(super::session::JumpSpec {
+                host: jhost.host,
+                port: jhost.port,
+                user: jhost.user,
+                auth: jauth,
+            })
+        }
+        _ => None,
+    };
+
     state
         .manager
-        .connect(&host, auth, cols, rows)
+        .connect(&host, auth, cols, rows, jump)
         .await
         .map_err(SshConnectError::from)
 }

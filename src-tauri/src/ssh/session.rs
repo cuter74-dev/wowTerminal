@@ -54,6 +54,34 @@ pub struct TofuHandler {
     shared: TofuShared,
 }
 
+/// 점프 호스트(ProxyJump) 접속 사양 — establish_via에 전달.
+pub struct JumpSpec {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub auth: ResolvedAuth,
+}
+
+/// TOFU 핸들러 + 공유 상태를 만든다 (establish / establish_via 공용).
+fn make_handler(
+    store: Arc<KnownHostsStore>,
+    host: &str,
+    port: u16,
+) -> (TofuHandler, TofuShared) {
+    let shared = TofuShared {
+        store,
+        host: host.to_string(),
+        port,
+        outcome: Arc::new(Mutex::new(None)),
+    };
+    (
+        TofuHandler {
+            shared: shared.clone(),
+        },
+        shared,
+    )
+}
+
 impl Handler for TofuHandler {
     type Error = russh::Error;
 
@@ -122,16 +150,7 @@ impl SshSession {
         auth: ResolvedAuth,
         known_hosts: Arc<KnownHostsStore>,
     ) -> Result<client::Handle<TofuHandler>, SshError> {
-        let shared = TofuShared {
-            store: known_hosts,
-            host: host.to_string(),
-            port,
-            outcome: Arc::new(Mutex::new(None)),
-        };
-        let handler = TofuHandler {
-            shared: shared.clone(),
-        };
-
+        let (handler, shared) = make_handler(known_hosts, host, port);
         let config = Arc::new(client::Config::default());
 
         // 일부 macOS 환경에서 hostname을 직접 받는 ToSocketAddrs 경로가 IPv6/IPv4 fallback을
@@ -150,7 +169,7 @@ impl SshSession {
 
         let connect_result = client::connect(config, &all_addrs[..], handler).await;
 
-        let mut handle = match connect_result {
+        let handle = match connect_result {
             Ok(h) => h,
             Err(e) => {
                 // host key 거절로 인한 실패라면 더 구체적인 에러로 변환.
@@ -163,6 +182,60 @@ impl SshSession {
             }
         };
 
+        Self::auth_handle(handle, user, auth).await
+    }
+
+    /// 점프 호스트(ProxyJump)를 통해 대상 호스트에 접속한다 (#61). 먼저 점프 호스트와
+    /// 연결한 뒤 그 위에 direct-tcpip 채널을 열고, 그 스트림을 전송로로 대상 호스트와
+    /// 새 SSH 세션을 협상한다. 반환값의 두 번째 핸들(점프)은 대상 세션이 살아 있는 동안
+    /// 함께 유지되어야 한다 — drop되면 터널이 끊긴다.
+    pub async fn establish_via(
+        jump: JumpSpec,
+        host: &str,
+        port: u16,
+        user: &str,
+        auth: ResolvedAuth,
+        known_hosts: Arc<KnownHostsStore>,
+    ) -> Result<(client::Handle<TofuHandler>, client::Handle<TofuHandler>), SshError> {
+        let jump_handle = Self::establish(
+            &jump.host,
+            jump.port,
+            &jump.user,
+            jump.auth,
+            Arc::clone(&known_hosts),
+        )
+        .await?;
+
+        let channel = jump_handle
+            .channel_open_direct_tcpip(host.to_string(), port as u32, "127.0.0.1".to_string(), 0)
+            .await
+            .map_err(|e| {
+                SshError::Channel(format!("proxyjump direct-tcpip {host}:{port}: {e}"))
+            })?;
+        let stream = channel.into_stream();
+
+        let (handler, shared) = make_handler(known_hosts, host, port);
+        let config = Arc::new(client::Config::default());
+        let handle = match client::connect_stream(config, stream, handler).await {
+            Ok(h) => h,
+            Err(e) => {
+                if let Some(outcome) = shared.outcome.lock().expect("outcome lock").take() {
+                    return Err(map_outcome_to_error(host, port, outcome)
+                        .unwrap_or_else(|| SshError::Connect(e.to_string())));
+                }
+                return Err(SshError::Connect(format!("proxyjump connect {host}:{port}: {e}")));
+            }
+        };
+        let handle = Self::auth_handle(handle, user, auth).await?;
+        Ok((handle, jump_handle))
+    }
+
+    /// 연결된 핸들에 대해 인증을 수행한다 (establish / establish_via 공용).
+    async fn auth_handle(
+        mut handle: client::Handle<TofuHandler>,
+        user: &str,
+        auth: ResolvedAuth,
+    ) -> Result<client::Handle<TofuHandler>, SshError> {
         let auth_ok = match auth {
             ResolvedAuth::Password(pw) => handle
                 .authenticate_password(user, pw)
@@ -187,6 +260,7 @@ impl SshSession {
 
     /// 호스트에 연결하고 PTY 채널을 연 뒤 actor 태스크를 띄운다.
     /// `known_hosts`는 TOFU 정책에 사용된다.
+    #[allow(clippy::too_many_arguments)]
     pub async fn connect(
         host: &str,
         port: u16,
@@ -197,8 +271,18 @@ impl SshSession {
         session_id: SessionId,
         sink: DataSink,
         known_hosts: Arc<KnownHostsStore>,
+        jump: Option<JumpSpec>,
     ) -> Result<Self, SshError> {
-        let mut handle = Self::establish(host, port, user, auth, known_hosts).await?;
+        // ProxyJump이 지정되면 점프 호스트를 통해 접속하고, 점프 핸들을 actor 태스크에서
+        // 유지한다(아래 spawn으로 move). 그렇지 않으면 직접 접속.
+        let (handle, jump_keepalive) = match jump {
+            Some(j) => {
+                let (h, jk) =
+                    Self::establish_via(j, host, port, user, auth, known_hosts).await?;
+                (h, Some(jk))
+            }
+            None => (Self::establish(host, port, user, auth, known_hosts).await?, None),
+        };
 
         let mut channel = handle
             .channel_open_session()
@@ -255,6 +339,9 @@ impl SshSession {
                 }
             }
             drop(handle);
+            // 점프 핸들도 여기서 함께 정리(세션 종료 시점). 이 태스크가 살아 있는 동안
+            // jump_keepalive를 잡고 있어 ProxyJump 터널이 유지된다.
+            drop(jump_keepalive);
         });
 
         Ok(Self { tx })
@@ -610,6 +697,7 @@ mod tests {
             "test-session".into(),
             empty_sink(),
             store,
+            None,
         );
         let result = timeout(Duration::from_secs(5), result)
             .await

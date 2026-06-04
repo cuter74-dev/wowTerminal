@@ -109,6 +109,7 @@ mod tests {
             auth: SshAuthMethod::Agent,
             tags: vec!["prod".into()],
             group_id: None,
+            proxy_jump: None,
         }
     }
 
