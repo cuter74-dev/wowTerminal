@@ -4,6 +4,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { emit, listen } from "@tauri-apps/api/event";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
+import { onCommandDone } from "./commandBus";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
 import { TabContextMenu } from "./components/TabContextMenu";
@@ -404,6 +410,8 @@ function App() {
     IS_DETACHED_WINDOW ? null : tabs[0].id,
   );
   const [bootstrapped, setBootstrapped] = useState<boolean>(!IS_DETACHED_WINDOW);
+  // 백그라운드 탭에서 오래 걸린 명령이 끝나면 알림 + 탭 배지 (#55, OSC 133 D).
+  const [tabAlerts, setTabAlerts] = useState<Set<string>>(() => new Set());
   // 메인 윈도우 시작 흐름: 스플래시 → (첫 실행이면) 온보딩 → 준비. detached는 바로 준비.
   const [phase, setPhase] = useState<"splash" | "onboarding" | "ready">(() =>
     IS_DETACHED_WINDOW ? "ready" : "splash",
@@ -448,6 +456,10 @@ function App() {
   }
 
   const lang = settings.general.language;
+  // UI 글꼴(호스트 목록·AI 패널 등)을 body에 적용 — 모든 UI가 상속. 터미널은 xterm 자체 폰트 사용.
+  useEffect(() => {
+    document.body.style.fontFamily = settings.general.uiFont;
+  }, [settings.general.uiFont]);
   // 좌/우 패널 토글 + 너비 리사이즈 (#21). 상태는 settings.layout에 영속화.
   const layout = settings.layout;
   const layoutRowRef = useRef<HTMLDivElement>(null);
@@ -708,6 +720,50 @@ function App() {
     () => tabs.find((t) => t.id === activeTabId) ?? null,
     [tabs, activeTabId],
   );
+
+  // #55 긴 명령 완료 알림: 버스(commandBus)로 OSC 133 D를 받아, 백그라운드 탭에서 임계값
+  // 이상 걸린 명령이면 데스크톱 알림 + 탭 배지. 최신 tabs/activeTabId는 ref로 읽는다.
+  const tabsRef = useRef(tabs);
+  tabsRef.current = tabs;
+  const activeTabIdRef = useRef(activeTabId);
+  activeTabIdRef.current = activeTabId;
+  useEffect(() => {
+    if (IS_DETACHED_WINDOW) return;
+    void requestPermission();
+    const off = onCommandDone(({ paneId, durationMs, exit }) => {
+      if (durationMs < 8000 || !paneId) return; // 짧은 명령은 무시(8초 임계).
+      const tab = tabsRef.current.find((t) => findLeaf(t.root, paneId));
+      if (!tab) return;
+      const foreground = tab.id === activeTabIdRef.current && document.hasFocus();
+      if (foreground) return; // 보고 있는 탭이면 알림 안 함.
+      setTabAlerts((prev) => new Set(prev).add(tab.id));
+      void (async () => {
+        let granted = await isPermissionGranted();
+        if (!granted) granted = (await requestPermission()) === "granted";
+        if (!granted) return;
+        const secs =
+          durationMs >= 10000
+            ? `${Math.round(durationMs / 1000)}s`
+            : `${(durationMs / 1000).toFixed(1)}s`;
+        sendNotification({
+          title: tab.label || "wowTerminal",
+          body: `${exit === 0 ? "✓" : "✗"} ${secs}`,
+        });
+      })();
+    });
+    return off;
+  }, []);
+
+  // 탭이 활성화되면 그 탭의 알림 배지를 지운다.
+  useEffect(() => {
+    if (!activeTabId) return;
+    setTabAlerts((prev) => {
+      if (!prev.has(activeTabId)) return prev;
+      const n = new Set(prev);
+      n.delete(activeTabId);
+      return n;
+    });
+  }, [activeTabId]);
 
   // 탭 활성화/전환 시 활성 탭의 모든 leaf를 다시 fit (xterm은 display:none에서 0 크기라
   // 표시될 때 재계산이 필요). 등록 직후 동작하도록 rAF로 지연.
@@ -1356,6 +1412,7 @@ function App() {
       <TabBar
         tabs={tabs}
         activeTabId={activeTabId}
+        alertedTabIds={tabAlerts}
         editingTabId={editingTabId}
         onActivate={setActiveTabId}
         onClose={closeTab}

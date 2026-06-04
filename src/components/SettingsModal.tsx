@@ -6,6 +6,7 @@ import {
   AppSettings,
   Lang,
   LANGS,
+  UI_FONTS,
   ShortcutAction,
   KeyBinding,
   DEFAULT_KEYBINDINGS,
@@ -29,6 +30,7 @@ const STR: LangDict<{
     tabShortcuts: string;
     tabBackup: string;
     language: string;
+    uiFontLabel: string;
     restoreTabs: string;
     aboutDesc: string;
     checkUpdate: string;
@@ -67,6 +69,7 @@ const STR: LangDict<{
     tabShortcuts: "Shortcuts",
     tabBackup: "Import/Export",
     language: "Language",
+    uiFontLabel: "UI font",
     restoreTabs: "Restore last tabs on startup (later)",
     aboutDesc: "A context-aware AI terminal — LLM × SSH × SFTP.",
     checkUpdate: "Check for updates",
@@ -107,6 +110,7 @@ const STR: LangDict<{
     tabShortcuts: "단축키",
     tabBackup: "가져오기/내보내기",
     language: "언어",
+    uiFontLabel: "UI 글꼴",
     restoreTabs: "앱 시작 시 마지막 탭 복원 (후속)",
     aboutDesc: "컨텍스트를 아는 AI 터미널 — LLM × SSH × SFTP.",
     checkUpdate: "업데이트 확인",
@@ -147,6 +151,7 @@ const STR: LangDict<{
     tabShortcuts: "Atajos",
     tabBackup: "Importar/Exportar",
     language: "Idioma",
+    uiFontLabel: "Fuente de interfaz",
     restoreTabs: "Restaurar las últimas pestañas al iniciar (más adelante)",
     aboutDesc: "Un terminal de IA con reconocimiento de contexto — LLM × SSH × SFTP.",
     checkUpdate: "Buscar actualizaciones",
@@ -187,6 +192,7 @@ const STR: LangDict<{
     tabShortcuts: "快捷键",
     tabBackup: "导入/导出",
     language: "语言",
+    uiFontLabel: "界面字体",
     restoreTabs: "启动时恢复上次的标签页（稍后）",
     aboutDesc: "一个具有上下文感知的 AI 终端 — LLM × SSH × SFTP.",
     checkUpdate: "检查更新",
@@ -227,6 +233,7 @@ const STR: LangDict<{
     tabShortcuts: "ショートカット",
     tabBackup: "インポート/エクスポート",
     language: "言語",
+    uiFontLabel: "UI フォント",
     restoreTabs: "起動時に前回のタブを復元（後日）",
     aboutDesc: "コンテキストを理解する AI ターミナル — LLM × SSH × SFTP.",
     checkUpdate: "更新を確認",
@@ -267,6 +274,7 @@ const STR: LangDict<{
     tabShortcuts: "Сочетания клавиш",
     tabBackup: "Импорт/Экспорт",
     language: "Язык",
+    uiFontLabel: "Шрифт интерфейса",
     restoreTabs: "Восстанавливать последние вкладки при запуске (позже)",
     aboutDesc: "Контекстно-зависимый ИИ-терминал — LLM × SSH × SFTP.",
     checkUpdate: "Проверить обновления",
@@ -307,6 +315,7 @@ const STR: LangDict<{
     tabShortcuts: "Raccourcis",
     tabBackup: "Importer/Exporter",
     language: "Langue",
+    uiFontLabel: "Police de l'interface",
     restoreTabs: "Restaurer les derniers onglets au démarrage (plus tard)",
     aboutDesc: "Un terminal IA sensible au contexte — LLM × SSH × SFTP.",
     checkUpdate: "Vérifier les mises à jour",
@@ -347,6 +356,7 @@ const STR: LangDict<{
     tabShortcuts: "Tastenkürzel",
     tabBackup: "Importieren/Exportieren",
     language: "Sprache",
+    uiFontLabel: "UI-Schriftart",
     restoreTabs: "Letzte Tabs beim Start wiederherstellen (später)",
     aboutDesc: "Ein kontextbewusstes KI-Terminal — LLM × SSH × SFTP.",
     checkUpdate: "Nach Updates suchen",
@@ -387,6 +397,7 @@ const STR: LangDict<{
     tabShortcuts: "Phím tắt",
     tabBackup: "Nhập/Xuất",
     language: "Ngôn ngữ",
+    uiFontLabel: "Phông chữ giao diện",
     restoreTabs: "Khôi phục các tab gần nhất khi khởi động (sau này)",
     aboutDesc: "Một terminal AI nhận biết ngữ cảnh — LLM × SSH × SFTP.",
     checkUpdate: "Kiểm tra cập nhật",
@@ -427,6 +438,7 @@ const STR: LangDict<{
     tabShortcuts: "Pintasan",
     tabBackup: "Impor/Ekspor",
     language: "Bahasa",
+    uiFontLabel: "Font UI",
     restoreTabs: "Pulihkan tab terakhir saat memulai (nanti)",
     aboutDesc: "Terminal AI yang sadar konteks — LLM × SSH × SFTP.",
     checkUpdate: "Periksa pembaruan",
@@ -467,6 +479,7 @@ const STR: LangDict<{
     tabShortcuts: "शॉर्टकट",
     tabBackup: "आयात/निर्यात",
     language: "भाषा",
+    uiFontLabel: "UI फ़ॉन्ट",
     restoreTabs: "शुरू होने पर अंतिम टैब पुनर्स्थापित करें (बाद में)",
     aboutDesc: "एक संदर्भ-जागरूक AI टर्मिनल — LLM × SSH × SFTP.",
     checkUpdate: "अपडेट जाँचें",
@@ -566,6 +579,19 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   {LANGS.map((l) => (
                     <option key={l.code} value={l.code}>
                       {l.label}
+                    </option>
+                  ))}
+                </select>
+              </Row>
+              <Row label={t.uiFontLabel}>
+                <select
+                  value={settings.general.uiFont}
+                  onChange={(e) => patchGeneral({ uiFont: e.target.value })}
+                  style={{ ...inputStyle, fontFamily: settings.general.uiFont }}
+                >
+                  {UI_FONTS.map((f) => (
+                    <option key={f.label} value={f.value} style={{ fontFamily: f.value }}>
+                      {f.label}
                     </option>
                   ))}
                 </select>

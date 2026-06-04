@@ -61,6 +61,8 @@ function tabIcon(t: Tab): string {
 interface Props {
   tabs: Tab[];
   activeTabId: string | null;
+  /** 백그라운드에서 긴 명령이 끝나 알림 배지를 표시할 탭 id들 (#55). */
+  alertedTabIds?: Set<string>;
   /** 인라인 편집 중인 탭 (이름 변경). null이면 편집 중 아님. */
   editingTabId: string | null;
   onActivate: (id: string) => void;
@@ -78,6 +80,7 @@ interface Props {
 export function TabBar({
   tabs,
   activeTabId,
+  alertedTabIds,
   editingTabId,
   onActivate,
   onClose,
@@ -104,6 +107,7 @@ export function TabBar({
       {tabs.map((t) => {
         const active = t.id === activeTabId;
         const editing = t.id === editingTabId;
+        const alerted = !!alertedTabIds?.has(t.id);
         const icon = tabIcon(t);
         return (
           <div
@@ -140,6 +144,18 @@ export function TabBar({
             title={t.label}
           >
             <span style={{ fontSize: 12 }}>{icon}</span>
+            {alerted && (
+              <span
+                title="command finished"
+                style={{
+                  width: 7,
+                  height: 7,
+                  borderRadius: "50%",
+                  background: "#ffae00",
+                  flexShrink: 0,
+                }}
+              />
+            )}
             {editing ? (
               <RenameInput
                 initial={t.label}

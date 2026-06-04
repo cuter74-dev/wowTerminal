@@ -52,7 +52,38 @@ export interface GeneralSettings {
   restoreTabs: boolean;
   /** UI 언어 (#22). */
   language: Lang;
+  /** UI(호스트 목록·AI 패널 등) 글꼴 — 터미널 폰트와 별개. CSS font-family 스택. */
+  uiFont: string;
 }
+
+/** UI 글꼴 프리셋. 시스템에 있을 법한 폰트 + 한글 폴백(Apple SD Gothic Neo 등). */
+export const UI_FONTS: { label: string; value: string }[] = [
+  {
+    label: "System",
+    value:
+      '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif',
+  },
+  {
+    label: "Helvetica Neue",
+    value: '"Helvetica Neue", Helvetica, "Apple SD Gothic Neo", Arial, sans-serif',
+  },
+  {
+    label: "Avenir Next",
+    value: '"Avenir Next", Avenir, "Apple SD Gothic Neo", sans-serif',
+  },
+  {
+    label: "Apple SD Gothic Neo",
+    value: '"Apple SD Gothic Neo", -apple-system, sans-serif',
+  },
+  {
+    label: "Pretendard",
+    value: 'Pretendard, "Pretendard Variable", -apple-system, sans-serif',
+  },
+  {
+    label: "Noto Sans KR",
+    value: '"Noto Sans KR", -apple-system, sans-serif',
+  },
+];
 
 export interface LayoutSettings {
   /** 좌측 호스트 패널 표시 여부. */
@@ -140,7 +171,7 @@ export const TERMINAL_THEMES: Record<
 };
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  general: { restoreTabs: false, language: "en" },
+  general: { restoreTabs: false, language: "en", uiFont: UI_FONTS[0].value },
   terminal: {
     fontSize: 14,
     fontFamily: "Menlo, Consolas, 'Courier New', monospace",

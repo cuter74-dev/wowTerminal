@@ -11,6 +11,7 @@ import "@xterm/xterm/css/xterm.css";
 import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
 import { registerTerminal, unregisterTerminal } from "../terminalRegistry";
 import { askAI } from "../aiBus";
+import { emitCommandDone } from "../commandBus";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { LangDict, useT } from "../i18n";
@@ -452,6 +453,13 @@ export function Terminal({
         cMarker = term.registerMarker(0);
       } else if (kind === "D") {
         const exit = parseInt(payload.split(";")[1] ?? "", 10);
+        if (cmdStart) {
+          emitCommandDone({
+            paneId: paneId ?? "",
+            durationMs: Date.now() - cmdStart,
+            exit: isNaN(exit) ? 0 : exit,
+          });
+        }
         if (cMarker && cmdStart) {
           // 블록 텍스트(명령 줄 + 출력) 추출: cMarker.line-1 ~ 현재 줄.
           const buf = term.buffer.active;

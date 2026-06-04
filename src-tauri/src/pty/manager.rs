@@ -150,6 +150,8 @@ impl PtyManager {
             cmd.arg("+o");
             cmd.arg("promptsp");
             setup_zsh_integration(&mut cmd);
+        } else if shell_name.as_deref() == Some("bash") {
+            setup_bash_integration(&mut cmd);
         }
 
         let child = pair
@@ -288,6 +290,35 @@ fn setup_zsh_integration(cmd: &mut CommandBuilder) {
 
     cmd.env("WT_ORIG_ZDOTDIR", orig);
     cmd.env("ZDOTDIR", dir.to_string_lossy().to_string());
+}
+
+/// 로컬 bash에 OSC 133 통합을 주입한다 — `--rcfile`로 사용자 ~/.bashrc를 source한 뒤 훅 추가.
+/// (DEBUG trap=명령 시작 C, PROMPT_COMMAND=종료 D;exit. 프롬프트 사이클당 C 1회 보장.)
+fn setup_bash_integration(cmd: &mut CommandBuilder) {
+    let dir = std::env::temp_dir().join("wowterminal-bash");
+    if std::fs::create_dir_all(&dir).is_err() {
+        return;
+    }
+    let rc = dir.join("wt-bashrc.bash");
+    let body = concat!(
+        "[ -f ~/.bashrc ] && source ~/.bashrc\n",
+        "__wt_pe=0\n",
+        "__wt_preexec() {\n",
+        "  [ -n \"$COMP_LINE\" ] && return\n",
+        "  [ \"$BASH_COMMAND\" = \"$PROMPT_COMMAND\" ] && return\n",
+        "  [ \"$__wt_pe\" = \"1\" ] && return\n",
+        "  __wt_pe=1\n",
+        "  printf '\\033]133;C\\007'\n",
+        "}\n",
+        "__wt_precmd() { local e=$?; printf '\\033]133;D;%s\\007' \"$e\"; __wt_pe=0; }\n",
+        "trap '__wt_preexec' DEBUG\n",
+        "PROMPT_COMMAND=\"__wt_precmd${PROMPT_COMMAND:+; $PROMPT_COMMAND}\"\n",
+    );
+    if std::fs::write(&rc, body).is_err() {
+        return;
+    }
+    cmd.arg("--rcfile");
+    cmd.arg(rc.to_string_lossy().to_string());
 }
 
 #[cfg(target_family = "windows")]
