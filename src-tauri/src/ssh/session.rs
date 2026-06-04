@@ -8,12 +8,13 @@
 //! 불일치면 거절 + outcome 기록. 거절은 러닝 중인 connect()가 일반 에러로 반환되므로
 //! 호출 측에서 outcome을 확인해 [`SshError::HostKeyMismatch`]로 변환한다.
 
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 
 use russh::client::{self, Handler};
 use russh::keys::ssh_key::{HashAlg, PrivateKey, PublicKey};
 use russh::keys::PrivateKeyWithHashAlg;
-use russh::ChannelMsg;
+use russh::{Channel, ChannelMsg};
 use tokio::sync::mpsc;
 
 use crate::pty::manager::DataSink;
@@ -41,12 +42,18 @@ enum TofuOutcome {
     InternalError(String),
 }
 
+/// 원격 포워드(-R) 라우팅 표: 서버 바인드 포트 → 클라이언트 측 (host, port).
+/// 서버가 forwarded-tcpip 채널을 열면 이 표를 보고 로컬 대상으로 연결한다.
+pub type RemoteForwards = Arc<Mutex<HashMap<u16, (String, u16)>>>;
+
 #[derive(Clone)]
 struct TofuShared {
     store: Arc<KnownHostsStore>,
     host: String,
     port: u16,
     outcome: Arc<Mutex<Option<TofuOutcome>>>,
+    /// -R 원격 포워드 라우팅(비어 있으면 forwarded-tcpip를 무시).
+    remote_forwards: RemoteForwards,
 }
 
 /// TOFU 정책 핸들러.
@@ -63,16 +70,19 @@ pub struct JumpSpec {
 }
 
 /// TOFU 핸들러 + 공유 상태를 만든다 (establish / establish_via 공용).
+/// `remote_forwards`가 비면 -R 미사용(forwarded-tcpip 무시).
 fn make_handler(
     store: Arc<KnownHostsStore>,
     host: &str,
     port: u16,
+    remote_forwards: RemoteForwards,
 ) -> (TofuHandler, TofuShared) {
     let shared = TofuShared {
         store,
         host: host.to_string(),
         port,
         outcome: Arc::new(Mutex::new(None)),
+        remote_forwards,
     };
     (
         TofuHandler {
@@ -128,6 +138,42 @@ impl Handler for TofuHandler {
             .expect("tofu outcome mutex poisoned") = Some(outcome);
         Ok(accept)
     }
+
+    /// 원격 포워드(-R): 서버가 바인드 포트로 들어온 연결을 forwarded-tcpip 채널로 보내면,
+    /// 라우팅 표에서 클라이언트 측 대상을 찾아 로컬 TCP로 연결하고 양방향 펌프한다.
+    async fn server_channel_open_forwarded_tcpip(
+        &mut self,
+        channel: Channel<client::Msg>,
+        _connected_address: &str,
+        connected_port: u32,
+        _originator_address: &str,
+        _originator_port: u32,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        // 바인드 포트로 대상을 찾고, 없으면(예: 표에 1개뿐) 유일 항목으로 폴백.
+        let target = {
+            let map = self
+                .shared
+                .remote_forwards
+                .lock()
+                .expect("remote_forwards mutex poisoned");
+            map.get(&(connected_port as u16))
+                .cloned()
+                .or_else(|| if map.len() == 1 { map.values().next().cloned() } else { None })
+        };
+        if let Some((lhost, lport)) = target {
+            let mut stream = channel.into_stream();
+            tokio::spawn(async move {
+                if let Ok(mut local) =
+                    tokio::net::TcpStream::connect((lhost.as_str(), lport)).await
+                {
+                    let _ = tokio::io::copy_bidirectional(&mut local, &mut stream).await;
+                }
+                // 대상 연결 실패 시 stream이 drop되며 채널이 닫힌다.
+            });
+        }
+        Ok(())
+    }
 }
 
 /// 외부 → actor 태스크로 보내는 명령.
@@ -150,7 +196,30 @@ impl SshSession {
         auth: ResolvedAuth,
         known_hosts: Arc<KnownHostsStore>,
     ) -> Result<client::Handle<TofuHandler>, SshError> {
-        let (handler, shared) = make_handler(known_hosts, host, port);
+        Self::establish_inner(host, port, user, auth, known_hosts, Default::default()).await
+    }
+
+    /// establish + 원격 포워드(-R) 라우팅 표를 핸들러에 심는다. -R 터널 전용.
+    pub async fn establish_with_forwards(
+        host: &str,
+        port: u16,
+        user: &str,
+        auth: ResolvedAuth,
+        known_hosts: Arc<KnownHostsStore>,
+        remote_forwards: RemoteForwards,
+    ) -> Result<client::Handle<TofuHandler>, SshError> {
+        Self::establish_inner(host, port, user, auth, known_hosts, remote_forwards).await
+    }
+
+    async fn establish_inner(
+        host: &str,
+        port: u16,
+        user: &str,
+        auth: ResolvedAuth,
+        known_hosts: Arc<KnownHostsStore>,
+        remote_forwards: RemoteForwards,
+    ) -> Result<client::Handle<TofuHandler>, SshError> {
+        let (handler, shared) = make_handler(known_hosts, host, port, remote_forwards);
         let config = Arc::new(client::Config::default());
 
         // 일부 macOS 환경에서 hostname을 직접 받는 ToSocketAddrs 경로가 IPv6/IPv4 fallback을
@@ -214,7 +283,7 @@ impl SshSession {
             })?;
         let stream = channel.into_stream();
 
-        let (handler, shared) = make_handler(known_hosts, host, port);
+        let (handler, shared) = make_handler(known_hosts, host, port, Default::default());
         let config = Arc::new(client::Config::default());
         let handle = match client::connect_stream(config, stream, handler).await {
             Ok(h) => h,
@@ -540,6 +609,7 @@ mod tests {
             host: host.into(),
             port,
             outcome: Arc::new(Mutex::new(None)),
+            remote_forwards: Default::default(),
         };
         (TofuHandler { shared: shared.clone() }, shared)
     }

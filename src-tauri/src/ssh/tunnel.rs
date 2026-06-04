@@ -13,7 +13,7 @@ use tokio::sync::Mutex;
 
 use super::known_hosts::KnownHostsStore;
 use super::manager::SshError;
-use super::session::{ResolvedAuth, SshSession, TofuHandler};
+use super::session::{RemoteForwards, ResolvedAuth, SshSession, TofuHandler};
 use super::types::SshHost;
 
 type Handle = russh::client::Handle<TofuHandler>;
@@ -206,6 +206,66 @@ impl TunnelManager {
             local_port: bound,
             remote_host: String::new(),
             remote_port: 0,
+        };
+        self.tunnels.lock().await.insert(
+            id,
+            Tunnel {
+                info: info.clone(),
+                abort: task.abort_handle(),
+            },
+        );
+        Ok(info)
+    }
+
+    /// 원격 포워드(-R): 서버의 bind_host:bind_port 로 들어온 연결을 SSH 너머
+    /// 클라이언트 측 local_host:local_port 로 전달. tcpip_forward로 서버에 리스닝을 요청하고
+    /// forwarded-tcpip 채널은 핸들러(server_channel_open_forwarded_tcpip)가 처리한다.
+    pub async fn start_remote(
+        &self,
+        id: String,
+        host: SshHost,
+        auth: ResolvedAuth,
+        bind_host: String,
+        bind_port: u16,
+        local_host: String,
+        local_port: u16,
+    ) -> Result<TunnelInfo, SshError> {
+        let forwards: RemoteForwards = Arc::new(std::sync::Mutex::new(HashMap::new()));
+        forwards
+            .lock()
+            .expect("remote_forwards poisoned")
+            .insert(bind_port, (local_host.clone(), local_port));
+
+        let handle = SshSession::establish_with_forwards(
+            &host.host,
+            host.port,
+            &host.user,
+            auth,
+            Arc::clone(&self.known_hosts),
+            Arc::clone(&forwards),
+        )
+        .await?;
+
+        let bound = handle
+            .tcpip_forward(bind_host.clone(), bind_port as u32)
+            .await
+            .map_err(|e| SshError::Channel(format!("tcpip_forward {bind_host}:{bind_port}: {e}")))?;
+
+        let task = tokio::spawn(async move {
+            // 핸들과 라우팅 표를 잡아둬 -R 세션을 유지(handler 콜백이 동작). abort 시 정리.
+            let _keep_handle = handle;
+            let _keep_forwards = forwards;
+            std::future::pending::<()>().await;
+        });
+
+        let info = TunnelInfo {
+            id: id.clone(),
+            host_id: host.id.clone(),
+            kind: "remote".into(),
+            local_host,
+            local_port,
+            remote_host: bind_host,
+            remote_port: bound as u16,
         };
         self.tunnels.lock().await.insert(
             id,

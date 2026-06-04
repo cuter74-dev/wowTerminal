@@ -842,6 +842,43 @@ pub async fn tunnel_start_dynamic(
         .map_err(|e| e.to_string())
 }
 
+/// 포트 포워딩 시작 — 원격(-R) (#74). 서버 bind_port → 클라이언트 local_host:local_port.
+#[tauri::command]
+pub async fn tunnel_start_remote(
+    host_id: String,
+    bind_host: Option<String>,
+    bind_port: u16,
+    local_host: String,
+    local_port: u16,
+    password: Option<String>,
+    state: State<'_, SshState>,
+) -> Result<TunnelInfo, String> {
+    let host = state.store.get(&host_id).map_err(|e| e.to_string())?;
+    let auth = resolve_auth(
+        &host.auth,
+        state.secrets.as_deref(),
+        password.as_deref(),
+        &host.host,
+        host.port,
+        &host.user,
+    )
+    .map_err(|e| e.to_string())?;
+    let id = uuid::Uuid::new_v4().to_string();
+    state
+        .tunnel
+        .start_remote(
+            id,
+            host,
+            auth,
+            bind_host.unwrap_or_else(|| "127.0.0.1".into()),
+            bind_port,
+            local_host,
+            local_port,
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 포트 포워딩 중지.
 #[tauri::command]
 pub async fn tunnel_stop(id: String, state: State<'_, SshState>) -> Result<(), String> {

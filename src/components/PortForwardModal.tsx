@@ -30,9 +30,13 @@ const STR: LangDict<{
   kind: string;
   local: string;
   dynamic: string;
+  remote: string;
   localPort: string;
   remoteHost: string;
   remotePort: string;
+  bindPort: string;
+  targetHost: string;
+  targetPort: string;
   start: string;
   stop: string;
   starting: string;
@@ -49,14 +53,18 @@ const STR: LangDict<{
     kind: "Type",
     local: "Local (-L)",
     dynamic: "Dynamic SOCKS (-D)",
+    remote: "Remote (-R)",
     localPort: "Local port",
     remoteHost: "Remote host",
     remotePort: "Remote port",
+    bindPort: "Remote bind port",
+    targetHost: "Local target host",
+    targetPort: "Local target port",
     start: "Start",
     stop: "Stop",
     starting: "Starting…",
     close: "Close",
-    hint: "Auth uses ssh-agent or saved credentials. Remote (-R) is coming later.",
+    hint: "Auth uses ssh-agent or saved credentials.",
     errHost: "Pick a host",
   },
   ko: {
@@ -68,14 +76,18 @@ const STR: LangDict<{
     kind: "종류",
     local: "로컬 (-L)",
     dynamic: "다이내믹 SOCKS (-D)",
+    remote: "원격 (-R)",
     localPort: "로컬 포트",
     remoteHost: "원격 호스트",
     remotePort: "원격 포트",
+    bindPort: "원격 바인드 포트",
+    targetHost: "로컬 대상 호스트",
+    targetPort: "로컬 대상 포트",
     start: "시작",
     stop: "중지",
     starting: "시작 중…",
     close: "닫기",
-    hint: "인증은 ssh-agent 또는 저장된 자격 증명 사용. 원격(-R)은 후속 예정.",
+    hint: "인증은 ssh-agent 또는 저장된 자격 증명 사용.",
     errHost: "호스트를 선택하세요",
   },
 };
@@ -84,7 +96,7 @@ export function PortForwardModal({ hosts, onClose }: Props) {
   const t = useT(STR);
   const [tunnels, setTunnels] = useState<TunnelInfo[]>([]);
   const [hostId, setHostId] = useState(hosts[0]?.id ?? "");
-  const [kind, setKind] = useState<"local" | "dynamic">("local");
+  const [kind, setKind] = useState<"local" | "dynamic" | "remote">("local");
   const [localPort, setLocalPort] = useState("8080");
   const [remoteHost, setRemoteHost] = useState("localhost");
   const [remotePort, setRemotePort] = useState("80");
@@ -120,6 +132,15 @@ export function PortForwardModal({ hosts, onClose }: Props) {
           localPort: parseInt(localPort || "0", 10),
           remoteHost,
           remotePort: parseInt(remotePort || "0", 10),
+        });
+      } else if (kind === "remote") {
+        // localPort 필드=서버 바인드 포트, remoteHost/remotePort=클라이언트 측 대상.
+        await invoke("tunnel_start_remote", {
+          hostId,
+          bindHost: "127.0.0.1",
+          bindPort: parseInt(localPort || "0", 10),
+          localHost: remoteHost,
+          localPort: parseInt(remotePort || "0", 10),
         });
       } else {
         await invoke("tunnel_start_dynamic", {
@@ -206,12 +227,25 @@ export function PortForwardModal({ hosts, onClose }: Props) {
                 >
                   <span>
                     <span style={{ color: "#7ed98a" }}>●</span>{" "}
-                    {tn.kind === "local" ? "L" : "D"} · 127.0.0.1:{tn.local_port}
-                    {tn.kind === "local" && (
-                      <span style={{ color: "#9aa" }}>
-                        {" "}
-                        → {tn.remote_host}:{tn.remote_port}
-                      </span>
+                    {tn.kind === "remote" ? (
+                      // -R: 서버 바인드 → 클라이언트 측 대상
+                      <>
+                        R · {tn.remote_host}:{tn.remote_port}
+                        <span style={{ color: "#9aa" }}>
+                          {" "}
+                          → {tn.local_host}:{tn.local_port}
+                        </span>
+                      </>
+                    ) : (
+                      <>
+                        {tn.kind === "local" ? "L" : "D"} · 127.0.0.1:{tn.local_port}
+                        {tn.kind === "local" && (
+                          <span style={{ color: "#9aa" }}>
+                            {" "}
+                            → {tn.remote_host}:{tn.remote_port}
+                          </span>
+                        )}
+                      </>
                     )}{" "}
                     <span style={{ color: "#778" }}>({hostName(tn.host_id)})</span>
                   </span>
@@ -249,25 +283,32 @@ export function PortForwardModal({ hosts, onClose }: Props) {
             <label style={lbl}>{t.kind}</label>
             <select
               value={kind}
-              onChange={(e) => setKind(e.target.value as "local" | "dynamic")}
+              onChange={(e) =>
+                setKind(e.target.value as "local" | "dynamic" | "remote")
+              }
               style={inp}
             >
               <option value="local">{t.local}</option>
+              <option value="remote">{t.remote}</option>
               <option value="dynamic">{t.dynamic}</option>
             </select>
 
-            <label style={lbl}>{t.localPort}</label>
+            <label style={lbl}>{kind === "remote" ? t.bindPort : t.localPort}</label>
             <input value={localPort} onChange={(e) => setLocalPort(e.target.value)} style={inp} />
 
-            {kind === "local" && (
+            {(kind === "local" || kind === "remote") && (
               <>
-                <label style={lbl}>{t.remoteHost}</label>
+                <label style={lbl}>
+                  {kind === "remote" ? t.targetHost : t.remoteHost}
+                </label>
                 <input
                   value={remoteHost}
                   onChange={(e) => setRemoteHost(e.target.value)}
                   style={inp}
                 />
-                <label style={lbl}>{t.remotePort}</label>
+                <label style={lbl}>
+                  {kind === "remote" ? t.targetPort : t.remotePort}
+                </label>
                 <input
                   value={remotePort}
                   onChange={(e) => setRemotePort(e.target.value)}

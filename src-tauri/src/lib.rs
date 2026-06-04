@@ -149,6 +149,7 @@ pub fn run() {
             ssh::commands::local_write_text,
             ssh::commands::tunnel_start_local,
             ssh::commands::tunnel_start_dynamic,
+            ssh::commands::tunnel_start_remote,
             ssh::commands::tunnel_stop,
             ssh::commands::tunnel_list,
             ssh::commands::session_log_append,
