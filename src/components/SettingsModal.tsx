@@ -7,6 +7,7 @@ import {
   Lang,
   LANGS,
   UI_FONTS,
+  TERMINAL_THEME_LIST,
   ShortcutAction,
   KeyBinding,
   DEFAULT_KEYBINDINGS,
@@ -766,12 +767,21 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                 <select
                   value={settings.terminal.theme}
                   onChange={(e) =>
-                    patchTerminal({ theme: e.target.value as "dark" | "light" })
+                    patchTerminal({
+                      theme: e.target.value as AppSettings["terminal"]["theme"],
+                    })
                   }
                   style={inputStyle}
                 >
-                  <option value="dark">{t.dark}</option>
-                  <option value="light">{t.light}</option>
+                  {TERMINAL_THEME_LIST.map((th) => (
+                    <option key={th.key} value={th.key}>
+                      {th.key === "dark"
+                        ? t.dark
+                        : th.key === "light"
+                          ? t.light
+                          : th.label}
+                    </option>
+                  ))}
                 </select>
               </Row>
               <Row label={t.cursorBlink}>
