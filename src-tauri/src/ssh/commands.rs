@@ -620,6 +620,21 @@ pub async fn sftp_read_text(
         .map_err(|e| e.to_string())
 }
 
+/// 텍스트를 원격 파일에 저장한다 (빠른 편집). 기존 내용을 덮어쓴다.
+#[tauri::command]
+pub async fn sftp_write_text(
+    host_id: String,
+    path: String,
+    content: String,
+    state: State<'_, SshState>,
+) -> Result<(), String> {
+    state
+        .sftp
+        .write_text(&host_id, &path, &content)
+        .await
+        .map_err(|e| e.to_string())
+}
+
 /// 원격 파일을 base64로 읽는다 (이미지 미리보기용). 상한 8MB.
 #[tauri::command]
 pub async fn sftp_read_bytes(

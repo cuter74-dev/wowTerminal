@@ -46,6 +46,10 @@ const STR: LangDict<{
     ctxUpload: string;
     emptyFile: string;
     previewFooter: string;
+    save: string;
+    saved: string;
+    saveErr: string;
+    editFooter: string;
     loading: string;
     colName: string;
     colSize: string;
@@ -119,6 +123,10 @@ const STR: LangDict<{
     ctxUpload: "→ Upload",
     emptyFile: "(empty file)",
     previewFooter: "Up to 256KB preview · binary may appear garbled",
+    save: "Save",
+    saved: "Saved ✓",
+    saveErr: "Save failed",
+    editFooter: "Edit and Save (⌘S) — overwrites the remote file",
     loading: "Loading…",
     colName: "Name",
     colSize: "Size",
@@ -192,6 +200,10 @@ const STR: LangDict<{
     ctxUpload: "→ 업로드",
     emptyFile: "(빈 파일)",
     previewFooter: "최대 256KB 미리보기 · 바이너리는 깨져 보일 수 있음",
+    save: "저장",
+    saved: "저장됨 ✓",
+    saveErr: "저장 실패",
+    editFooter: "편집 후 저장(⌘S) — 원격 파일을 덮어씁니다",
     loading: "불러오는 중…",
     colName: "이름",
     colSize: "크기",
@@ -265,6 +277,10 @@ const STR: LangDict<{
     ctxUpload: "→ Subir",
     emptyFile: "(archivo vacío)",
     previewFooter: "Vista previa hasta 256KB · los binarios pueden verse ilegibles",
+    save: "Guardar",
+    saved: "Guardado ✓",
+    saveErr: "Error al guardar",
+    editFooter: "Edita y guarda (⌘S) — sobrescribe el archivo remoto",
     loading: "Cargando…",
     colName: "Nombre",
     colSize: "Tamaño",
@@ -338,6 +354,10 @@ const STR: LangDict<{
     ctxUpload: "→ 上传",
     emptyFile: "(空文件)",
     previewFooter: "最多预览 256KB · 二进制文件可能显示乱码",
+    save: "保存",
+    saved: "已保存 ✓",
+    saveErr: "保存失败",
+    editFooter: "编辑并保存（⌘S）— 覆盖远程文件",
     loading: "加载中…",
     colName: "名称",
     colSize: "大小",
@@ -411,6 +431,10 @@ const STR: LangDict<{
     ctxUpload: "→ アップロード",
     emptyFile: "(空のファイル)",
     previewFooter: "最大 256KB のプレビュー · バイナリは文字化けする場合があります",
+    save: "保存",
+    saved: "保存しました ✓",
+    saveErr: "保存に失敗",
+    editFooter: "編集して保存（⌘S）— リモートファイルを上書き",
     loading: "読み込み中…",
     colName: "名前",
     colSize: "サイズ",
@@ -484,6 +508,10 @@ const STR: LangDict<{
     ctxUpload: "→ Загрузить",
     emptyFile: "(пустой файл)",
     previewFooter: "Предпросмотр до 256КБ · двоичные файлы могут отображаться некорректно",
+    save: "Сохранить",
+    saved: "Сохранено ✓",
+    saveErr: "Не удалось сохранить",
+    editFooter: "Измените и сохраните (⌘S) — перезапишет удалённый файл",
     loading: "Загрузка…",
     colName: "Имя",
     colSize: "Размер",
@@ -557,6 +585,10 @@ const STR: LangDict<{
     ctxUpload: "→ Envoyer",
     emptyFile: "(fichier vide)",
     previewFooter: "Aperçu jusqu'à 256 Ko · le binaire peut être illisible",
+    save: "Enregistrer",
+    saved: "Enregistré ✓",
+    saveErr: "Échec de l'enregistrement",
+    editFooter: "Modifiez et enregistrez (⌘S) — écrase le fichier distant",
     loading: "Chargement…",
     colName: "Nom",
     colSize: "Taille",
@@ -630,6 +662,10 @@ const STR: LangDict<{
     ctxUpload: "→ Hochladen",
     emptyFile: "(leere Datei)",
     previewFooter: "Vorschau bis 256 KB · Binärdateien können unleserlich erscheinen",
+    save: "Speichern",
+    saved: "Gespeichert ✓",
+    saveErr: "Speichern fehlgeschlagen",
+    editFooter: "Bearbeiten und speichern (⌘S) — überschreibt die Remote-Datei",
     loading: "Wird geladen…",
     colName: "Name",
     colSize: "Größe",
@@ -703,6 +739,10 @@ const STR: LangDict<{
     ctxUpload: "→ Tải lên",
     emptyFile: "(tệp trống)",
     previewFooter: "Xem trước tối đa 256KB · tệp nhị phân có thể hiển thị lỗi",
+    save: "Lưu",
+    saved: "Đã lưu ✓",
+    saveErr: "Lưu thất bại",
+    editFooter: "Chỉnh sửa và lưu (⌘S) — ghi đè tệp từ xa",
     loading: "Đang tải…",
     colName: "Tên",
     colSize: "Kích thước",
@@ -776,6 +816,10 @@ const STR: LangDict<{
     ctxUpload: "→ Unggah",
     emptyFile: "(file kosong)",
     previewFooter: "Pratinjau hingga 256KB · biner mungkin tampak rusak",
+    save: "Simpan",
+    saved: "Tersimpan ✓",
+    saveErr: "Gagal menyimpan",
+    editFooter: "Edit dan simpan (⌘S) — menimpa berkas jarak jauh",
     loading: "Memuat…",
     colName: "Nama",
     colSize: "Ukuran",
@@ -849,6 +893,10 @@ const STR: LangDict<{
     ctxUpload: "→ अपलोड",
     emptyFile: "(खाली फ़ाइल)",
     previewFooter: "256KB तक पूर्वावलोकन · बाइनरी विकृत दिख सकती है",
+    save: "सहेजें",
+    saved: "सहेजा गया ✓",
+    saveErr: "सहेजना विफल",
+    editFooter: "संपादित करें और सहेजें (⌘S) — रिमोट फ़ाइल अधिलेखित करता है",
     loading: "लोड हो रहा है…",
     colName: "नाम",
     colSize: "आकार",
@@ -977,6 +1025,11 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
     name: string;
     content: string;
     imageUrl?: string;
+    /** 텍스트 파일이면 편집 가능. 저장에 필요한 위치 정보. */
+    editable?: boolean;
+    path?: string;
+    hostId?: string;
+    isLocal?: boolean;
   } | null>(null);
   const [permEdit, setPermEdit] = useState<FileEntry | null>(null);
   const [showSearch, setShowSearch] = useState(false);
@@ -1297,7 +1350,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
         return;
       }
       const content = await invoke<string>("sftp_read_text", { hostId, path });
-      setPreview({ name: entry.name, content });
+      setPreview({ name: entry.name, content, editable: true, path, hostId });
     } catch (e) {
       setError(t.errPreview(String(e)));
     }
@@ -1318,7 +1371,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
         return;
       }
       const content = await invoke<string>("local_read_text", { path });
-      setPreview({ name: entry.name, content });
+      setPreview({ name: entry.name, content, editable: true, path, isLocal: true });
     } catch (e) {
       setError(t.errPreview(String(e)));
     }
@@ -1597,6 +1650,25 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
             name={preview.name}
             content={preview.content}
             imageUrl={preview.imageUrl}
+            editable={preview.editable}
+            onSave={
+              preview.editable && preview.path
+                ? async (next) => {
+                    if (preview.isLocal) {
+                      await invoke("local_write_text", {
+                        path: preview.path,
+                        content: next,
+                      });
+                    } else {
+                      await invoke("sftp_write_text", {
+                        hostId: preview.hostId,
+                        path: preview.path,
+                        content: next,
+                      });
+                    }
+                  }
+                : undefined
+            }
             onClose={() => setPreview(null)}
           />
         )}
@@ -1715,14 +1787,38 @@ function PreviewModal({
   name,
   content,
   imageUrl,
+  editable,
+  onSave,
   onClose,
 }: {
   name: string;
   content: string;
   imageUrl?: string;
+  editable?: boolean;
+  onSave?: (next: string) => Promise<void>;
   onClose: () => void;
 }) {
   const t = useT(STR);
+  const canEdit = !!editable && !imageUrl && !!onSave;
+  const [draft, setDraft] = useState(content);
+  const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
+    "idle",
+  );
+  const [errMsg, setErrMsg] = useState("");
+  const dirty = canEdit && draft !== content;
+
+  const save = useCallback(async () => {
+    if (!onSave || status === "saving") return;
+    setStatus("saving");
+    try {
+      await onSave(draft);
+      setStatus("saved");
+    } catch (e) {
+      setErrMsg(String(e));
+      setStatus("error");
+    }
+  }, [onSave, draft, status]);
+
   return (
     <div
       onClick={onClose}
@@ -1738,6 +1834,13 @@ function PreviewModal({
     >
       <div
         onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          // ⌘S / Ctrl-S 로 저장.
+          if (canEdit && (e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+            e.preventDefault();
+            void save();
+          }
+        }}
         style={{
           width: "70vw",
           height: "75vh",
@@ -1761,14 +1864,44 @@ function PreviewModal({
           }}
         >
           <strong style={{ fontSize: 13 }}>
-            {imageUrl ? "🖼" : "📄"} {name}
+            {imageUrl ? "🖼" : canEdit ? "✏️" : "📄"} {name}
+            {dirty && <span style={{ color: "#e0b050" }}> ●</span>}
           </strong>
-          <button
-            onClick={onClose}
-            style={{ background: "transparent", border: "none", color: "#ccc", cursor: "pointer", fontSize: 15 }}
-          >
-            ×
-          </button>
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            {canEdit && (
+              <>
+                {status === "saved" && !dirty && (
+                  <span style={{ color: "#7ed98a", fontSize: 12 }}>{t.saved}</span>
+                )}
+                {status === "error" && (
+                  <span style={{ color: "#e06c6c", fontSize: 12 }}>
+                    {t.saveErr}: {errMsg}
+                  </span>
+                )}
+                <button
+                  onClick={() => void save()}
+                  disabled={!dirty || status === "saving"}
+                  style={{
+                    background: dirty ? "#2e6aa3" : "#33333a",
+                    border: "1px solid #3a6ea5",
+                    color: dirty ? "#fff" : "#888",
+                    borderRadius: 4,
+                    padding: "3px 12px",
+                    cursor: dirty ? "pointer" : "default",
+                    fontSize: 12,
+                  }}
+                >
+                  💾 {t.save}
+                </button>
+              </>
+            )}
+            <button
+              onClick={onClose}
+              style={{ background: "transparent", border: "none", color: "#ccc", cursor: "pointer", fontSize: 15 }}
+            >
+              ×
+            </button>
+          </div>
         </header>
         {imageUrl ? (
           <div
@@ -1790,6 +1923,29 @@ function PreviewModal({
               style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }}
             />
           </div>
+        ) : canEdit ? (
+          <textarea
+            value={draft}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              if (status !== "idle") setStatus("idle");
+            }}
+            spellCheck={false}
+            autoFocus
+            style={{
+              flex: 1,
+              margin: 0,
+              padding: 14,
+              border: "none",
+              outline: "none",
+              resize: "none",
+              background: "#15151a",
+              fontFamily: "Menlo, Consolas, monospace",
+              fontSize: 12,
+              color: "#dcdcdc",
+              lineHeight: 1.5,
+            }}
+          />
         ) : (
           <pre
             style={{
@@ -1809,7 +1965,7 @@ function PreviewModal({
         )}
         {!imageUrl && (
           <div style={{ padding: "4px 14px", fontSize: 10, color: "#789", borderTop: "1px solid #2a2a30" }}>
-            {t.previewFooter}
+            {canEdit ? t.editFooter : t.previewFooter}
           </div>
         )}
       </div>

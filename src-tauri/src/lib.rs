@@ -140,6 +140,7 @@ pub fn run() {
             ssh::commands::sftp_mkdir,
             ssh::commands::sftp_touch,
             ssh::commands::sftp_read_text,
+            ssh::commands::sftp_write_text,
             ssh::commands::sftp_read_bytes,
             ssh::commands::sftp_chmod,
             ssh::commands::sftp_search,
