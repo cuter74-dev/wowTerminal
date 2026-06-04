@@ -71,20 +71,23 @@ jobs:
           # 빌드 시 업데이트 아티팩트(.sig)와 latest.json이 서명·생성된다. 비밀번호는 빈 값.
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-          # --- 코드 서명(macOS/Windows)은 현재 미사용(unsigned 배포) ---
-          # Apple Developer 인증서를 발급하면 아래 env를 다시 추가해 서명·공증한다.
-          # (절차: docs/guide/release-signing.md)
-          #   APPLE_CERTIFICATE / APPLE_CERTIFICATE_PASSWORD / APPLE_SIGNING_IDENTITY /
-          #   APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID
+          # --- macOS 코드 서명 + 공증 (Developer ID Application) ---
+          # 6개 Secret이 모두 있으면 tauri-action이 .app/.dmg를 서명하고 notarytool로 공증한다.
+          # 비어 있으면 자동으로 서명을 건너뛴다(unsigned 빌드). (절차: docs/guide/release-signing.md)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
           tagName: ${{ github.ref_name }}
           releaseName: "wowTerminal ${{ github.ref_name }}"
           releaseBody: |
             Download the installer for your platform from the assets below.
 
-            Builds are unsigned, so the OS may warn on first launch:
-            - macOS: right-click the app → Open (or System Settings → Privacy & Security → Open Anyway).
-            - Windows: SmartScreen → More info → Run anyway.
+            - macOS: signed with Developer ID and notarized — opens normally.
+            - Windows: unsigned, SmartScreen may warn → More info → Run anyway.
           releaseDraft: true
           prerelease: false
           # macOS는 dmg를 메인 빌드에서 제외하고 app만 빌드한다. createUpdaterArtifacts=true라
@@ -99,6 +102,13 @@ jobs:
         continue-on-error: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # dmg도 동일하게 서명·공증한다(메인 .app과 같은 Secret).
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           npx tauri build --target ${{ matrix.target }} --bundles dmg
           DMG=$(ls src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg 2>/dev/null | head -1)

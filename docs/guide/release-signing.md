@@ -1,10 +1,14 @@
 # Release code signing
 
-By default the release workflow (`.github/workflows/release.yml`) produces **unsigned**
-builds, so users see a first-launch warning (macOS Gatekeeper / Windows SmartScreen). To
-ship signed builds, obtain the certificates below and add them as **GitHub Actions
-Secrets** — the workflow picks them up automatically with no code change. If a secret is
-empty, that platform stays unsigned.
+The release workflow (`.github/workflows/release.yml`) wires the signing env vars to
+`tauri-action` for **both** the main `.app` build and the best-effort `.dmg` step. When the
+GitHub Actions Secrets below are present, that platform is signed automatically; when a
+secret is empty, the platform stays **unsigned** (users then see a first-launch warning —
+macOS Gatekeeper / Windows SmartScreen).
+
+> Status: **macOS is configured** — a Developer ID Application certificate (team
+> `Brain OS Institute`, `J5C9SY326P`) and notarization secrets are registered, so macOS
+> builds ship signed + notarized. Windows remains unsigned (no certificate yet).
 
 > Secrets live in: GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**.
 
