@@ -7,6 +7,8 @@
 
 ## [미배포]
 
+## [0.11.0] — 2026-06-04
+
 ### 추가
 - 포트 포워딩 원격(-R) — ⌘K '포트 포워딩'에서 서버 바인드 포트로 들어온 연결을 클라이언트 측 대상으로 전달. -L/-R/-D 세트 완성 (#73)
 
@@ -128,7 +130,8 @@
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.10.0...HEAD
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.9.0
 [0.8.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.8.0
