@@ -21,13 +21,13 @@ jobs:
       matrix:
         include:
           - platform: macos-latest # Apple Silicon
-            args: "--target aarch64-apple-darwin"
+            target: aarch64-apple-darwin
           - platform: macos-latest # Intel
-            args: "--target x86_64-apple-darwin"
+            target: x86_64-apple-darwin
           - platform: ubuntu-22.04
-            args: ""
+            target: ""
           - platform: windows-latest
-            args: ""
+            target: ""
 
     runs-on: ${{ matrix.platform }}
     steps:
@@ -87,4 +87,21 @@ jobs:
             - Windows: SmartScreen → More info → Run anyway.
           releaseDraft: true
           prerelease: false
-          args: ${{ matrix.args }}
+          # macOS는 dmg를 메인 빌드에서 제외하고 app만 빌드한다. createUpdaterArtifacts=true라
+          # app 번들과 함께 업데이터 .app.tar.gz(+.sig)·latest.json이 항상 생성·업로드된다.
+          # dmg는 아래 best-effort 스텝에서 따로 만든다(GitHub 러너의 bundle_dmg.sh flaky 방지).
+          args: ${{ matrix.target != '' && format('--target {0} --bundles app', matrix.target) || '' }}
+
+      # macOS dmg는 종종 bundle_dmg.sh(Finder/hdiutil)에서 flaky하게 실패한다.
+      # 실패해도 업데이트(위 단계)는 이미 올라갔으므로, dmg는 best-effort로만 만들어 업로드한다.
+      - name: Build & upload macOS dmg (best-effort)
+        if: matrix.platform == 'macos-latest'
+        continue-on-error: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          npx tauri build --target ${{ matrix.target }} --bundles dmg
+          DMG=$(ls src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg 2>/dev/null | head -1)
+          if [ -n "$DMG" ]; then
+            gh release upload "${{ github.ref_name }}" "$DMG" --clobber
+          fi
