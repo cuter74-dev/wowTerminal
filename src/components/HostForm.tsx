@@ -306,7 +306,8 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
   const t = useT(STR);
   const [name, setName] = useState(initial?.name ?? "");
   const [host, setHost] = useState(initial?.host ?? "");
-  const [port, setPort] = useState(initial?.port ?? 22);
+  // 포트는 편집 중 빈 값을 허용하려고 문자열로 보관(저장 시 숫자로 변환).
+  const [port, setPort] = useState(String(initial?.port ?? 22));
   const [user, setUser] = useState(initial?.user ?? "");
   const [authKind, setAuthKind] = useState<AuthKind>(
     initial ? initial.auth.type : "agent",
@@ -391,11 +392,13 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
     }
 
     const id = initial?.id ?? crypto.randomUUID();
+    // 빈 값이면 기본 22, 범위를 벗어나면 클램프.
+    const portNum = Math.min(65535, Math.max(1, parseInt(port, 10) || 22));
     const payload: SshHost = {
       id,
       name,
       host,
-      port,
+      port: portNum,
       user,
       auth,
       tags: hostTags,
@@ -468,9 +471,11 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
         <div style={{ display: "flex", gap: 10 }}>
           <Field label="Port" flex={1}>
             <input
-              type="number"
+              type="text"
+              inputMode="numeric"
               value={port}
-              onChange={(e) => setPort(parseInt(e.target.value || "22", 10))}
+              onChange={(e) => setPort(e.target.value.replace(/[^0-9]/g, ""))}
+              placeholder="22"
               style={inputStyle}
             />
           </Field>
