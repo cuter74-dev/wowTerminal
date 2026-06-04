@@ -8,3 +8,12 @@ body,
   background: #1e1e1e;
   overflow: hidden;
 }
+
+/* 한글/CJK IME 이중 표시 수정 (#75).
+   WKWebView에서 조합(composition) 이벤트가 발생하면 xterm이 .composition-view 오버레이로
+   조합 중 글자를 한 번 더 그린다. 우리는 textarea 미러로 조합 텍스트를 이미 PTY에 보내
+   셸/TUI가 직접 표시하므로, 이 오버레이가 겹쳐 "차차"처럼 이중으로 보였다. 오버레이를 숨긴다. */
+.xterm .composition-view,
+.xterm .composition-view.active {
+  display: none !important;
+}
