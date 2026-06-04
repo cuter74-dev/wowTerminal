@@ -14,6 +14,7 @@ import { getHistory } from "./commandHistory";
 import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
 import { SessionDashboard, DashRow } from "./components/SessionDashboard";
+import { PortForwardModal } from "./components/PortForwardModal";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
 import { TabContextMenu } from "./components/TabContextMenu";
@@ -415,18 +416,19 @@ const PAL_STR: LangDict<{
   run: string;
   snippet: string;
   dashboard: string;
+  portForward: string;
 }> = {
-  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet", dashboard: "Session dashboard" },
-  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫", dashboard: "세션 대시보드" },
-  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento", dashboard: "Panel de sesiones" },
-  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段", dashboard: "会话仪表板" },
-  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット", dashboard: "セッションダッシュボード" },
-  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет", dashboard: "Панель сессий" },
-  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait", dashboard: "Tableau de bord des sessions" },
-  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet", dashboard: "Sitzungs-Dashboard" },
-  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã", dashboard: "Bảng điều khiển phiên" },
-  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan", dashboard: "Dasbor sesi" },
-  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट", dashboard: "सत्र डैशबोर्ड" },
+  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet", dashboard: "Session dashboard", portForward: "Port forwarding" },
+  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫", dashboard: "세션 대시보드", portForward: "포트 포워딩" },
+  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento", dashboard: "Panel de sesiones", portForward: "Reenvío de puertos" },
+  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段", dashboard: "会话仪表板", portForward: "端口转发" },
+  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット", dashboard: "セッションダッシュボード", portForward: "ポート転送" },
+  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет", dashboard: "Панель сессий", portForward: "Проброс портов" },
+  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait", dashboard: "Tableau de bord des sessions", portForward: "Redirection de ports" },
+  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet", dashboard: "Sitzungs-Dashboard", portForward: "Portweiterleitung" },
+  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã", dashboard: "Bảng điều khiển phiên", portForward: "Chuyển tiếp cổng" },
+  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan", dashboard: "Dasbor sesi", portForward: "Penerusan porta" },
+  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट", dashboard: "सत्र डैशबोर्ड", portForward: "पोर्ट फ़ॉरवर्डिंग" },
 };
 
 function App() {
@@ -435,6 +437,8 @@ function App() {
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   // #62 세션 대시보드: 열림 여부 + 패널별 명령 통계.
   const [dashboardOpen, setDashboardOpen] = useState(false);
+  // #60 포트 포워딩 모달.
+  const [portForwardOpen, setPortForwardOpen] = useState(false);
   const [sessionStats, setSessionStats] = useState<
     Record<
       string,
@@ -853,6 +857,7 @@ function App() {
     const out: PaletteItem[] = [
       { id: "act-newlocal", label: pal.newLocalTab, action: newLocalTab },
       { id: "act-dashboard", label: pal.dashboard, action: () => setDashboardOpen(true) },
+      { id: "act-portforward", label: pal.portForward, action: () => setPortForwardOpen(true) },
       { id: "act-settings", label: pal.settings, action: () => setShowSettings(true) },
     ];
     for (const h of hosts) {
@@ -1747,6 +1752,10 @@ function App() {
           onJump={(tabId) => setActiveTabId(tabId)}
           onClose={() => setDashboardOpen(false)}
         />
+      )}
+
+      {portForwardOpen && (
+        <PortForwardModal hosts={hosts} onClose={() => setPortForwardOpen(false)} />
       )}
 
       {drag?.active && <DropZoneOverlay />}

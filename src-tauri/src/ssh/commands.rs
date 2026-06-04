@@ -18,6 +18,7 @@ use super::session::{ResolvedAuth, SessionId};
 use super::sftp::{FileEntry, ProgressSink, SearchHit, SftpManager};
 use super::store::HostStore;
 use super::tags::TagStore;
+use super::tunnel::{TunnelInfo, TunnelManager};
 use super::types::{Group, SshAuthMethod, SshHost, SshKeyEntry, Tag};
 
 /// 프론트엔드가 패턴 매칭으로 구분할 수 있도록 직렬화된 에러.
@@ -99,6 +100,7 @@ impl SshConnectError {
 pub struct SshState {
     pub manager: Arc<SshManager>,
     pub sftp: Arc<SftpManager>,
+    pub tunnel: Arc<TunnelManager>,
     pub store: HostStore,
     pub groups: GroupStore,
     pub tags: TagStore,
@@ -151,6 +153,7 @@ pub fn build_state(
             history,
         )),
         sftp: Arc::new(SftpManager::new(Arc::clone(&known_hosts), progress)),
+        tunnel: Arc::new(TunnelManager::new(Arc::clone(&known_hosts))),
         store: HostStore::new(hosts_path),
         groups: GroupStore::new(groups_path),
         tags: TagStore::new(tags_path),
@@ -740,6 +743,88 @@ pub fn local_read_text(path: String) -> Result<String, String> {
 #[tauri::command]
 pub fn local_write_text(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
+}
+
+/// 포트 포워딩 시작 — 로컬(-L) (#60). 바인딩된 실제 포트를 담은 TunnelInfo 반환.
+#[tauri::command]
+pub async fn tunnel_start_local(
+    host_id: String,
+    local_host: Option<String>,
+    local_port: u16,
+    remote_host: String,
+    remote_port: u16,
+    password: Option<String>,
+    state: State<'_, SshState>,
+) -> Result<TunnelInfo, String> {
+    let host = state.store.get(&host_id).map_err(|e| e.to_string())?;
+    let auth = resolve_auth(
+        &host.auth,
+        state.secrets.as_deref(),
+        password.as_deref(),
+        &host.host,
+        host.port,
+        &host.user,
+    )
+    .map_err(|e| e.to_string())?;
+    let id = uuid::Uuid::new_v4().to_string();
+    state
+        .tunnel
+        .start_local(
+            id,
+            host,
+            auth,
+            local_host.unwrap_or_else(|| "127.0.0.1".into()),
+            local_port,
+            remote_host,
+            remote_port,
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 포트 포워딩 시작 — 다이내믹(-D SOCKS5) (#60).
+#[tauri::command]
+pub async fn tunnel_start_dynamic(
+    host_id: String,
+    local_host: Option<String>,
+    local_port: u16,
+    password: Option<String>,
+    state: State<'_, SshState>,
+) -> Result<TunnelInfo, String> {
+    let host = state.store.get(&host_id).map_err(|e| e.to_string())?;
+    let auth = resolve_auth(
+        &host.auth,
+        state.secrets.as_deref(),
+        password.as_deref(),
+        &host.host,
+        host.port,
+        &host.user,
+    )
+    .map_err(|e| e.to_string())?;
+    let id = uuid::Uuid::new_v4().to_string();
+    state
+        .tunnel
+        .start_dynamic(
+            id,
+            host,
+            auth,
+            local_host.unwrap_or_else(|| "127.0.0.1".into()),
+            local_port,
+        )
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 포트 포워딩 중지.
+#[tauri::command]
+pub async fn tunnel_stop(id: String, state: State<'_, SshState>) -> Result<(), String> {
+    state.tunnel.stop(&id).await.map_err(|e| e.to_string())
+}
+
+/// 활성 포트 포워딩 목록.
+#[tauri::command]
+pub async fn tunnel_list(state: State<'_, SshState>) -> Result<Vec<TunnelInfo>, String> {
+    Ok(state.tunnel.list().await)
 }
 
 /// 세션 로그를 파일에 누적(append)한다 (#65). dir가 비면 ~/wowterminal-logs 사용.

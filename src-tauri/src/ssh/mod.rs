@@ -13,6 +13,7 @@ pub mod manager;
 pub mod session;
 pub mod sftp;
 pub mod store;
+pub mod tunnel;
 pub mod tags;
 pub mod types;
 
