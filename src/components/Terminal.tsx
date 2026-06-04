@@ -16,6 +16,7 @@ import {
 } from "../terminalRegistry";
 import { askAI } from "../aiBus";
 import { emitCommandDone } from "../commandBus";
+import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { LangDict, useT } from "../i18n";
@@ -369,9 +370,33 @@ export function Terminal({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // 세션에 입력을 보내는 함수 (Ctrl-R 선택 / 제안 수락에서 사용). effect에서 채움.
   const sendToSessionRef = useRef<((text: string) => void) | null>(null);
+  // 세션 로깅 (#65). 설정 토글에 따라 생성/해제, 출력 핸들러가 ref로 참조.
+  const loggerRef = useRef<SessionLogger | null>(null);
 
   const sourceKey =
     source.kind === "local" ? "local" : `ssh:${source.hostId}`;
+
+  // 로깅 on/off 런타임 반영. 켜져 있으면 세션별 로거 생성, 꺼지면 flush 후 해제.
+  useEffect(() => {
+    if (termSettings.logging) {
+      if (!loggerRef.current) {
+        const label = source.kind === "local" ? "local" : `ssh-${source.hostId}`;
+        loggerRef.current = new SessionLogger(termSettings.logDir, label);
+      }
+    } else if (loggerRef.current) {
+      loggerRef.current.dispose();
+      loggerRef.current = null;
+    }
+  }, [termSettings.logging, termSettings.logDir, source]);
+
+  // 언마운트 시 남은 버퍼를 flush.
+  useEffect(
+    () => () => {
+      loggerRef.current?.dispose();
+      loggerRef.current = null;
+    },
+    [],
+  );
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -787,7 +812,9 @@ export function Terminal({
           // 그 사이 다른 세션(예: 다른 탭에서 실행 중인 셸)의 출력이 이 터미널에 새어 들어와
           // 상단에 엉뚱한 프롬프트/내용이 찍힌다. 설정 후엔 자기 세션 것만 쓴다.
           if (!sessionId || payload.session_id !== sessionId) return;
-          term.write(base64ToBytes(payload.data_b64));
+          const bytes = base64ToBytes(payload.data_b64);
+          term.write(bytes);
+          loggerRef.current?.append(bytes);
         });
 
         if (disposed) return;

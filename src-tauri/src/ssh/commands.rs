@@ -727,6 +727,32 @@ pub fn local_write_text(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
 }
 
+/// 세션 로그를 파일에 누적(append)한다 (#65). dir가 비면 ~/wowterminal-logs 사용.
+/// 디렉터리를 만들고 `dir/name` 파일에 content를 이어 붙인 뒤, 실제 파일 경로를 돌려준다.
+#[tauri::command]
+pub fn session_log_append(dir: String, name: String, content: String) -> Result<String, String> {
+    use std::io::Write;
+    let base = if dir.trim().is_empty() {
+        let home = std::env::var("HOME")
+            .or_else(|_| std::env::var("USERPROFILE"))
+            .map_err(|_| "홈 디렉토리를 찾을 수 없습니다".to_string())?;
+        std::path::Path::new(&home).join("wowterminal-logs")
+    } else {
+        std::path::PathBuf::from(dir)
+    };
+    std::fs::create_dir_all(&base).map_err(|e| e.to_string())?;
+    // name에서 경로 구분자를 제거해 디렉터리 탈출 방지.
+    let safe = name.replace(['/', '\\'], "_");
+    let path = base.join(safe);
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(&path)
+        .map_err(|e| e.to_string())?;
+    f.write_all(content.as_bytes()).map_err(|e| e.to_string())?;
+    Ok(path.to_string_lossy().to_string())
+}
+
 /// 로컬 `~/.ssh/config` 내용을 읽는다 (SSH 호스트 임포트용). 파일이 없으면 빈 문자열.
 #[tauri::command]
 pub fn ssh_read_config() -> Result<String, String> {

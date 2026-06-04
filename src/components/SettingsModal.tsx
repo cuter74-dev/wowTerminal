@@ -52,6 +52,9 @@ const STR: LangDict<{
     cursorBlink: string;
     scrollback: string;
     altScreenWheelScroll: string;
+    logging: string;
+    logDir: string;
+    chooseDir: string;
     applyNote: string;
     readonlyNote: string;
     export: string;
@@ -98,6 +101,9 @@ const STR: LangDict<{
     cursorBlink: "Cursor blink",
     scrollback: "Scrollback (lines)",
     altScreenWheelScroll: "Wheel scroll in alt-screen (less/vim)",
+    logging: "Session logging (save output to file)",
+    logDir: "Log folder (blank = ~/wowterminal-logs)",
+    chooseDir: "Choose…",
     applyNote: "Applied to all terminals immediately.",
     readonlyNote: "v1 is read-only. Custom key bindings later.",
     export: "Export (hosts/groups/tags)",
@@ -146,6 +152,9 @@ const STR: LangDict<{
     cursorBlink: "커서 깜빡임",
     scrollback: "스크롤백 (줄)",
     altScreenWheelScroll: "대체 화면 휠 스크롤 (less/vim)",
+    logging: "세션 로깅 (출력을 파일로 저장)",
+    logDir: "로그 폴더 (비우면 ~/wowterminal-logs)",
+    chooseDir: "선택…",
     applyNote: "변경 즉시 모든 터미널에 적용됩니다.",
     readonlyNote: "v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.",
     export: "내보내기 (호스트/그룹/태그)",
@@ -194,6 +203,9 @@ const STR: LangDict<{
     cursorBlink: "Parpadeo del cursor",
     scrollback: "Desplazamiento (líneas)",
     altScreenWheelScroll: "Rueda en pantalla alternativa (less/vim)",
+    logging: "Registro de sesión (guardar salida en archivo)",
+    logDir: "Carpeta de registros (vacío = ~/wowterminal-logs)",
+    chooseDir: "Elegir…",
     applyNote: "Aplicado a todas las terminales de inmediato.",
     readonlyNote: "v1 es de solo lectura. Atajos personalizados más adelante.",
     export: "Exportar (hosts/grupos/etiquetas)",
@@ -242,6 +254,9 @@ const STR: LangDict<{
     cursorBlink: "光标闪烁",
     scrollback: "回滚（行数）",
     altScreenWheelScroll: "备用屏幕滚轮滚动 (less/vim)",
+    logging: "会话日志（输出保存到文件）",
+    logDir: "日志文件夹（留空 = ~/wowterminal-logs）",
+    chooseDir: "选择…",
     applyNote: "立即应用到所有终端。",
     readonlyNote: "v1 为只读。自定义按键绑定稍后推出。",
     export: "导出（主机/分组/标签）",
@@ -290,6 +305,9 @@ const STR: LangDict<{
     cursorBlink: "カーソルの点滅",
     scrollback: "スクロールバック（行）",
     altScreenWheelScroll: "代替画面でホイールスクロール (less/vim)",
+    logging: "セッションログ（出力をファイルに保存）",
+    logDir: "ログフォルダ（空欄 = ~/wowterminal-logs）",
+    chooseDir: "選択…",
     applyNote: "すべてのターミナルに即座に適用されます。",
     readonlyNote: "v1 は読み取り専用です。カスタムキーバインドは後日。",
     export: "エクスポート（ホスト/グループ/タグ）",
@@ -338,6 +356,9 @@ const STR: LangDict<{
     cursorBlink: "Мигание курсора",
     scrollback: "Прокрутка (строки)",
     altScreenWheelScroll: "Колесо в alt-экране (less/vim)",
+    logging: "Логирование сессии (вывод в файл)",
+    logDir: "Папка логов (пусто = ~/wowterminal-logs)",
+    chooseDir: "Выбрать…",
     applyNote: "Применяется ко всем терминалам мгновенно.",
     readonlyNote: "v1 только для чтения. Пользовательские сочетания клавиш позже.",
     export: "Экспорт (хосты/группы/теги)",
@@ -386,6 +407,9 @@ const STR: LangDict<{
     cursorBlink: "Clignotement du curseur",
     scrollback: "Défilement arrière (lignes)",
     altScreenWheelScroll: "Molette en écran alternatif (less/vim)",
+    logging: "Journalisation de session (sortie vers fichier)",
+    logDir: "Dossier des journaux (vide = ~/wowterminal-logs)",
+    chooseDir: "Choisir…",
     applyNote: "Appliqué immédiatement à tous les terminaux.",
     readonlyNote: "v1 est en lecture seule. Raccourcis personnalisés plus tard.",
     export: "Exporter (hôtes/groupes/étiquettes)",
@@ -434,6 +458,9 @@ const STR: LangDict<{
     cursorBlink: "Cursor-Blinken",
     scrollback: "Rückblättern (Zeilen)",
     altScreenWheelScroll: "Mausrad im Alt-Bildschirm (less/vim)",
+    logging: "Sitzungsprotokoll (Ausgabe in Datei)",
+    logDir: "Log-Ordner (leer = ~/wowterminal-logs)",
+    chooseDir: "Wählen…",
     applyNote: "Wird sofort auf alle Terminals angewendet.",
     readonlyNote: "v1 ist schreibgeschützt. Benutzerdefinierte Tastenbelegungen später.",
     export: "Exportieren (Hosts/Gruppen/Tags)",
@@ -482,6 +509,9 @@ const STR: LangDict<{
     cursorBlink: "Nhấp nháy con trỏ",
     scrollback: "Cuộn lại (dòng)",
     altScreenWheelScroll: "Cuộn chuột ở màn hình thay thế (less/vim)",
+    logging: "Ghi log phiên (lưu đầu ra ra tệp)",
+    logDir: "Thư mục log (trống = ~/wowterminal-logs)",
+    chooseDir: "Chọn…",
     applyNote: "Áp dụng ngay cho tất cả các terminal.",
     readonlyNote: "v1 chỉ đọc. Tùy chỉnh phím tắt sẽ có sau.",
     export: "Xuất (máy chủ/nhóm/thẻ)",
@@ -530,6 +560,9 @@ const STR: LangDict<{
     cursorBlink: "Kedipan kursor",
     scrollback: "Gulir balik (baris)",
     altScreenWheelScroll: "Gulir roda di layar alternatif (less/vim)",
+    logging: "Log sesi (simpan output ke berkas)",
+    logDir: "Folder log (kosong = ~/wowterminal-logs)",
+    chooseDir: "Pilih…",
     applyNote: "Diterapkan ke semua terminal segera.",
     readonlyNote: "v1 hanya-baca. Pengikatan tombol khusus nanti.",
     export: "Ekspor (host/grup/tag)",
@@ -578,6 +611,9 @@ const STR: LangDict<{
     cursorBlink: "कर्सर ब्लिंक",
     scrollback: "स्क्रॉलबैक (पंक्तियाँ)",
     altScreenWheelScroll: "ऑल्ट-स्क्रीन में व्हील स्क्रॉल (less/vim)",
+    logging: "सत्र लॉगिंग (आउटपुट फ़ाइल में सहेजें)",
+    logDir: "लॉग फ़ोल्डर (खाली = ~/wowterminal-logs)",
+    chooseDir: "चुनें…",
     applyNote: "सभी टर्मिनलों पर तुरंत लागू।",
     readonlyNote: "v1 केवल-पढ़ने के लिए है। कस्टम की बाइंडिंग बाद में।",
     export: "निर्यात (होस्ट/समूह/टैग)",
@@ -813,6 +849,46 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   }
                 />
               </Row>
+              <Row label={t.logging}>
+                <input
+                  type="checkbox"
+                  checked={settings.terminal.logging}
+                  onChange={(e) => patchTerminal({ logging: e.target.checked })}
+                />
+              </Row>
+              {settings.terminal.logging && (
+                <Row label={t.logDir}>
+                  <div style={{ display: "flex", gap: 6, flex: 1 }}>
+                    <input
+                      type="text"
+                      value={settings.terminal.logDir}
+                      placeholder="~/wowterminal-logs"
+                      onChange={(e) => patchTerminal({ logDir: e.target.value })}
+                      style={{ ...inputStyle, flex: 1 }}
+                    />
+                    <button
+                      onClick={async () => {
+                        const dir = await open({
+                          directory: true,
+                          multiple: false,
+                        });
+                        if (typeof dir === "string") patchTerminal({ logDir: dir });
+                      }}
+                      style={{
+                        background: "#2a2a2e",
+                        border: "1px solid #444",
+                        color: "#ddd",
+                        borderRadius: 4,
+                        padding: "0 10px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {t.chooseDir}
+                    </button>
+                  </div>
+                </Row>
+              )}
               <div style={{ color: "#789", fontSize: 11, marginTop: 6 }}>
                 {t.applyNote}
               </div>
