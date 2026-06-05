@@ -7,6 +7,9 @@
 
 ## [미배포]
 
+### 수정
+- 로컬 셸에서 Homebrew·pyenv·jenv 등으로 깐 명령이 "command not found"로 안 먹던 문제 — 셸을 비로그인으로 띄워 `~/.zprofile`(brew shellenv 등 PATH 설정)을 안 읽던 것을 로그인 셸(`-l`)로 변경. bash는 rcfile에서 로그인 프로필을 직접 source (#80)
+
 ## [0.11.1] — 2026-06-05
 
 ### 수정

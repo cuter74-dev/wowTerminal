@@ -147,10 +147,16 @@ impl PtyManager {
             .and_then(|s| s.to_str())
             .map(|s| s.to_string());
         if shell_name.as_deref() == Some("zsh") {
+            // 로그인 셸로 띄운다(-l): macOS Terminal.app처럼 /etc/zprofile(path_helper)와
+            // 사용자 ~/.zprofile을 읽어 Homebrew/pyenv 등 PATH가 제대로 잡히게 한다.
+            // (비로그인이면 .zprofile이 안 읽혀 "command not found"가 쏟아진다.)
+            cmd.arg("-l");
             cmd.arg("+o");
             cmd.arg("promptsp");
             setup_zsh_integration(&mut cmd);
         } else if shell_name.as_deref() == Some("bash") {
+            // bash는 로그인(-l)이면 --rcfile을 무시하므로(OSC133 주입 불가) 비로그인으로 두고,
+            // rcfile 안에서 로그인 프로필(/etc/profile·~/.bash_profile 등)을 직접 source해 PATH를 잡는다.
             setup_bash_integration(&mut cmd);
         }
 
@@ -301,6 +307,13 @@ fn setup_bash_integration(cmd: &mut CommandBuilder) {
     }
     let rc = dir.join("wt-bashrc.bash");
     let body = concat!(
+        // 로그인 셸이 아니어도 macOS Terminal.app과 동일한 PATH가 잡히도록 로그인 프로필을
+        // 먼저 source한다(/etc/profile=path_helper, 사용자 ~/.bash_profile/.profile).
+        "[ -f /etc/profile ] && source /etc/profile\n",
+        "if [ -f ~/.bash_profile ]; then source ~/.bash_profile\n",
+        "elif [ -f ~/.bash_login ]; then source ~/.bash_login\n",
+        "elif [ -f ~/.profile ]; then source ~/.profile\n",
+        "fi\n",
         "[ -f ~/.bashrc ] && source ~/.bashrc\n",
         "__wt_pe=0\n",
         "__wt_preexec() {\n",
