@@ -7,6 +7,8 @@
 
 ## [미배포]
 
+## [0.12.0] — 2026-06-05
+
 ### 추가
 - 패널 토글 단축키 — 호스트 패널(⌘B)·AI 패널(⌘J)을 단축키로 열고 닫기(설정에서 재지정 가능) (#81)
 - 터미널에 파일 드래그-드롭 업로드 — 터미널의 현재 폴더로(로컬 셸=복사, SSH=원격 현재 폴더로 SFTP 업로드). 현재 폴더는 셸 통합 OSC7로 추적하며, SSH는 접속 시 원격 셸에 cwd 훅을 자동 주입(화면은 Ctrl-L로 정리). 결과는 데스크톱 알림으로 안내 (#81)
@@ -146,7 +148,8 @@
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.1...HEAD
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.12.0...HEAD
+[0.12.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.9.0...v0.10.0
