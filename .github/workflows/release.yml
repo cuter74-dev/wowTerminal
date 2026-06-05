@@ -115,3 +115,32 @@ jobs:
           if [ -n "$DMG" ]; then
             gh release upload "${{ github.ref_name }}" "$DMG" --clobber
           fi
+
+  # Windows 자동 업데이트를 NSIS(-setup.exe)로 강제한다.
+  # tauri-action이 만든 latest.json의 windows-x86_64가 기본적으로 MSI를 가리키는데,
+  # MSI는 기존 NSIS 설치 위에 제자리 업그레이드가 안 돼(별도 설치돼 구버전이 남음)
+  # 자동 업데이트가 무한 반복된다. windows-x86_64를 windows-x86_64-nsis로 덮어쓴다.
+  finalize-windows-updater:
+    needs: publish-tauri
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - name: Point latest.json windows-x86_64 at the NSIS installer
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -e
+          gh release download "${{ github.ref_name }}" -R "${{ github.repository }}" -p latest.json -O latest.json --clobber
+          python3 - <<'PY'
+          import json
+          d = json.load(open("latest.json"))
+          p = d.get("platforms", {})
+          if "windows-x86_64-nsis" in p:
+              p["windows-x86_64"] = dict(p["windows-x86_64-nsis"])
+              json.dump(d, open("latest.json", "w"), indent=2, ensure_ascii=False)
+              print("patched windows-x86_64 ->", p["windows-x86_64"]["url"].split("/")[-1])
+          else:
+              print("no nsis entry; left as-is")
+          PY
+          gh release upload "${{ github.ref_name }}" -R "${{ github.repository }}" latest.json --clobber

@@ -7,6 +7,9 @@
 
 ## [미배포]
 
+### 수정
+- Windows 자동 업데이트 무한 반복 — latest.json의 windows-x86_64가 MSI를 가리켜 NSIS 설치를 제자리 업그레이드하지 못하던 문제. 업데이터가 NSIS(-setup.exe)를 받도록 수정(공개 latest.json 교정 + 워크플로 finalize 단계 추가) (#78)
+
 ### 변경
 - 설정 터미널 글꼴 — 라벨을 '폰트 패밀리/폰트 크기' → '글꼴/글꼴 크기'로 다듬고, CSS 스택 직접 입력 대신 모노스페이스 프리셋 드롭다운(Menlo·SF Mono·JetBrains Mono·D2Coding 등)으로 변경 (#77)
 
