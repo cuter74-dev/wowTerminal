@@ -753,8 +753,22 @@ export function Terminal({
         fit.fit();
       } catch {}
     };
-    const ro = new ResizeObserver(safeFit);
+    // RO 콜백 안에서 fit()이 동기로 크기를 바꾸면 "ResizeObserver loop" 경고가 나고,
+    // 일부 환경에선 이후 알림이 끊겨 재fit이 멈춘다(창을 키워도 안 늘어남). RAF로 미뤄 방지.
+    let roRaf = 0;
+    const ro = new ResizeObserver(() => {
+      cancelAnimationFrame(roRaf);
+      roRaf = requestAnimationFrame(safeFit);
+    });
     ro.observe(containerRef.current);
+    // ResizeObserver만으로는 일부 상황(스플래시/온보딩 직후 작은 창에서 시작, 창 확대)에서
+    // 재fit이 누락돼 터미널이 작은 행/열에 멈춘다. 윈도우 resize 이벤트로도 직접 refit하고,
+    // 마운트 직후 레이아웃이 정착된 뒤 몇 번 더 fit해 초기 크기를 바로잡는다.
+    const onWinResize = () => safeFit();
+    window.addEventListener("resize", onWinResize);
+    const raf = requestAnimationFrame(safeFit);
+    const fitT1 = setTimeout(safeFit, 80);
+    const fitT2 = setTimeout(safeFit, 300);
 
     // Edit 메뉴 / 우클릭 Copy 등 keydown 없이 발생하는 복사도 가로채 xterm 선택을 넣는다.
     // (컨테이너 스코프라 다른 입력 필드 복사엔 영향 없음.)
@@ -899,6 +913,11 @@ export function Terminal({
       if (paneId) unregisterTerminal(paneId);
       copyTarget.removeEventListener("copy", onCopy);
       onBufChange.dispose();
+      window.removeEventListener("resize", onWinResize);
+      cancelAnimationFrame(raf);
+      cancelAnimationFrame(roRaf);
+      clearTimeout(fitT1);
+      clearTimeout(fitT2);
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
