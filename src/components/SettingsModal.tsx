@@ -960,6 +960,8 @@ const ACTION_LABELS: LangDict<Record<ShortcutAction, string>> = {
     splitHorizontal: "Split top/bottom",
     duplicateTab: "Duplicate tab",
     renameTab: "Rename tab",
+    toggleHostPanel: "Toggle host panel",
+    toggleAiPanel: "Toggle AI panel",
   },
   ko: {
     newTab: "새 탭",
@@ -970,6 +972,8 @@ const ACTION_LABELS: LangDict<Record<ShortcutAction, string>> = {
     splitHorizontal: "상하 분할",
     duplicateTab: "탭 복제",
     renameTab: "탭 이름 변경",
+    toggleHostPanel: "호스트 패널 토글",
+    toggleAiPanel: "AI 패널 토글",
   },
 };
 
@@ -982,6 +986,8 @@ const SHORTCUT_ACTIONS: ShortcutAction[] = [
   "splitHorizontal",
   "duplicateTab",
   "renameTab",
+  "toggleHostPanel",
+  "toggleAiPanel",
 ];
 
 function ShortcutsTab({

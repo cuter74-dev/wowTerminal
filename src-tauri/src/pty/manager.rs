@@ -286,7 +286,8 @@ fn setup_zsh_integration(cmd: &mut CommandBuilder) {
     let zshrc = concat!(
         "[ -f \"$WT_ORIG_ZDOTDIR/.zshrc\" ] && source \"$WT_ORIG_ZDOTDIR/.zshrc\"\n",
         "autoload -Uz add-zsh-hook 2>/dev/null\n",
-        "__wt_precmd() { print -n \"\\e]133;D;$?\\a\"; }\n",
+        // OSC 133 D(종료코드) + OSC 7(현재 작업 디렉터리). cwd는 파일 드래그 업로드 위치 등에 사용.
+        "__wt_precmd() { print -n \"\\e]133;D;$?\\a\"; print -n \"\\e]7;file://${HOST}${PWD}\\a\"; }\n",
         "__wt_preexec() { print -n \"\\e]133;C\\a\"; }\n",
         "add-zsh-hook precmd __wt_precmd 2>/dev/null\n",
         "add-zsh-hook preexec __wt_preexec 2>/dev/null\n",
@@ -323,7 +324,7 @@ fn setup_bash_integration(cmd: &mut CommandBuilder) {
         "  __wt_pe=1\n",
         "  printf '\\033]133;C\\007'\n",
         "}\n",
-        "__wt_precmd() { local e=$?; printf '\\033]133;D;%s\\007' \"$e\"; __wt_pe=0; }\n",
+        "__wt_precmd() { local e=$?; printf '\\033]133;D;%s\\007' \"$e\"; printf '\\033]7;file://%s%s\\007' \"$HOSTNAME\" \"$PWD\"; __wt_pe=0; }\n",
         "trap '__wt_preexec' DEBUG\n",
         "PROMPT_COMMAND=\"__wt_precmd${PROMPT_COMMAND:+; $PROMPT_COMMAND}\"\n",
     );

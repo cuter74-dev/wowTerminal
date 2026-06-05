@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
 import { emit, listen } from "@tauri-apps/api/event";
 import {
@@ -511,16 +512,25 @@ function App() {
   // 좌/우 패널 토글 + 너비 리사이즈 (#21). 상태는 settings.layout에 영속화.
   const layout = settings.layout;
   const layoutRowRef = useRef<HTMLDivElement>(null);
+  // 함수형 업데이트로 최신 settings 기준 토글(단축키 핸들러의 stale 클로저에도 안전).
   function toggleHostPanel() {
-    updateSettings({
-      ...settings,
-      layout: { ...layout, showHostPanel: !layout.showHostPanel },
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        layout: { ...prev.layout, showHostPanel: !prev.layout.showHostPanel },
+      };
+      saveSettings(next);
+      return next;
     });
   }
   function toggleAiPanel() {
-    updateSettings({
-      ...settings,
-      layout: { ...layout, showAiPanel: !layout.showAiPanel },
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        layout: { ...prev.layout, showAiPanel: !prev.layout.showAiPanel },
+      };
+      saveSettings(next);
+      return next;
     });
   }
   function startPanelResize(side: "host" | "ai", e: React.MouseEvent) {
@@ -914,6 +924,71 @@ function App() {
   const activeHostId =
     focusedSource && focusedSource.kind === "ssh" ? focusedSource.hostId : null;
   const isLocalActive = focusedSource?.kind === "local";
+
+  // 터미널에 OS 파일 드래그-드롭 → 현재 폴더에 넣기 (#81).
+  // 로컬 셸: 현재 cwd로 복사. SSH: 원격 cwd(OSC7로 추적, 모르면 홈)로 SFTP 업로드.
+  // 넣은 뒤 결과 경로를 입력란에 삽입해 피드백. 파일 브라우저가 열려 있으면 그쪽이 처리.
+  const focusedLeafRef = useRef(focusedLeaf);
+  focusedLeafRef.current = focusedLeaf;
+  const fileBrowserOpenRef = useRef<boolean>(false);
+  fileBrowserOpenRef.current = !!fileBrowser;
+  useEffect(() => {
+    let un: (() => void) | undefined;
+    const quote = (s: string) =>
+      /[^\w@%+=:,./~-]/.test(s) ? "'" + s.replace(/'/g, "'\\''") + "'" : s;
+    void getCurrentWebview()
+      .onDragDropEvent((event) => {
+        const p = event.payload;
+        if (p.type !== "drop") return;
+        if (fileBrowserOpenRef.current) return;
+        const leaf = focusedLeafRef.current;
+        if (!leaf) return;
+        const reg = getTerminal(leaf.id);
+        if (!reg) return;
+        const cwd = reg.getCwd();
+        for (const path of p.paths ?? []) {
+          if (leaf.source.kind === "ssh") {
+            const hostId = leaf.source.hostId;
+            const remoteDir = cwd || ".";
+            void (async () => {
+              try {
+                await invoke("sftp_open", { hostId, path: remoteDir });
+                const remotePath = await invoke<string>("sftp_upload", {
+                  hostId,
+                  localPath: path,
+                  remoteDir,
+                  transferId: `wt-drop-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+                });
+                reg.sendInput(quote(remotePath) + " ");
+              } catch (e) {
+                console.error("drop upload failed", e);
+              }
+            })();
+          } else {
+            void (async () => {
+              try {
+                if (cwd) {
+                  const dest = await invoke<string>("local_copy_into", {
+                    srcPath: path,
+                    destDir: cwd,
+                  });
+                  reg.sendInput(quote(dest) + " ");
+                } else {
+                  reg.sendInput(quote(path) + " ");
+                }
+              } catch (e) {
+                console.error("drop copy failed", e);
+                reg.sendInput(quote(path) + " ");
+              }
+            })();
+          }
+        }
+      })
+      .then((f) => {
+        un = f;
+      });
+    return () => un?.();
+  }, []);
 
   const [mismatch, setMismatch] = useState<
     (MismatchInfo & { tabId: string; leafId: string }) | null
@@ -1391,6 +1466,16 @@ function App() {
       if (matchesBinding(e, kb.duplicateTab)) {
         e.preventDefault();
         if (activeTabId) duplicateTab(activeTabId);
+        return;
+      }
+      if (matchesBinding(e, kb.toggleHostPanel)) {
+        e.preventDefault();
+        toggleHostPanel();
+        return;
+      }
+      if (matchesBinding(e, kb.toggleAiPanel)) {
+        e.preventDefault();
+        toggleAiPanel();
         return;
       }
       if (matchesBinding(e, kb.nextTab) || matchesBinding(e, kb.prevTab)) {

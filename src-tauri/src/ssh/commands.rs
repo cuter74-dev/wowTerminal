@@ -772,6 +772,19 @@ pub fn local_write_text(path: String, content: String) -> Result<(), String> {
     std::fs::write(&path, content.as_bytes()).map_err(|e| e.to_string())
 }
 
+/// 로컬 파일을 대상 디렉터리로 복사한다 (터미널에 파일 드래그→현재 폴더에 넣기, 로컬 셸).
+/// 복사된 파일의 전체 경로를 반환한다.
+#[tauri::command]
+pub fn local_copy_into(src_path: String, dest_dir: String) -> Result<String, String> {
+    let src = std::path::Path::new(&src_path);
+    let name = src
+        .file_name()
+        .ok_or_else(|| "invalid source path".to_string())?;
+    let dest = std::path::Path::new(&dest_dir).join(name);
+    std::fs::copy(src, &dest).map_err(|e| e.to_string())?;
+    Ok(dest.to_string_lossy().to_string())
+}
+
 /// 포트 포워딩 시작 — 로컬(-L) (#60). 바인딩된 실제 포트를 담은 TunnelInfo 반환.
 #[tauri::command]
 pub async fn tunnel_start_local(

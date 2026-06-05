@@ -131,7 +131,9 @@ export type ShortcutAction =
   | "splitVertical"
   | "splitHorizontal"
   | "duplicateTab"
-  | "renameTab";
+  | "renameTab"
+  | "toggleHostPanel"
+  | "toggleAiPanel";
 
 export type Keybindings = Record<ShortcutAction, KeyBinding>;
 
@@ -144,6 +146,8 @@ export const DEFAULT_KEYBINDINGS: Keybindings = {
   splitHorizontal: { key: "s", mod: true, shift: true, alt: false },
   duplicateTab: { key: "d", mod: true, shift: true, alt: false },
   renameTab: { key: "F2", mod: false, shift: false, alt: false },
+  toggleHostPanel: { key: "b", mod: true, shift: false, alt: false },
+  toggleAiPanel: { key: "j", mod: true, shift: false, alt: false },
 };
 
 /** 키보드 이벤트가 바인딩과 일치하는지. Ctrl/⌘는 동일하게 본다. */
