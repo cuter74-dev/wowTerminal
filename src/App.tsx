@@ -934,8 +934,16 @@ function App() {
   fileBrowserOpenRef.current = !!fileBrowser;
   useEffect(() => {
     let un: (() => void) | undefined;
-    const quote = (s: string) =>
-      /[^\w@%+=:,./~-]/.test(s) ? "'" + s.replace(/'/g, "'\\''") + "'" : s;
+    const notify = (body: string) => {
+      void (async () => {
+        try {
+          if (await isPermissionGranted()) sendNotification({ title: "wowTerminal", body });
+        } catch {
+          /* noop */
+        }
+      })();
+    };
+    const baseName = (p: string) => p.split(/[\\/]/).pop() || p;
     void getCurrentWebview()
       .onDragDropEvent((event) => {
         const p = event.payload;
@@ -947,7 +955,9 @@ function App() {
         if (!reg) return;
         const cwd = reg.getCwd();
         for (const path of p.paths ?? []) {
+          const name = baseName(path);
           if (leaf.source.kind === "ssh") {
+            // SSH: 원격 현재 폴더(cwd, 모르면 홈)로 SFTP 업로드.
             const hostId = leaf.source.hostId;
             const remoteDir = cwd || ".";
             void (async () => {
@@ -959,26 +969,26 @@ function App() {
                   remoteDir,
                   transferId: `wt-drop-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
                 });
-                reg.sendInput(quote(remotePath) + " ");
+                notify(`⬆ ${name} → ${remotePath}`);
               } catch (e) {
-                console.error("drop upload failed", e);
+                notify(`✗ ${name}: ${String(e)}`);
               }
             })();
           } else {
+            // 로컬: 현재 폴더로 복사. cwd를 모르면(셸 통합 미적용) 알림으로 안내.
+            if (!cwd) {
+              notify(`✗ ${name}: 현재 폴더를 알 수 없습니다(셸에서 명령을 한 번 실행해 주세요)`);
+              continue;
+            }
             void (async () => {
               try {
-                if (cwd) {
-                  const dest = await invoke<string>("local_copy_into", {
-                    srcPath: path,
-                    destDir: cwd,
-                  });
-                  reg.sendInput(quote(dest) + " ");
-                } else {
-                  reg.sendInput(quote(path) + " ");
-                }
+                const dest = await invoke<string>("local_copy_into", {
+                  srcPath: path,
+                  destDir: cwd,
+                });
+                notify(`📄 ${name} → ${dest}`);
               } catch (e) {
-                console.error("drop copy failed", e);
-                reg.sendInput(quote(path) + " ");
+                notify(`✗ ${name}: ${String(e)}`);
               }
             })();
           }

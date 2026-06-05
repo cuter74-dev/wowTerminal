@@ -450,7 +450,7 @@ export function Terminal({
           currentCwd = m[1];
         }
       }
-      return false; // 다른 핸들러도 볼 수 있게(특별히 막을 필요 없음)
+      return true; // 처리 완료(false면 xterm 파서가 잔여 처리로 다음 출력을 삼킬 수 있음)
     });
 
     // OSC 52: 앱이 클립보드에 복사(`\e]52;c;<base64>\a`). tmux(set-clipboard on)/vim 등이

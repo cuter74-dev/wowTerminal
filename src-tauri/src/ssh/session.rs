@@ -46,6 +46,10 @@ enum TofuOutcome {
 /// 서버가 forwarded-tcpip 채널을 열면 이 표를 보고 로컬 대상으로 연결한다.
 pub type RemoteForwards = Arc<Mutex<HashMap<u16, (String, u16)>>>;
 
+/// SSH 접속 직후 원격 셸에 보내는 OSC 7(cwd 보고) 자동 설정 한 줄 + 즉시 1회 emit + Ctrl-L.
+/// 프론트의 OSC 7 수신 핸들러가 cwd를 추적해 파일 드래그 업로드가 원격 현재 폴더로 가게 한다.
+const REMOTE_OSC7_SETUP: &[u8] = b" __wt_osc7(){ printf '\\033]7;file://%s%s\\007' \"${HOSTNAME:-$HOST}\" \"$PWD\"; }; if [ -n \"$ZSH_VERSION\" ]; then autoload -Uz add-zsh-hook 2>/dev/null; add-zsh-hook precmd __wt_osc7 2>/dev/null; elif [ -n \"$BASH_VERSION\" ]; then case \"$PROMPT_COMMAND\" in *__wt_osc7*) ;; *) PROMPT_COMMAND=\"__wt_osc7${PROMPT_COMMAND:+; $PROMPT_COMMAND}\";; esac; fi; __wt_osc7\r\x0c";
+
 #[derive(Clone)]
 struct TofuShared {
     store: Arc<KnownHostsStore>,
@@ -370,6 +374,16 @@ impl SshSession {
         let (tx, mut rx) = mpsc::unbounded_channel::<SessionCmd>();
         let sink_for_pump = sink.clone();
         let id_for_pump = session_id.clone();
+
+        // 원격 셸 cwd 추적(OSC 7) 자동 활성화: 접속 직후 OSC7 emit precmd 훅을 주입하고
+        // Ctrl-L(\x0c)로 화면을 정리한다. 이로써 터미널에 파일을 드롭하면 원격 "현재 폴더"로
+        // 업로드할 수 있다. zsh/bash 모두 대응(그 외 셸은 1회 emit만, 무해).
+        // 앞에 공백 → HISTCONTROL=ignorespace면 히스토리에도 안 남는다.
+        let setup_tx = tx.clone();
+        tokio::spawn(async move {
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            let _ = setup_tx.send(SessionCmd::Write(REMOTE_OSC7_SETUP.to_vec()));
+        });
 
         tokio::spawn(async move {
             loop {
