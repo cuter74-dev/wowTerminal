@@ -7,6 +7,8 @@
 
 ## [미배포]
 
+## [0.11.1] — 2026-06-05
+
 ### 수정
 - 작은 창에서 시작하면 터미널이 작은 크기로 멈추고 창을 키워도 안 늘어나던 문제 — ResizeObserver 콜백의 fit을 RAF로 미루고(루프로 알림 끊김 방지) 윈도우 resize 리스너·마운트 직후 재fit 추가 (#79)
 - Windows 자동 업데이트 무한 반복 — latest.json의 windows-x86_64가 MSI를 가리켜 NSIS 설치를 제자리 업그레이드하지 못하던 문제. 업데이터가 NSIS(-setup.exe)를 받도록 수정(공개 latest.json 교정 + 워크플로 finalize 단계 추가) (#78)
@@ -137,7 +139,8 @@
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.0...HEAD
+[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.1...HEAD
+[0.11.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.10.0...v0.11.0
 [0.10.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.9.0...v0.10.0
 [0.9.0]: https://github.com/cuter74-dev/wowTerminal/releases/tag/v0.9.0
