@@ -7,15 +7,15 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-06-08
+
 ### Added
 - Error & crash tracking via self-hosted GlitchTip (Sentry-compatible) — the Rust backend (panics) and the React frontend (render errors) report runtime errors automatically, distinguished by a `component` tag within a single project. The DSN is embedded (public ingest key) and can be overridden or disabled via `WOWTERMINAL_GLITCHTIP_DSN` / `VITE_GLITCHTIP_DSN` (#82)
+- Non-invasive remote current-folder detection for SSH — drag-and-drop upload and the file browser now open at the remote shell's current directory without injecting anything or leaving a screen artifact. On demand, a separate exec channel reads the interactive shell's cwd via `/proc` (the shell and exec channel share the same connection sshd as a common ancestor). Linux remotes only; falls back to an OSC 7 rc-hook or the remote home elsewhere (#83)
 
 ### Fixed
 - Input characters duplicated in the local shell on the newest macOS (e.g. `df -h` → `dddff f -h`) — the custom IME mirror (built for old WKWebView) conflicted with the newest WKWebView's native composition events; it now auto-detects native composition and bypasses the mirror, letting xterm handle IME natively (#83)
 - SSH connect wiping the first screen (banner disappearing, leaving the prompt + blank lines) — removed the remote OSC 7 cwd auto-injection whose trailing Ctrl-L cleared the whole screen (#83)
-
-### Added
-- Non-invasive remote current-folder detection for SSH — drag-and-drop upload and the file browser now open at the remote shell's current directory without injecting anything or leaving a screen artifact. On demand, a separate exec channel reads the interactive shell's cwd via `/proc` (the shell and exec channel share the same connection sshd as a common ancestor). Linux remotes only; falls back to an OSC 7 rc-hook or the remote home elsewhere (#83)
 
 ## [0.12.0] — 2026-06-05
 
@@ -158,7 +158,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.0...HEAD
+[0.13.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.10.0...v0.11.0
