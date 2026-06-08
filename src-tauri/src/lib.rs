@@ -25,8 +25,38 @@ fn machine_passphrase() -> String {
     format!("wowterminal-secret-v1:{id}")
 }
 
+/// GlitchTip(Sentry 호환) 에러 추적 DSN. 공개 수집 키라 임베드해도 안전(비밀 아님).
+/// 환경변수 `WOWTERMINAL_GLITCHTIP_DSN`로 덮어쓰거나, 빈 값으로 두면 추적을 끈다(opt-out).
+const GLITCHTIP_DSN: &str = "https://663f23ace357492887f838d73b57a50c@glitchtip.oopnwow.com/1";
+
+/// Sentry/GlitchTip을 초기화하고 가드를 반환한다. 가드가 살아있는 동안만 이벤트가 전송되므로
+/// 호출부(run)에서 앱 수명 동안 보관해야 한다. DSN이 비면 None(추적 비활성).
+fn init_error_tracking() -> Option<sentry::ClientInitGuard> {
+    let dsn = std::env::var("WOWTERMINAL_GLITCHTIP_DSN")
+        .unwrap_or_else(|_| GLITCHTIP_DSN.to_string());
+    if dsn.trim().is_empty() {
+        return None;
+    }
+    let guard = sentry::init((
+        dsn,
+        sentry::ClientOptions {
+            release: sentry::release_name!(), // wowterminal@<버전>
+            environment: Some(
+                if cfg!(debug_assertions) { "development" } else { "production" }.into(),
+            ),
+            ..Default::default()
+        },
+    ));
+    // 백엔드/프론트를 한 프로젝트에서 태그로 구분한다.
+    sentry::configure_scope(|scope| scope.set_tag("component", "backend"));
+    Some(guard)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // 가드는 run()이 반환할 때까지(=앱 종료까지) 살아있어야 panic/에러가 전송된다.
+    let _sentry_guard = init_error_tracking();
+
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_dialog::init())

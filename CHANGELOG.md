@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- Error & crash tracking via self-hosted GlitchTip (Sentry-compatible) — the Rust backend (panics) and the React frontend (render errors) report runtime errors automatically, distinguished by a `component` tag within a single project. The DSN is embedded (public ingest key) and can be overridden or disabled via `WOWTERMINAL_GLITCHTIP_DSN` / `VITE_GLITCHTIP_DSN` (#82)
+
 ## [0.12.0] — 2026-06-05
 
 ### Added
