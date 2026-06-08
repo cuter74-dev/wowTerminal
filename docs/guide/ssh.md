@@ -51,10 +51,15 @@ wowTerminal verifies server host keys against `known_hosts` using a
 
 ## Remote current-folder tracking (for drag-and-drop upload)
 
-When you drag a file onto a connected SSH terminal, it uploads to the remote shell's
-**current folder** — but only if the remote shell reports its working directory via OSC 7.
-wowTerminal does **not** inject anything into your remote shell (that approach clears the
-screen on connect). Instead, add one line to your remote shell's startup file:
+When you drag a file onto a connected SSH terminal — or open the file browser — it targets
+the remote shell's **current folder**. wowTerminal does **not** inject anything into your
+remote shell (that approach clears the screen on connect). On **Linux remotes** the current
+folder is detected automatically and on demand by reading the interactive shell's working
+directory via `/proc` (over a separate channel), so no setup is required.
+
+On **non-Linux remotes** (macOS/BSD) or where `/proc` is restricted, this falls back to your
+remote **home** directory. To get accurate current-folder tracking there too, add one line to
+your remote shell's startup file:
 
 ```sh
 # ~/.zshrc  (zsh)
@@ -63,8 +68,6 @@ precmd() { printf '\033]7;file://%s%s\007' "$HOST" "$PWD" }
 # ~/.bashrc  (bash)
 PROMPT_COMMAND='printf "\033]7;file://%s%s\007" "$HOSTNAME" "$PWD"'"${PROMPT_COMMAND:+; $PROMPT_COMMAND}"
 ```
-
-Without this, SSH drag-and-drop uploads fall back to your remote **home** directory.
 
 ## Backup
 

@@ -185,7 +185,17 @@ enum SessionCmd {
 
 pub struct SshSession {
     tx: mpsc::UnboundedSender<SessionCmd>,
+    /// 연결 핸들(Arc 공유). 드래그 업로드 시 별도 exec 채널을 열어 원격 셸 cwd를 조회하는 데 쓴다.
+    /// (russh Handle은 Clone이 아니라 Arc로 공유 — channel_open_session은 &self라 문제없다.)
+    handle: Arc<client::Handle<TofuHandler>>,
 }
+
+/// 원격 *대화형 셸*의 현재 작업 디렉터리를 화면 흔적/주입 없이 알아내는 POSIX sh 스크립트.
+/// 원리: 같은 SSH 연결의 셸·exec 채널은 같은 "연결 sshd"를 공통 조상으로 갖는다(privsep 깊이 무관).
+/// exec(이 스크립트)에서 자신의 조상 체인을 따라 연결 sshd를 찾고, 그 sshd를 조상으로 가지면서
+/// tty를 가진(=대화형 셸) 프로세스의 `/proc/<pid>/cwd`를 읽는다. exec 자신은 tty가 없어 제외된다.
+/// Linux(/proc)에서만 동작하며, 그 외(macOS/BSD·hidepid 등)에서는 아무것도 출력하지 않는다(홈 폴백).
+const REMOTE_CWD_SCRIPT: &str = r#"sh -c 'ppidof(){ s=$(cat /proc/$1/stat 2>/dev/null)||return 1; r=${s##*\) }; set -- $r; printf %s "$2"; }; ttyof(){ s=$(cat /proc/$1/stat 2>/dev/null)||return 1; r=${s##*\) }; set -- $r; printf %s "$5"; }; self=$$; p=$self; ch=; while [ "$p" -gt 1 ] 2>/dev/null; do ch="$ch $p"; np=$(ppidof $p)||break; [ "$np" = "$p" ] && break; p=$np; done; conn=; prev=; for q in $ch; do [ "$(cat /proc/$q/comm 2>/dev/null)" = sshd ] || continue; pq=$(ppidof $q); [ "$(cat /proc/$pq/comm 2>/dev/null)" != sshd ] && { conn=$prev; break; }; prev=$q; done; [ -n "$conn" ] || exit 0; for d in /proc/[0-9]*; do pid=${d#/proc/}; [ "$pid" = "$self" ] && continue; t=$(ttyof $pid 2>/dev/null)||continue; [ -n "$t" ] && [ "$t" != 0 ] || continue; a=$pid; ok=0; while [ "$a" -gt 1 ] 2>/dev/null; do [ "$a" = "$conn" ] && { ok=1; break; }; na=$(ppidof $a)||break; [ "$na" = "$a" ] && break; a=$na; done; [ "$ok" = 1 ] || continue; cwd=$(readlink /proc/$pid/cwd 2>/dev/null) && { printf "%s\n" "$cwd"; exit 0; }; done'"#;
 
 impl SshSession {
     /// SSH 핸드셰이크 + 인증까지 수행하고 연결 핸들을 반환. PTY 세션과 SFTP가 공유.
@@ -353,6 +363,11 @@ impl SshSession {
             None => (Self::establish(host, port, user, auth, known_hosts).await?, None),
         };
 
+        // 핸들을 Arc로 감싸 세션에 보관 — 드래그 업로드 시 별도 exec 채널로 원격 cwd를 조회한다.
+        // 원본 Arc는 아래 actor 태스크로 move되어 세션 수명 동안 연결을 유지한다.
+        let handle = Arc::new(handle);
+        let handle_for_session = Arc::clone(&handle);
+
         let mut channel = handle
             .channel_open_session()
             .await
@@ -419,7 +434,38 @@ impl SshSession {
             drop(jump_keepalive);
         });
 
-        Ok(Self { tx })
+        Ok(Self {
+            tx,
+            handle: handle_for_session,
+        })
+    }
+
+    /// 원격 셸의 현재 작업 디렉터리를 조회한다(주입·화면 흔적 없음, Linux 원격 전용).
+    /// 별도 exec 채널에서 `REMOTE_CWD_SCRIPT`를 실행해 stdout의 cwd 한 줄을 읽는다.
+    /// 실패/타임아웃/비-Linux 원격이면 None → 호출자가 원격 홈으로 폴백한다.
+    pub async fn remote_cwd(&self) -> Option<String> {
+        let fut = async {
+            let mut ch = self.handle.channel_open_session().await.ok()?;
+            ch.exec(true, REMOTE_CWD_SCRIPT.as_bytes()).await.ok()?;
+            let mut out: Vec<u8> = Vec::new();
+            while let Some(msg) = ch.wait().await {
+                match msg {
+                    ChannelMsg::Data { ref data } => out.extend_from_slice(&data[..]),
+                    ChannelMsg::Eof | ChannelMsg::Close => break,
+                    _ => {}
+                }
+            }
+            let text = String::from_utf8_lossy(&out);
+            text.lines()
+                .map(|l| l.trim())
+                .find(|l| l.starts_with('/'))
+                .map(|l| l.to_string())
+        };
+        // 원격이 응답 안 하거나 /proc가 막혀도 드래그가 멈추지 않도록 2초 상한.
+        tokio::time::timeout(std::time::Duration::from_secs(2), fut)
+            .await
+            .ok()
+            .flatten()
     }
 
     pub async fn write(&self, data: &[u8]) -> Result<(), SshError> {

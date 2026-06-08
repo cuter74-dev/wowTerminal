@@ -143,6 +143,7 @@ pub fn run() {
             ssh::commands::ssh_delete_host,
             ssh::commands::ssh_connect,
             ssh::commands::ssh_write,
+            ssh::commands::ssh_remote_cwd,
             ssh::commands::ssh_resize,
             ssh::commands::ssh_kill,
             ssh::commands::ssh_list_known_hosts,

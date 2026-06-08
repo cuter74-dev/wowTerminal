@@ -12,7 +12,10 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ### Fixed
 - Input characters duplicated in the local shell on the newest macOS (e.g. `df -h` → `dddff f -h`) — the custom IME mirror (built for old WKWebView) conflicted with the newest WKWebView's native composition events; it now auto-detects native composition and bypasses the mirror, letting xterm handle IME natively (#83)
-- SSH connect wiping the first screen (banner disappearing, leaving the prompt + blank lines) — removed the remote OSC 7 cwd auto-injection whose trailing Ctrl-L cleared the whole screen. Remote cwd tracking now relies on a one-line hook the user can add to their remote shell rc; otherwise SSH drag-upload falls back to the remote home (#83)
+- SSH connect wiping the first screen (banner disappearing, leaving the prompt + blank lines) — removed the remote OSC 7 cwd auto-injection whose trailing Ctrl-L cleared the whole screen (#83)
+
+### Added
+- Non-invasive remote current-folder detection for SSH — drag-and-drop upload and the file browser now open at the remote shell's current directory without injecting anything or leaving a screen artifact. On demand, a separate exec channel reads the interactive shell's cwd via `/proc` (the shell and exec channel share the same connection sshd as a common ancestor). Linux remotes only; falls back to an OSC 7 rc-hook or the remote home elsewhere (#83)
 
 ## [0.12.0] — 2026-06-05
 

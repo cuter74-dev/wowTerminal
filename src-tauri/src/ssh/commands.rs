@@ -272,6 +272,15 @@ pub async fn ssh_write(
         .map_err(|e| e.to_string())
 }
 
+/// 원격 셸의 현재 작업 디렉터리(Linux 원격 전용). 드래그 업로드 위치 결정용 — 실패 시 null.
+#[tauri::command]
+pub async fn ssh_remote_cwd(
+    session_id: String,
+    state: State<'_, SshState>,
+) -> Result<Option<String>, String> {
+    Ok(state.manager.remote_cwd(&session_id).await)
+}
+
 #[tauri::command]
 pub async fn ssh_resize(
     session_id: String,

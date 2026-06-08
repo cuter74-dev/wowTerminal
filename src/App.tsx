@@ -957,11 +957,22 @@ function App() {
         for (const path of p.paths ?? []) {
           const name = baseName(path);
           if (leaf.source.kind === "ssh") {
-            // SSH: 원격 현재 폴더(cwd, 모르면 홈)로 SFTP 업로드.
+            // SSH: 원격 현재 폴더로 SFTP 업로드. cwd 결정 우선순위:
+            //  1) OSC 7로 추적한 cwd (원격 rc에 훅을 넣은 경우 즉시).
+            //  2) ssh_remote_cwd — 별도 exec 채널에서 /proc로 원격 셸 cwd 조회(Linux 원격,
+            //     주입·화면 흔적 없음). 비-Linux/실패면 null.
+            //  3) "." (원격 홈) 폴백.
             const hostId = leaf.source.hostId;
-            const remoteDir = cwd || ".";
+            const sshSessionId = sessionByLeaf.current[leaf.id];
             void (async () => {
               try {
+                let remoteDir = cwd;
+                if (!remoteDir && sshSessionId) {
+                  remoteDir = await invoke<string | null>("ssh_remote_cwd", {
+                    sessionId: sshSessionId,
+                  }).catch(() => null);
+                }
+                remoteDir = remoteDir || ".";
                 await invoke("sftp_open", { hostId, path: remoteDir });
                 const remotePath = await invoke<string>("sftp_upload", {
                   hostId,
@@ -1624,16 +1635,32 @@ function App() {
         tabCount={tabs.length}
         canOpenFiles={!!activeHostId}
         onOpenFiles={() => {
-          if (activeHostId) {
-            // 포커스된 패널의 셸 cwd(OSC 7로 추적)를 파일 브라우저 원격 시작 위치로.
-            const cwd = activeTab
-              ? getTerminal(activeTab.focusedPaneId)?.getCwd() ?? undefined
-              : undefined;
+          if (!activeHostId) return;
+          // 파일 브라우저 원격 시작 위치 = 포커스된 패널 셸의 현재 폴더.
+          // 우선순위(드래그 업로드와 동일): ① OSC 7 추적값 → ② ssh_remote_cwd(/proc 조회,
+          // Linux 원격) → ③ 홈(undefined).
+          const hostId = activeHostId;
+          const paneId = activeTab?.focusedPaneId;
+          const open = (initialRemotePath?: string) =>
             setFileBrowser({
-              hostId: activeHostId,
-              hostLabel: labelForHost(activeHostId),
-              initialRemotePath: cwd,
+              hostId,
+              hostLabel: labelForHost(hostId),
+              initialRemotePath,
             });
+          const osc7 = paneId
+            ? getTerminal(paneId)?.getCwd() ?? undefined
+            : undefined;
+          if (osc7) {
+            open(osc7);
+            return;
+          }
+          const sid = paneId ? sessionByLeaf.current[paneId] : undefined;
+          if (sid) {
+            void invoke<string | null>("ssh_remote_cwd", { sessionId: sid })
+              .then((p) => open(p ?? undefined))
+              .catch(() => open(undefined));
+          } else {
+            open(undefined);
           }
         }}
         onOpenSettings={() => setShowSettings(true)}

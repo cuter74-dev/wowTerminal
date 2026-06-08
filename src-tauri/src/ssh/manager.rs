@@ -165,4 +165,10 @@ impl SshManager {
     pub async fn session_count(&self) -> usize {
         self.sessions.lock().await.len()
     }
+
+    /// 원격 셸의 현재 작업 디렉터리(Linux 원격 전용, 실패 시 None). 드래그 업로드 위치 결정용.
+    pub async fn remote_cwd(&self, id: &str) -> Option<String> {
+        let session = { self.sessions.lock().await.get(id).cloned()? };
+        session.remote_cwd().await
+    }
 }
