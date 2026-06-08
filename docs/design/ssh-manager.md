@@ -1,24 +1,24 @@
-# SSH 매니저 설계 (v0.1 draft)
+# SSH Manager Design (v0.1 draft)
 
-## 목적
-SSH 호스트와 키를 한 곳에서 관리하고, UI에서 한 번 클릭으로 새 터미널 세션을 띄울 수 있게 한다.
+## Goal
+Manage SSH hosts and keys in one place, and let users open a new terminal session with a single click in the UI.
 
-핵심 사용자 시나리오:
-1. 새 호스트 추가 (이름, host, port, user, 키파일 선택/생성)
-2. 호스트 목록에서 클릭 → 곧바로 PTY 세션 열림
-3. 키는 절대 평문으로 디스크에 남지 않는다.
+Core user scenarios:
+1. Add a new host (name, host, port, user, select/generate a key file)
+2. Click a host in the list → a PTY session opens immediately
+3. Keys never remain on disk in plaintext.
 
-## 데이터 모델
+## Data Model
 
 ```rust
 struct SshHost {
     id: String,           // UUID
-    name: String,         // 사용자 표시 이름
+    name: String,         // user-facing display name
     host: String,
-    port: u16,            // 기본 22
+    port: u16,            // default 22
     user: String,
     auth: SshAuthMethod,
-    tags: Vec<String>,    // ex: ["prod", "k8s-node"]
+    tags: Vec<String>,    // e.g.: ["prod", "k8s-node"]
 }
 
 enum SshAuthMethod {
@@ -27,79 +27,79 @@ enum SshAuthMethod {
         key_id: String,
         passphrase_secret_id: Option<String>,
     },
-    Agent,                // ssh-agent에 위임
+    Agent,                // delegate to ssh-agent
 }
 ```
 
-## 저장 위치
+## Storage Locations
 
-| 종류 | 위치 | 형식 |
+| Kind | Location | Format |
 |---|---|---|
-| 호스트 프로필 (메타데이터) | `~/.config/wowterminal/hosts.toml` | TOML |
-| 시크릿 (비밀번호, 패스프레이즈, 개인키 원문) | OS 키링 또는 `~/.local/share/wowterminal/secrets.bin` (AES-256-GCM) | 키링 항목 또는 암호화된 KV |
+| Host profiles (metadata) | `~/.config/wowterminal/hosts.toml` | TOML |
+| Secrets (passwords, passphrases, raw private keys) | OS keyring or `~/.local/share/wowterminal/secrets.bin` (AES-256-GCM) | keyring entry or encrypted KV |
 
-호스트 프로필에는 시크릿 자체가 아니라 **`secret_id` / `key_id` 참조**만 들어간다.
+Host profiles contain only a **`secret_id` / `key_id` reference**, not the secret itself.
 
-## 키 저장 방식
+## Key Storage Methods
 
-### 1순위: OS 키링
-- `keyring` crate 사용
+### Priority 1: OS keyring
+- Uses the `keyring` crate
 - Linux: Secret Service (libsecret) / KWallet
 - macOS: Keychain
 - Windows: Credential Manager
 
-### 2순위: 패스프레이즈 암호화 파일
-- 키링이 비활성/미설치인 환경(헤드리스 Linux, SSH-only 환경) 대응
-- 사용자가 앱 시작 시 마스터 패스프레이즈 1회 입력 → Argon2id로 KEK 유도 → AES-256-GCM으로 시크릿 복호화
-- 메모리에 평문 보유 시간은 가능한 짧게, `zeroize`로 명시적 wiping
+### Priority 2: passphrase-encrypted file
+- For environments where the keyring is disabled/absent (headless Linux, SSH-only environments)
+- The user enters a master passphrase once at app start → derive a KEK with Argon2id → decrypt secrets with AES-256-GCM
+- Keep plaintext in memory as briefly as possible; explicitly wipe with `zeroize`
 
-### 3순위: ssh-agent 위임
-- 키 관리 자체를 사용자가 외부 agent에게 맡기는 경우
-- wowTerminal은 단순히 agent socket을 통해 인증 위임 (별도 키 저장 X)
+### Priority 3: ssh-agent delegation
+- When the user delegates key management to an external agent
+- wowTerminal simply delegates authentication via the agent socket (no separate key storage)
 
-## 새 키 생성 흐름 (UI)
-1. "키 추가" 클릭 → 모달
-2. 옵션 A: 기존 키 파일 import (path 선택 → 패스프레이즈 입력)
-3. 옵션 B: 새 키 생성 (ed25519 기본, 사용자가 RSA 4096도 선택 가능)
-   - 생성 즉시 keystore에 암호화 저장
-   - 공개키를 클립보드/파일로 export 가능
-4. 가져온/생성한 키 원본 파일은 옵션 B에서는 디스크에 남기지 않는다. 옵션 A에서 가져온 외부 파일은 사용자에게 삭제 의사 확인.
+## New Key Generation Flow (UI)
+1. Click "Add key" → modal
+2. Option A: import an existing key file (select path → enter passphrase)
+3. Option B: generate a new key (ed25519 by default; the user may also choose RSA 4096)
+   - Encrypt and store in the keystore immediately upon generation
+   - The public key can be exported to clipboard/file
+4. In Option B the generated key's raw file is not left on disk. For external files imported via Option A, ask the user whether to delete them.
 
-## 접속 흐름 (런타임)
-1. UI에서 호스트 클릭 → Tauri command `ssh_connect(host_id)`
-2. 백엔드에서 `SshHost` 로드 → `secret_id`/`key_id`로 keystore 조회 → 평문 시크릿 메모리 적재
-3. `russh` (또는 `thrussh`) 클라이언트로 SSH 연결, PTY 채널 요청
-4. 채널의 양방향 바이트 스트림을 프론트엔드 xterm.js와 연결 (Tauri event 기반)
-5. 세션 종료 시 메모리에서 시크릿 zeroize
+## Connection Flow (runtime)
+1. Click a host in the UI → Tauri command `ssh_connect(host_id)`
+2. The backend loads the `SshHost` → looks up the keystore by `secret_id`/`key_id` → loads the plaintext secret into memory
+3. Connect via the `russh` (or `thrussh`) client and request a PTY channel
+4. Connect the channel's bidirectional byte stream to the frontend xterm.js (Tauri event based)
+5. Zeroize the secret from memory when the session ends
 
-## 모듈 구조
+## Module Structure
 
 ```
 src-tauri/src/ssh/
-├── mod.rs            # 공개 API
+├── mod.rs            # public API
 ├── types.rs          # SshHost, SshAuthMethod
-├── store.rs          # hosts.toml 로드/저장 (TODO)
-├── keystore.rs       # keyring + 암호화 fallback (TODO)
-└── session.rs        # russh 기반 접속/PTY 채널 (TODO)
+├── store.rs          # load/save hosts.toml (TODO)
+├── keystore.rs       # keyring + encryption fallback (TODO)
+└── session.rs        # russh-based connect/PTY channel (TODO)
 ```
 
-## 보안 체크리스트
-- [ ] 평문 키 파일 디스크에 두지 않음 (사용자 import 옵션 A 외)
-- [ ] 메모리 평문 시크릿은 사용 직후 zeroize
-- [x] 호스트 키 검증 (known_hosts TOFU) — `known_hosts.rs` 참고. 변경 시 `SshError::HostKeyMismatch`로 명확한 에러; UI 강제 갱신은 `ssh_trust_known_host` 명령
-- [ ] 잘못된 패스프레이즈 시 적절한 backoff (brute force 방지)
-- [ ] 외부에서 호스트 프로필을 export할 때 시크릿은 절대 함께 export되지 않음
+## Security Checklist
+- [ ] No plaintext key files left on disk (except the user's import Option A)
+- [ ] Zeroize plaintext secrets in memory right after use
+- [x] Host key verification (known_hosts TOFU) — see `known_hosts.rs`. On change, a clear `SshError::HostKeyMismatch`; force-update from the UI via the `ssh_trust_known_host` command
+- [ ] Appropriate backoff on a wrong passphrase (brute-force prevention)
+- [ ] Secrets are never exported alongside host profiles when exporting externally
 
 ## known_hosts (TOFU)
 
-### 정책
-- **첫 접속**: 자동 저장하지 **않는다**. 거절하고 `SshError::FirstContactRequired { host, port, algorithm, fingerprint }`로 사용자에게 fingerprint를 보여준다. 사용자가 별도 채널로 fingerprint를 확인한 뒤 `ssh_trust_known_host(...)`를 호출해야 known_hosts에 기록되고, 그 다음 접속이 통과한다.
-- **재접속 (일치)**: 통과.
-- **재접속 (불일치)**: 즉시 거절. `SshError::HostKeyMismatch { host, port, algorithm, stored, presented }`. UI는 사용자에게 보여주고, 사용자가 위험을 인지한 경우 `ssh_trust_known_host`로 새 키를 신뢰하도록 갱신할 수 있다.
+### Policy
+- **First contact**: do **not** auto-save. Reject and show the fingerprint to the user via `SshError::FirstContactRequired { host, port, algorithm, fingerprint }`. The user must verify the fingerprint out-of-band and then call `ssh_trust_known_host(...)`; only then is it recorded in known_hosts and the next connection passes.
+- **Reconnect (match)**: pass.
+- **Reconnect (mismatch)**: reject immediately. `SshError::HostKeyMismatch { host, port, algorithm, stored, presented }`. The UI shows this to the user, who — if they understand the risk — can update via `ssh_trust_known_host` to trust the new key.
 
-### 저장 위치 / 형식
+### Storage Location / Format
 - `~/.config/wowterminal/known_hosts.toml`
-- 한 줄 = `(host, port)` 한 엔트리. fingerprint는 `SHA256:...` 형식 (ssh-key crate의 `Fingerprint::to_string()`).
+- One entry per `(host, port)`. The fingerprint is in `SHA256:...` format (the ssh-key crate's `Fingerprint::to_string()`).
 
 ```toml
 version = 1
@@ -110,21 +110,22 @@ fingerprint = "SHA256:AbCd..."
 added_at = "@unix:1716352800"
 ```
 
-### 구현
+### Implementation
 - `src-tauri/src/ssh/known_hosts.rs` — `KnownHostsStore` (CRUD + `check`/`record`/`forget`/`list`)
-- `src-tauri/src/ssh/session.rs` — `TofuHandler`가 `russh::Handler::check_server_key`를 구현. 결과(`TofuOutcome`)를 `Arc<Mutex<Option<...>>>`로 외부에 노출해 connect 실패 시 정확한 에러로 변환.
-- Tauri 명령: `ssh_list_known_hosts`, `ssh_forget_known_host`, `ssh_trust_known_host`.
+- `src-tauri/src/ssh/session.rs` — `TofuHandler` implements `russh::Handler::check_server_key`. It exposes the result (`TofuOutcome`) externally via `Arc<Mutex<Option<...>>>` to convert a connect failure into the precise error.
+- Tauri commands: `ssh_list_known_hosts`, `ssh_forget_known_host`, `ssh_trust_known_host`.
 
-### 한계 / TODO
-- IPv6 주소를 그대로 키로 쓰면 `:` 분리에서 문제 → 후속에 zone 표기/괄호 도입 필요.
+### Limitations / TODO
+- Using an IPv6 address directly as the key breaks `:` splitting → need to introduce zone notation/brackets later.
 
-## 열린 질문
-- 마스터 패스프레이즈 변경 시 모든 시크릿 재암호화 — UX 어떻게 노출할지.
-- 키링과 패스프레이즈 파일 중 사용자가 자유롭게 골라야 할지 자동 감지로 충분할지.
-- known_hosts를 OS의 `~/.ssh/known_hosts`와 공유할지 별도로 관리할지.
+## Open Questions
+- Re-encrypting all secrets when the master passphrase changes — how to surface this in the UX.
+- Whether the user should freely choose between the keyring and the passphrase file, or auto-detection is enough.
+- Whether to share known_hosts with the OS's `~/.ssh/known_hosts` or manage it separately.
 
-## 다음 단계 (TODO)
-- [ ] `store.rs`, `keystore.rs` 구현
-- [ ] `russh` 기반 SSH 클라이언트 + PTY 채널 (`session.rs`)
-- [ ] 프론트엔드 호스트 목록 UI
-- [ ] 키 생성 / import 모달
+## Next Steps (TODO)
+- [ ] Implement `store.rs`, `keystore.rs`
+- [ ] `russh`-based SSH client + PTY channel (`session.rs`)
+- [ ] Frontend host list UI
+- [ ] Key generation / import modal
+```

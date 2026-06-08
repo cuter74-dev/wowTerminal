@@ -1,154 +1,154 @@
-# 변경 이력 (Changelog)
+# Changelog
 
-이 파일은 wowTerminal의 버전별 주요 변경사항을 기록합니다.
-형식은 [Keep a Changelog](https://keepachangelog.com/ko/1.1.0/)를 따르며, 버전은 [유의적 버전(SemVer)](https://semver.org/lang/ko/)을 사용합니다.
+This file records the notable changes per version of wowTerminal.
+The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and versioning follows [Semantic Versioning (SemVer)](https://semver.org/).
 
-분류: **추가**(새 기능) · **변경**(기존 동작 변경) · **수정**(버그 수정) · **제거**(기능 삭제)
+Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixed** (bug fixes) · **Removed** (removed features)
 
-## [미배포]
+## [Unreleased]
 
 ## [0.12.0] — 2026-06-05
 
-### 추가
-- 패널 토글 단축키 — 호스트 패널(⌘B)·AI 패널(⌘J)을 단축키로 열고 닫기(설정에서 재지정 가능) (#81)
-- 터미널에 파일 드래그-드롭 업로드 — 터미널의 현재 폴더로(로컬 셸=복사, SSH=원격 현재 폴더로 SFTP 업로드). 현재 폴더는 셸 통합 OSC7로 추적하며, SSH는 접속 시 원격 셸에 cwd 훅을 자동 주입(화면은 Ctrl-L로 정리). 결과는 데스크톱 알림으로 안내 (#81)
+### Added
+- Panel toggle shortcuts — open/close the host panel (⌘B) and the AI panel (⌘J) via shortcuts (rebindable in settings) (#81)
+- Drag-and-drop file upload onto the terminal — into the terminal's current folder (local shell = copy, SSH = SFTP upload to the remote current folder). The current folder is tracked via shell-integration OSC 7, and SSH auto-injects a cwd hook into the remote shell on connect (the screen is cleaned up with Ctrl-L). The result is reported via a desktop notification (#81)
 
-### 수정
-- 로컬 셸에서 Homebrew·pyenv·jenv 등으로 깐 명령이 "command not found"로 안 먹던 문제 — 셸을 비로그인으로 띄워 `~/.zprofile`(brew shellenv 등 PATH 설정)을 안 읽던 것을 로그인 셸(`-l`)로 변경. bash는 rcfile에서 로그인 프로필을 직접 source (#80)
+### Fixed
+- Commands installed via Homebrew/pyenv/jenv etc. failing with "command not found" in the local shell — the shell was spawned non-login so `~/.zprofile` (PATH setup such as brew shellenv) wasn't read; switched to a login shell (`-l`). For bash, the login profile is sourced directly in the rcfile (#80)
 
 ## [0.11.1] — 2026-06-05
 
-### 수정
-- 작은 창에서 시작하면 터미널이 작은 크기로 멈추고 창을 키워도 안 늘어나던 문제 — ResizeObserver 콜백의 fit을 RAF로 미루고(루프로 알림 끊김 방지) 윈도우 resize 리스너·마운트 직후 재fit 추가 (#79)
-- Windows 자동 업데이트 무한 반복 — latest.json의 windows-x86_64가 MSI를 가리켜 NSIS 설치를 제자리 업그레이드하지 못하던 문제. 업데이터가 NSIS(-setup.exe)를 받도록 수정(공개 latest.json 교정 + 워크플로 finalize 단계 추가) (#78)
+### Fixed
+- Terminal stuck at a small size when started in a small window and not growing when the window is enlarged — defer the ResizeObserver callback's fit via requestAnimationFrame (prevents the loop from dropping notifications), plus add a window resize listener and refit shortly after mount (#79)
+- Windows auto-update loop — latest.json's windows-x86_64 pointed to the MSI, which can't do an in-place upgrade over an NSIS install. Made the updater fetch NSIS (-setup.exe) (fixed the published latest.json + added a workflow finalize step) (#78)
 
-### 변경
-- 설정 터미널 글꼴 — 라벨을 '폰트 패밀리/폰트 크기' → '글꼴/글꼴 크기'로 다듬고, CSS 스택 직접 입력 대신 모노스페이스 프리셋 드롭다운(Menlo·SF Mono·JetBrains Mono·D2Coding 등)으로 변경 (#77)
+### Changed
+- Settings terminal font — relabeled to "Font / Font size" and changed the direct CSS-stack input into a monospace preset dropdown (Menlo, SF Mono, JetBrains Mono, D2Coding, etc.) (#77)
 
 ## [0.11.0] — 2026-06-04
 
-### 추가
-- 포트 포워딩 원격(-R) — ⌘K '포트 포워딩'에서 서버 바인드 포트로 들어온 연결을 클라이언트 측 대상으로 전달. -L/-R/-D 세트 완성 (#73)
+### Added
+- Remote port forwarding (-R) — from the ⌘K "Port forwarding", forward connections arriving on the server's bind port to a client-side target. Completes the -L/-R/-D set (#73)
 
-### 수정
-- 호스트 추가/편집 화면에서 포트를 모두 지우면 22로 되돌아가 새 값을 입력 못 하던 문제 — 편집 중 빈 값 허용(저장 시 22 기본·범위 클램프) (#74)
-- 한글 입력 시 조합 중인 음절이 이중으로 보이던 문제(차→차차 등) — xterm 조합 미리보기 오버레이를 숨겨 미러 표시와 중복 제거 (#75)
-- 앱 실행 아이콘 + 앱 내부 로고(스플래시·온보딩·설정)·브라우저 파비콘·창 제목을 새 블루 'WT' 로고/브랜드로 통일 (#76)
+### Fixed
+- The port field in the add/edit host screen reverting to 22 when cleared, preventing a new value — allow empty while editing (default 22 on save, clamp the range) (#74)
+- Composing Korean syllables shown twice (e.g., 차 → 차차) — hide the xterm composition-preview overlay to remove duplication with the mirror display (#75)
+- Unified the app launch icon + in-app logo (splash/onboarding/settings) · browser favicon · window title to the new blue "WT" logo/brand (#76)
 
 ## [0.10.0] — 2026-06-04
 
-### 추가
-- 설정에 UI 글꼴 선택 옵션 — 호스트 목록·AI 패널 등 UI 글꼴을 프리셋에서 선택(터미널 폰트와 별개) (#54)
-- 긴 명령 완료 알림 — 백그라운드 탭에서 8초↑ 명령이 끝나면 데스크톱 알림 + 탭 배지(OSC 133 기반) (#55)
-- 로컬 bash도 셸 통합(OSC 133) 적용 → bash에서도 명령 종료코드/실행시간 배지 (#56)
-- 명령 팔레트(⌘K) — 호스트 접속·새 탭·설정·최근 명령을 퍼지 검색해 즉시 실행 (#57)
-- 입력 브로드캐스트 — 타이틀바 📡 토글. 켜면 한 패널 입력이 모든 패널로 동시 전송(fleet 운영). 켜짐 시 빨간 표시 (#59)
-- 명령 스니펫 — 설정의 '스니펫' 탭에서 자주 쓰는 명령 저장, ⌘K 명령 팔레트에서 실행 (#58)
-- 터미널 색 테마 추가 — Dracula·Nord·Solarized Dark·Monokai (풀 ANSI 16색 팔레트). 설정 → 터미널 → 테마에서 선택 (#66)
-- 세션 로깅 — 설정에서 켜면 터미널 출력(ANSI 제거)을 로그 폴더에 세션별 파일로 누적 저장(로컬·SSH 모두) (#67)
-- 세션 대시보드 — 타이틀바 📊·⌘K에서 열기. 모든 탭/패널의 소스·상태·명령 수·마지막 명령을 표로 보고 행 클릭으로 점프 (#68)
-- 원격 파일 빠른 편집 — SFTP 브라우저에서 텍스트 파일을 더블클릭하면 편집창으로 열려 ⌘S/💾로 바로 저장(원격·로컬 모두) (#69)
-- 포트 포워딩 — ⌘K '포트 포워딩'에서 로컬(-L)·다이내믹(-D SOCKS5) 터널 생성/중지. 활성 터널 목록 표시(원격 -R은 후속) (#70)
-- 점프 호스트(ProxyJump) — 호스트 편집에서 '점프 호스트'를 지정하면 중간 호스트(bastion)를 거쳐 SSH 접속. 점프 인증은 ssh-agent/키체인 (#71)
+### Added
+- UI font selection option in settings — choose the UI font of the host list, AI panel, etc. from presets (separate from the terminal font) (#54)
+- Long-running command completion notification — a desktop notification + tab badge when a command ≥ 8s finishes in a background tab (OSC 133 based) (#55)
+- Shell integration (OSC 133) for local bash too → exit-code/duration badges per command in bash as well (#56)
+- Command palette (⌘K) — fuzzy-search hosts/new tab/settings/recent commands and run instantly (#57)
+- Input broadcast — title-bar 📡 toggle. When on, input in one pane goes to all panes simultaneously (fleet operations). Shown in red when on (#59)
+- Command snippets — save frequently used commands in the settings "Snippets" tab, run them from the ⌘K command palette (#58)
+- Terminal color themes — Dracula, Nord, Solarized Dark, Monokai (full 16-color ANSI palettes). Choose from Settings → Terminal → Theme (#66)
+- Session logging — when enabled in settings, accumulate terminal output (ANSI stripped) into per-session files in the log folder (both local and SSH) (#67)
+- Session dashboard — open from the title-bar 📊 or ⌘K. View all tabs/panes' source/status/command count/last command in a table and jump by clicking a row (#68)
+- Quick edit of remote files — double-click a text file in the SFTP browser to open an editor and save directly with ⌘S/💾 (both remote and local) (#69)
+- Port forwarding — create/stop local (-L) and dynamic (-D SOCKS5) tunnels from the ⌘K "Port forwarding". Shows the active tunnel list (remote -R is a follow-up) (#70)
+- Jump host (ProxyJump) — set a "jump host" in host editing to connect over a bastion. Jump auth via ssh-agent/keychain (#71)
 
-### 변경
-- 타이틀바 대시보드·브로드캐스트 아이콘을 이모지(📊/📡) 대신 설정 톱니와 같은 stroke SVG 아이콘으로 교체 (#72)
-- macOS 빌드를 Developer ID로 코드 서명 + 공증(notarize) — 다운로드 시 "손상됨" Gatekeeper 경고 제거
+### Changed
+- Replaced the title-bar dashboard/broadcast emoji (📊/📡) with stroke SVG icons matching the settings gear (#72)
+- macOS builds are code-signed with Developer ID + notarized — removes the "damaged" Gatekeeper warning on download
 
 ## [0.9.0] — 2026-06-04
 
-### 추가
-- 터미널 스크롤백 검색(⌘F) — 검색창에서 다음/이전 이동·하이라이트 (#48)
-- 터미널 출력의 URL을 클릭하면 기본 브라우저로 열기 (#48)
-- AI 빠른 동작 — '에러 고치기/출력 설명/다음 단계' 버튼으로 현재 터미널 출력을 자동 첨부해 AI에 질문, 답변의 명령은 카드로 바로 실행 (#49)
-- ~/.ssh/config 임포트 — 설정의 가져오기 탭에서 로컬 SSH 설정의 호스트를 한 번에 등록(인증은 ssh-agent 기본, 편집 가능) (#50)
-- 셸 통합(OSC 133) — 로컬 zsh에서 명령별 종료코드(✓/✗)·실행시간 배지 표시(커맨드 블록 1단계) (#51)
-- 커맨드 블록 UI — 명령 점프(⌘↑/↓), 배지 클릭으로 블록 출력 복사, ✨ 버튼으로 그 블록(명령+출력)을 AI에 질문 (#52)
+### Added
+- Terminal scrollback search (⌘F) — next/previous navigation and highlighting in a search box (#48)
+- Click URLs in terminal output to open them in the default browser (#48)
+- AI quick actions — "Fix error / Explain output / Next step" buttons auto-attach the current terminal output to ask the AI; commands in the answer run directly as cards (#49)
+- ~/.ssh/config import — register hosts from the local SSH config in one go from the settings import tab (auth defaults to ssh-agent, editable) (#50)
+- Shell integration (OSC 133) — exit-code (✓/✗)/duration badges per command in local zsh (command block step 1) (#51)
+- Command block UI — command jump (⌘↑/↓), copy block output by clicking the badge, ask the AI about that block (command+output) via the ✨ button (#52)
 
 ## [0.8.0] — 2026-06-02
 
-### 추가
-- LLM 설정에서 Ollama(또는 OpenAI 호환 로컬 서버) 선택 시 로컬 설치 모델을 모델 선택 드롭다운에 표시 — `/models` 조회 + 새로고침 버튼 (#46)
+### Added
+- When choosing Ollama (or an OpenAI-compatible local server) in LLM settings, show locally installed models in the model dropdown — `/models` lookup + refresh button (#46)
 
-### 변경
-- AI 패널에서 와이어프레임 화면 ID(S-048) 노출 제거 및 '컨텍스트 자동 첨부는 후속' 안내를 실제 동작에 맞는 문구로 교체 (11개 언어) (#45)
-- AI 패널 헤더의 모델 드롭다운·아이콘 버튼이 작아 잘 안 보이던 것 — 글자/아이콘 크기 키움. LLM 설정 버튼은 흐릿한 ⚙ 글리프 대신 선명한 SVG 톱니바퀴 아이콘으로 교체 (#47)
-- '활성 패널 출력을 컨텍스트로 포함' 시 첨부하는 터미널 출력을 60줄 → 100줄로 확대
+### Changed
+- Removed the wireframe screen ID (S-048) from the AI panel and replaced the "auto context attach is a follow-up" notice with wording matching the actual behavior (11 languages) (#45)
+- The model dropdown/icon buttons in the AI panel header were too small to read — enlarged the text/icons. Replaced the faint ⚙ glyph of the LLM settings button with a crisp SVG gear icon (#47)
+- Expanded the terminal output attached on "include active pane output as context" from 60 to 100 lines
 
 ## [0.7.0] — 2026-06-02
 
-### 추가
-- 터미널 우클릭 컨텍스트 메뉴 — 복사/붙여넣기/전체 선택/지우기 (11개 언어) (#43)
+### Added
+- Terminal right-click context menu — copy/paste/select all/clear (11 languages) (#43)
 
-### 수정
-- 터미널에서 Tab 키가 가끔 포커스를 AI 패널로 넘기던 문제 — 인라인 제안 수락 시 `preventDefault`를 안 해 브라우저 기본 포커스 이동이 일어나던 버그 수정. Tab은 항상 포커스 이동을 막고 셸/제안 처리만 함 (#42)
-- 호스트 목록(좌측 패널)에서 드래그 시 텍스트가 선택되던 문제 — `user-select: none` 적용 (#44)
-- 탭/터미널 우클릭 메뉴가 터미널 영역 클릭으로는 안 닫히던 문제 — 바깥 클릭 감지를 캡처 단계로 변경(xterm의 mousedown 가로채기보다 먼저 처리) (#44)
+### Fixed
+- The Tab key in the terminal sometimes moving focus to the AI panel — fixed a bug where accepting an inline suggestion didn't `preventDefault`, so the browser's default focus move occurred. Tab now always blocks focus move and only handles the shell/suggestion (#42)
+- Text being selected when dragging in the host list (left panel) — applied `user-select: none` (#44)
+- The tab/terminal right-click menu not closing on a terminal-area click — changed outside-click detection to the capture phase (handled before xterm intercepts mousedown) (#44)
 
 ## [0.6.0] — 2026-06-02
 
-### 추가
-- 설정 백업(호스트/그룹/태그) 내보내기/가져오기를 **JSON 파일**로 — 저장/열기 네이티브 다이얼로그 지원(기존 클립보드 텍스트 방식도 유지). 시크릿은 미포함, 호스트 주소·계정명은 포함되므로 클라우드 동기화 위치 주의 안내 추가 (#41)
+### Added
+- Export/import settings backup (hosts/groups/tags) as a **JSON file** — supports save/open native dialogs (the existing clipboard-text method is also kept). Secrets are excluded; host addresses/usernames are included, so a notice about cloud-sync locations was added (#41)
 
-### 수정
-- 새 탭으로 SSH 접속 시 다른 세션(다른 탭에서 실행 중인 셸)의 출력이 새어 상단에 엉뚱한 프롬프트가 찍히던 문제 — 전역 출력 이벤트 필터가 sessionId 설정 전에 모든 출력을 통과시키던 버그 수정 (#39)
-- 여러 탭이 같은 원격 tmux 세션에 attach됐을 때, 배경(숨김) 탭이 0 크기로 fit돼 tmux 폭이 ~10칸으로 쪼그라들던 문제 — 컨테이너에 실제 크기가 있을 때만 fit하도록 가드 (#40)
+### Fixed
+- Another session's output (a shell running in another tab) leaking and printing a wrong prompt at the top when connecting SSH in a new tab — fixed a bug where the global output event filter passed all output before sessionId was set (#39)
+- When multiple tabs were attached to the same remote tmux session, a background (hidden) tab fitting to size 0 shrank the tmux width to ~10 columns — guarded to fit only when the container has a real size (#40)
 
 ## [0.5.0] — 2026-06-01
 
-### 추가
-- 터미널 선택 텍스트 복사: ⌘C 및 Edit 메뉴/우클릭 Copy로 시스템 클립보드 복사 (#36)
-- OSC 52 클립보드 지원: tmux(`set-clipboard on`)/vim 등이 복사 시 시스템 클립보드 반영. 보안상 쓰기만 허용하고 읽기 요청은 무시 (#36)
-- AI 패널 아이콘을 그라데이션 스파클 SVG로 교체(🤖 이모지 대체) (#38)
+### Added
+- Copy selected terminal text: copy to the system clipboard via ⌘C and the Edit menu / right-click Copy (#36)
+- OSC 52 clipboard support: copying in tmux (`set-clipboard on`)/vim etc. reflects to the system clipboard. For security, only writing is allowed; read requests are ignored (#36)
+- Replaced the AI panel icon with a gradient sparkle SVG (replacing the 🤖 emoji) (#38)
 
-### 수정
-- SSH 접속 시 상단에 프롬프트가 잔상으로 남던 문제를 근본 해결 — OSC 7 cwd 훅의 런타임 주입을 제거. (수신 핸들러는 유지되어 원격 `~/.bashrc`에 훅 한 줄을 넣으면 cwd 동기화 가능) (#37)
-- 대체화면 TUI(tmux/vim/Claude Code 등) 종료 후 일반 셸에서 마우스 클릭이 좌표 텍스트로 찍히던 문제 — 일반 화면 복귀 시 마우스 추적 모드 자동 해제 (#37)
+### Fixed
+- Root-caused the leftover prompt at the top on SSH connect — removed the runtime injection of the OSC 7 cwd hook. (The receiver handler is kept, so adding one hook line to the remote `~/.bashrc` enables cwd sync) (#37)
+- Mouse clicks printing coordinate text in the normal shell after exiting an alt-screen TUI (tmux/vim/Claude Code etc.) — auto-disable mouse tracking modes on returning to the normal screen (#37)
 
 ## [0.4.0] — 2026-06-01
 
-### 추가
-- 대체 화면(less/man/vim 등) 마우스 휠 스크롤 — 휠을 위/아래 화살표로 변환. 설정 토글 제공 (#35)
+### Added
+- Alt-screen (less/man/vim, etc.) mouse-wheel scroll — convert the wheel to up/down arrows. Provides a settings toggle (#35)
 
-### 수정
-- 한글 쌍자음(있/았/껐 등) IME 입력이 깨지고 삭제되지 않던 문제 — 조합 중 수정자 키(Shift 등)가 IME 미러를 리셋하던 버그 수정 (#34)
-- SSH 접속 시 프롬프트가 두 번 찍히던 잔상 수정 (#34)
+### Fixed
+- Korean double-consonant (있/았/껐, etc.) IME input breaking and being undeletable — fixed a bug where a modifier key (Shift, etc.) during composition reset the IME mirror (#34)
+- Fixed the leftover where the prompt was printed twice on SSH connect (#34)
 
 ## [0.3.0] — 2026-06-01
 
-### 추가
-- 사용자 정의 키보드 단축키 (#32)
-- 창 간 드래그-병합 및 탭을 창 밖으로 드래그해 새 창 생성 (#33)
+### Added
+- Customizable keyboard shortcuts (#32)
+- Cross-window drag-merge and dragging a tab outside the window to create a new window (#33)
 
 ## [0.2.0] — 2026-05-29
 
-### 추가
-- LLM 응답 스트리밍 (SSE + Tauri Channel) (#29)
-- SFTP 이미지/로컬 미리보기, 더블클릭 미리보기, 파일 브라우저가 터미널 cwd에서 시작 (#30)
-- 세션 인계 시 스크롤백 보존(출력 ring buffer) (#31)
-- 머신키 기반 암호화 파일 secret 저장소(OS Keychain 프롬프트 제거)
+### Added
+- LLM response streaming (SSE + Tauri Channel) (#29)
+- SFTP image/local preview, double-click preview, the file browser starting at the terminal cwd (#30)
+- Scrollback preservation on session handover (output ring buffer) (#31)
+- Machine-key-based encrypted-file secret store (removes the OS Keychain prompt)
 
-### 수정
-- WKWebView(macOS) 한글/CJK IME 입력 수정
-- 표시 버전을 `getVersion()`과 동기화(하드코딩 제거)
+### Fixed
+- WKWebView (macOS) Korean/CJK IME input fix
+- Sync the displayed version with `getVersion()` (removed hardcoding)
 
 ## [0.1.1] — 2026-05-29
 
-### 변경
-- 앱 내 자동 업데이트(tauri-plugin-updater) 첫 활성화 — updater 서명/latest.json 파이프라인 정착
+### Changed
+- First enablement of in-app auto-update (tauri-plugin-updater) — settled the updater signing/latest.json pipeline
 
 ## [0.1.0] — 2026-05-28
 
-### 추가
-- 기획서 71개 와이어프레임 1차 구현: 온보딩·스플래시, 멀티탭/분할/멀티윈도우, SSH 호스트·키 관리, SFTP 이중패널 파일 브라우저(전송 큐/진행률/미리보기/권한/검색), LLM/AI(백엔드·채팅·컨텍스트·명령 카드·이력), 명령 히스토리·Ctrl-R, 설정, 다국어 11개 언어
-- SSH 매니저(russh), known_hosts TOFU 검증, 호스트키 불일치/최초접속 확인 모달
-- PTY 코어(portable-pty) + xterm.js 터미널
-- AI 백엔드(OpenAI 호환 어댑터 + 레지스트리)
-- secret 저장소(keyring + Argon2id/AES-256-GCM 파일 폴백)
+### Added
+- First implementation of the planning doc's 71 wireframes: onboarding/splash, multi-tab/split/multi-window, SSH host·key management, dual-pane SFTP file browser (transfer queue/progress/preview/permissions/search), LLM/AI (backend·chat·context·command cards·history), command history·Ctrl-R, settings, 11-language i18n
+- SSH manager (russh), known_hosts TOFU verification, host-key mismatch/first-contact confirmation modals
+- PTY core (portable-pty) + xterm.js terminal
+- AI backend (OpenAI-compatible adapter + registry)
+- Secret store (keyring + Argon2id/AES-256-GCM file fallback)
 
 ---
 
-[미배포]: https://github.com/cuter74-dev/wowTerminal/compare/v0.12.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.12.0...HEAD
 [0.12.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.0...v0.11.1
 [0.11.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.10.0...v0.11.0
