@@ -10,6 +10,10 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Added
 - Error & crash tracking via self-hosted GlitchTip (Sentry-compatible) — the Rust backend (panics) and the React frontend (render errors) report runtime errors automatically, distinguished by a `component` tag within a single project. The DSN is embedded (public ingest key) and can be overridden or disabled via `WOWTERMINAL_GLITCHTIP_DSN` / `VITE_GLITCHTIP_DSN` (#82)
 
+### Fixed
+- Input characters duplicated in the local shell on the newest macOS (e.g. `df -h` → `dddff f -h`) — the custom IME mirror (built for old WKWebView) conflicted with the newest WKWebView's native composition events; it now auto-detects native composition and bypasses the mirror, letting xterm handle IME natively (#83)
+- SSH connect wiping the first screen (banner disappearing, leaving the prompt + blank lines) — removed the remote OSC 7 cwd auto-injection whose trailing Ctrl-L cleared the whole screen. Remote cwd tracking now relies on a one-line hook the user can add to their remote shell rc; otherwise SSH drag-upload falls back to the remote home (#83)
+
 ## [0.12.0] — 2026-06-05
 
 ### Added

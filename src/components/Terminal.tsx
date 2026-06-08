@@ -545,6 +545,11 @@ export function Terminal({
     // 한글/CJK IME 미러 상태 (자세한 설명은 아래 input 핸들러 참고).
     let imeActive = false;
     let imeSent = "";
+    // 최신 WKWebView(예: macOS M-시리즈 최신판)는 표준 composition 이벤트를 정상 발생시킨다.
+    // 그런 환경에선 xterm 네이티브 IME가 입력을 처리하므로 커스텀 미러를 꺼야 한다(둘 다
+    // 입력을 보내 글자가 중복되는 버그 방지 — 최신 macOS는 영어 입력도 인라인 예측 텍스트로
+    // composition을 거친다). compositionstart가 한 번이라도 관찰되면 true로 고정된다.
+    let nativeComposition = false;
 
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
@@ -619,6 +624,12 @@ export function Terminal({
         },
         true,
       );
+      // 표준 composition 이벤트가 발생하는 WKWebView면 그 사실을 기억해 커스텀 미러를 끈다.
+      // (한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다.)
+      ta.addEventListener("compositionstart", () => {
+        nativeComposition = true;
+        resetIme();
+      });
     }
 
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
@@ -665,8 +676,11 @@ export function Terminal({
         }
         return true;
       }
-      // IME 조합 키: xterm의 깨진 조합 처리를 막고 위 input 미러가 담당.
+      // IME 조합 키. 최신 WKWebView면(nativeComposition) xterm 네이티브 IME가 처리하도록
+      // 통과시킨다 — 커스텀 미러와 동시 전송돼 글자가 중복되는 것을 막는다.
+      // 구형 WKWebView(composition 이벤트 없음)는 종전대로 미러로 처리한다.
       if (e.keyCode === 229) {
+        if (nativeComposition) return true;
         imeActive = true;
         return false;
       }
