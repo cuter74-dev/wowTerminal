@@ -16,15 +16,8 @@ import {
   broadcastInput,
 } from "../terminalRegistry";
 import { emitCommandDone } from "../commandBus";
-import * as Sentry from "@sentry/react";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
-
-// [임시 진단 — #88 Windows 한글 stuck] 재현 불가한 Windows WebView2에서 한글 입력이
-// 막히는 원인을 보려고, 입력 중 발생하는 이벤트 시퀀스(keydown / composition / input과
-// 그 값, 미러 상태 전이)를 순서대로 모아 입력-유휴 시 GlitchTip으로 보낸다. non-macOS
-// 에서만 동작. 원인 확인 후 제거.
-let imeWinDiagSends = 0;
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { LangDict, useT } from "../i18n";
 
@@ -512,57 +505,15 @@ export function Terminal({
     // **macOS 한정**: Windows(WebView2)·Linux(WebKitGTK)는 원래부터 composition 이벤트를
     // 발생시키지만 거기선 커스텀 미러가 한글 입력을 담당한다. 네이티브로 넘기면 Windows에서
     // 한글이 전혀 입력되지 않으므로(#83 회귀), 이 바이패스는 macOS에서만 적용한다.
+    // 커스텀 IME 미러는 **구형 macOS WKWebView 전용**이다(아래 input 핸들러 설명 참고).
+    // Windows(WebView2)·Linux(WebKitGTK)·최신 macOS는 표준 composition 이벤트로 xterm이
+    // 네이티브 IME를 직접 처리하므로 미러를 끈다. 과거 Windows에 미러를 적용했더니 첫 한글
+    // 음절 후 imeActive가 stuck되어 이후 입력이 막혔다(#88). 미러는 isMacWebView일 때만 켠다.
     const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
 
-    // [임시 진단 #88] Windows IME 이벤트 시퀀스 수집. non-macOS에서만. 입력이 2.5초간
-    // 멈추면 모은 이벤트를 GlitchTip으로 1회 전송하고 버퍼를 비운다(세션당 최대 12회).
-    const diagEvents: Record<string, unknown>[] = [];
-    let diagTimer = 0;
-    const flushWinDiag = () => {
-      if (!diagEvents.length || imeWinDiagSends >= 12) return;
-      imeWinDiagSends++;
-      try {
-        Sentry.captureMessage("wt-ime-win-diag", {
-          level: "info",
-          extra: {
-            ua: navigator.userAgent,
-            isMac: isMacWebView,
-            count: diagEvents.length,
-            events: diagEvents.slice(0, 120),
-          },
-        });
-      } catch {}
-      diagEvents.length = 0;
-    };
-    const winDiag = (e: Record<string, unknown>) => {
-      if (isMacWebView) return; // Windows/Linux만 추적.
-      if (diagEvents.length < 120) diagEvents.push(e);
-      clearTimeout(diagTimer);
-      diagTimer = window.setTimeout(flushWinDiag, 2500);
-    };
-    // [임시 진단 #88-2] document 캡처 단계에서 모든 keydown을 기록한다. xterm 핸들러
-    // (attachCustomKeyEventHandler)는 textarea에 포커스가 있어야 불리는데, 진단 #88에서
-    // keydown이 전혀 안 잡혔다 → 키가 터미널에 안 온다는 뜻. document 레벨에서 잡으면
-    // "키가 OS/WebView에는 오는데 어느 요소로 가는지(target/activeElement)"가 보인다.
-    // 한/영 키(Hangul/HangulMode)·한글 키가 여기에 오는지로 OS IME 가로채기 여부를 가린다.
-    const onDocKeyDiag = (e: KeyboardEvent) => {
-      const el = (x: Element | null) =>
-        x ? `${x.tagName}.${(x as HTMLElement).className || ""}`.slice(0, 40) : null;
-      winDiag({
-        t: "docKeydown",
-        key: e.key,
-        kc: e.keyCode,
-        ic: e.isComposing,
-        tgt: el(e.target as Element | null),
-        ae: el(document.activeElement),
-      });
-    };
-    if (!isMacWebView) document.addEventListener("keydown", onDocKeyDiag, true);
-
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
-      winDiag({ t: "onData", data, ia: imeActive }); // [임시 진단 #88]
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
       // 한글 입력은 아래 textarea input 미러만 PTY로 보낸다.
       if (imeActive) return;
@@ -623,95 +574,37 @@ export function Terminal({
       let out = "";
       for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
       out += full.slice(c);
-      winDiag({ t: "flushMirror", full, sent: imeSent, out }); // [임시 진단 #88]
       if (out) {
         writeToSession(out);
         broadcastInput(paneId ?? "", out);
       }
       imeSent = full;
     };
-    if (ta) {
+    // 미러는 macOS에서만 켠다. Windows/Linux는 xterm 네이티브 IME가 한글/CJK를 직접 처리하므로
+    // 미러 리스너를 등록하지 않는다(미러가 첫 음절 후 stuck되어 입력을 막던 #88을 근본 차단).
+    if (ta && isMacWebView) {
       // 캡처 단계로 등록해 xterm의 input 핸들러보다 먼저 실행 → IME 중에는
       // stopImmediatePropagation으로 xterm이 같은 input을 또 보내는 이중 전송을 막는다.
       ta.addEventListener(
         "input",
         (ev) => {
-          // [임시 진단 #88] imeActive와 무관하게 모든 input을 기록.
-          const ie = ev as InputEvent;
-          winDiag({
-            t: "input",
-            it: ie.inputType,
-            data: ie.data,
-            ic: ie.isComposing,
-            val: ta.value,
-            ia: imeActive,
-          });
           if (!imeActive) return; // 영어/제어키는 xterm 기존 경로가 담당.
           ev.stopImmediatePropagation();
           flushMirror();
         },
         true,
       );
-      // [임시 진단 #88] composition 이벤트는 모든 플랫폼에서 기록(동작과 별개로 관찰만).
-      ta.addEventListener("compositionstart", (ev) =>
-        winDiag({ t: "compositionstart", data: (ev as CompositionEvent).data, val: ta.value }),
-      );
-      ta.addEventListener("compositionupdate", (ev) =>
-        winDiag({ t: "compositionupdate", data: (ev as CompositionEvent).data, val: ta.value }),
-      );
-      ta.addEventListener("compositionend", (ev) =>
-        winDiag({ t: "compositionend", data: (ev as CompositionEvent).data, val: ta.value }),
-      );
-      // [임시 진단 #88-2] textarea 포커스 이동 추적 — 한/영 전환 시 어디로 포커스가 가는지.
-      const elTag = (el: Element | null) =>
-        el ? `${el.tagName}.${(el as HTMLElement).className || ""}`.slice(0, 40) : null;
-      ta.addEventListener("focusin", () => winDiag({ t: "focusin" }));
-      ta.addEventListener("focusout", (ev) =>
-        winDiag({
-          t: "focusout",
-          rel: elTag((ev as FocusEvent).relatedTarget as Element | null),
-          ae: elTag(document.activeElement),
-        }),
-      );
-      if (isMacWebView) {
-        // macOS에서 표준 composition 이벤트가 발생하면(최신 WKWebView) 그 사실을 기억해 커스텀
-        // 미러를 끈다(한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다).
-        ta.addEventListener("compositionstart", () => {
-          nativeComposition = true;
-          resetIme();
-        });
-      } else {
-        // Windows(WebView2)/Linux(WebKitGTK)는 표준 composition 이벤트를 정확히 보낸다.
-        // keyCode 229만으로 imeActive를 켜면 *끄는* 시점(compositionend)을 놓쳐, 한글 조합을
-        // 끝낸 뒤에도 imeActive가 true로 stuck된다 → 이후 한글/영어 입력이 전부 막힌다(#88,
-        // "한글로 바꾸면 안 되고 영어로 돌아와도 안 됨"). composition 라이프사이클로 미러를
-        // 정확히 켜고(start) 끈다(end). macOS 경로는 위에서 그대로 두어 회귀 위험을 격리한다.
-        ta.addEventListener("compositionstart", () => {
-          imeActive = true;
-          imeSent = "";
-        });
-        ta.addEventListener("compositionend", () => {
-          // 확정 문자를 마지막으로 한 번 더 동기화(input이 이미 보냈으면 out=""이라 무전송).
-          if (imeActive) flushMirror();
-          resetIme();
-        });
-      }
+      // 최신 WKWebView에서 표준 composition 이벤트가 발생하면 그 사실을 기억해 커스텀 미러를
+      // 끈다(한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다 — 구형은 미러 유지).
+      ta.addEventListener("compositionstart", () => {
+        nativeComposition = true;
+        resetIme();
+      });
     }
 
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
-      // [임시 진단 #88] keydown 기록(수정자 단독 키 제외해 노이즈 감소).
-      if (e.key !== "Shift" && e.key !== "Control" && e.key !== "Alt" && e.key !== "Meta") {
-        winDiag({
-          t: "keydown",
-          key: e.key,
-          kc: e.keyCode,
-          ic: (e as KeyboardEvent).isComposing,
-          ia: imeActive,
-          nc: nativeComposition,
-        });
-      }
       // ⌘F: 터미널 스크롤백 검색 오버레이 열기.
       if (e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "f" || e.key === "F")) {
         e.preventDefault();
@@ -753,11 +646,11 @@ export function Terminal({
         }
         return true;
       }
-      // IME 조합 키. 최신 WKWebView면(nativeComposition) xterm 네이티브 IME가 처리하도록
-      // 통과시킨다 — 커스텀 미러와 동시 전송돼 글자가 중복되는 것을 막는다.
-      // 구형 WKWebView(composition 이벤트 없음)는 종전대로 미러로 처리한다.
+      // IME 조합 키(keyCode 229). 미러는 구형 macOS WKWebView 전용이다. macOS가 아니거나
+      // (Windows/Linux) 최신 WKWebView(nativeComposition)면 xterm 네이티브 IME가 처리하도록
+      // 그대로 통과시킨다. 구형 macOS WKWebView(composition 이벤트 없음)만 미러로 처리한다.
       if (e.keyCode === 229) {
-        if (nativeComposition) return true;
+        if (!isMacWebView || nativeComposition) return true;
         imeActive = true;
         return false;
       }
@@ -1019,8 +912,6 @@ export function Terminal({
       cancelAnimationFrame(roRaf);
       clearTimeout(fitT1);
       clearTimeout(fitT2);
-      clearTimeout(diagTimer); // [임시 진단 #88]
-      document.removeEventListener("keydown", onDocKeyDiag, true); // [임시 진단 #88-2]
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();

@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.11] — 2026-06-09
+
+### Fixed
+- Windows/Linux Korean (and CJK) input only accepting the first syllable then freezing — the custom IME mirror (built for old macOS WKWebView) was being applied on Windows/Linux too and got stuck after the first composed syllable, blocking all further input (the root cause behind #84/#88, confirmed by a screen recording: "아" went in, then nothing). xterm.js handles CJK IME natively on Windows/Linux, so the mirror is now macOS-only; Windows/Linux use xterm's native IME directly. The temporary IME diagnostics are removed (#88)
+
 ## [0.13.10] — 2026-06-09
 
 ### Changed
@@ -214,7 +219,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.10...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.11...HEAD
+[0.13.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.10...v0.13.11
 [0.13.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.9...v0.13.10
 [0.13.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.8...v0.13.9
 [0.13.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.7...v0.13.8
