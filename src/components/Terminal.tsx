@@ -14,7 +14,6 @@ import {
   unregisterTerminal,
   broadcastInput,
 } from "../terminalRegistry";
-import { askAI } from "../aiBus";
 import { emitCommandDone } from "../commandBus";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
@@ -218,58 +217,6 @@ function bytesToBase64(bytes: Uint8Array): string {
 
 // OSC 133 커맨드 블록 배지를 해당 명령 줄에 decoration으로 단다.
 // 상태 배지(✓/✗+시간) 클릭 = 블록 출력 복사, ✨ 클릭 = 그 블록을 AI에 질문.
-function addCommandBadge(
-  term: XTerm,
-  marker: IMarker | undefined,
-  exit: number,
-  durMs: number,
-  block: string,
-): void {
-  if (!marker) return;
-  const dec = term.registerDecoration({ marker, x: 0, width: term.cols });
-  if (!dec) return;
-  dec.onRender((el) => {
-    if (el.dataset.wtBadge) return;
-    el.dataset.wtBadge = "1";
-    el.style.pointerEvents = "none"; // 컨테이너는 클릭 통과, 자식만 클릭 가능
-    el.style.display = "flex";
-    el.style.justifyContent = "flex-end";
-    el.style.alignItems = "center";
-    el.style.gap = "4px";
-    el.style.paddingRight = "8px";
-    const ok = exit === 0;
-    // 즉시 끝나는 명령(<100ms)은 "0ms" 같은 노이즈 대신 시간을 숨기고 ✓/✗만 보여준다.
-    const dur =
-      durMs >= 1000 ? `${(durMs / 1000).toFixed(1)}s` : `${durMs}ms`;
-    const durPart = durMs >= 100 ? ` ${dur}` : "";
-
-    const badge = document.createElement("span");
-    badge.textContent = ok ? `✓${durPart}` : `✗ ${exit}${durPart}`;
-    badge.title = "Copy output";
-    badge.style.cssText =
-      "pointer-events:auto;cursor:pointer;font-size:10px;line-height:15px;border-radius:8px;padding:0 6px;" +
-      (ok
-        ? "background:#15301f;color:#7fe0a0;border:1px solid #2c5740;"
-        : "background:#341a1a;color:#ff9a9a;border:1px solid #5a2f2f;");
-    badge.onclick = () => {
-      void navigator.clipboard.writeText(block);
-      const prev = badge.textContent;
-      badge.textContent = "✓ copied";
-      setTimeout(() => (badge.textContent = prev), 900);
-    };
-
-    const ask = document.createElement("span");
-    ask.textContent = "✨";
-    ask.title = "Ask AI about this command";
-    ask.style.cssText =
-      "pointer-events:auto;cursor:pointer;font-size:11px;line-height:15px;border-radius:8px;padding:0 5px;background:#1e2740;color:#aaccee;border:1px solid #2f3f60;";
-    ask.onclick = () => askAI(block);
-
-    el.appendChild(badge);
-    el.appendChild(ask);
-  });
-}
-
 type Commands = {
   spawnCmd: string;
   writeCmd: string;
@@ -498,26 +445,8 @@ export function Terminal({
             exit: isNaN(exit) ? 0 : exit,
           });
         }
-        if (cMarker && cmdStart) {
-          // 블록 텍스트(명령 줄 + 출력) 추출: cMarker.line-1 ~ 현재 줄.
-          const buf = term.buffer.active;
-          const start = Math.max(0, cMarker.line - 1);
-          const end = buf.baseY + buf.cursorY;
-          let block = "";
-          for (let i = start; i < end; i++) {
-            const ln = buf.getLine(i);
-            if (ln) block += ln.translateToString(true) + "\n";
-          }
-          block = block.replace(/\n{3,}/g, "\n\n").trim();
-          addCommandBadge(
-            term,
-            cMarker,
-            isNaN(exit) ? 0 : exit,
-            Date.now() - cmdStart,
-            block,
-          );
-          cmdMarkers.push(cMarker);
-        }
+        // 명령 배지(✓/✗·시간) 표시는 비활성화됨(사용자 요청). 마커만 남겨 ⌘↑/↓ 명령 점프에 쓴다.
+        if (cMarker) cmdMarkers.push(cMarker);
         cmdStart = 0;
         cMarker = undefined;
       }

@@ -12,8 +12,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Fixed
 - Terminal output freezing after running any command — a v0.13.0 regression where `@xterm/xterm` 6.0.0 (re-resolved during the #82 dependency install) enforces proposed-API gating, so the OSC 133 command-badge code (`registerDecoration`/`registerMarker`) threw inside the parser and broke xterm's write loop, swallowing all subsequent output (input still worked, so it looked like a freeze). Added `allowProposedApi: true` and wrapped the OSC 133 handler in try/catch so a badge error can never freeze the terminal again (#85)
 
-### Changed
-- Command badge hides the duration for near-instant commands (< 100ms) — shows just `✓`/`✗` instead of a noisy `0ms` (#85)
+### Removed
+- The per-command status badge (`✓`/`✗` + duration) is no longer shown — it cluttered every prompt line. Command jump (⌘↑/↓) and long-command completion notifications are unchanged (#85)
 
 ## [0.13.1] — 2026-06-09
 
