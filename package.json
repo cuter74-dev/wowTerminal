@@ -1,7 +1,7 @@
 {
   "name": "wowterminal",
   "private": true,
-  "version": "0.13.5",
+  "version": "0.13.6",
   "license": "MIT",
   "type": "module",
   "scripts": {
@@ -22,6 +22,7 @@
     "@xterm/addon-search": "^0.16.0",
     "@xterm/addon-serialize": "^0.14.0",
     "@xterm/addon-web-links": "^0.12.0",
+    "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
     "react": "^19.1.0",
     "react-dom": "^19.1.0"

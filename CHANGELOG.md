@@ -7,6 +7,14 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.6] — 2026-06-09
+
+### Fixed
+- Character duplication / ghosting at the shell prompt on the newest macOS (visible e.g. with oh-my-zsh syntax-highlighting, where each keystroke redraws the line) — the cause is xterm's DOM renderer not clearing previous glyphs on the newest WKWebView, not the PTY (the bytes sent to the shell are correct). The terminal now renders with the WebGL renderer, which repaints the whole viewport and leaves no stale glyphs; it transparently falls back to the DOM renderer where WebGL is unavailable (#83)
+
+### Removed
+- The temporary macOS IME diagnostic instrumentation (#83) is removed now that the duplication is identified as a renderer issue and fixed (#83)
+
 ## [0.13.5] — 2026-06-09
 
 ### Changed
@@ -186,7 +194,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.5...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.6...HEAD
+[0.13.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.5...v0.13.6
 [0.13.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.4...v0.13.5
 [0.13.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.3...v0.13.4
 [0.13.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.2...v0.13.3

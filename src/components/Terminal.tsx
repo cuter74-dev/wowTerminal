@@ -4,6 +4,7 @@ import { FitAddon } from "@xterm/addon-fit";
 import { SerializeAddon } from "@xterm/addon-serialize";
 import { SearchAddon } from "@xterm/addon-search";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { WebglAddon } from "@xterm/addon-webgl";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
@@ -15,14 +16,7 @@ import {
   broadcastInput,
 } from "../terminalRegistry";
 import { emitCommandDone } from "../commandBus";
-import * as Sentry from "@sentry/react";
 import { SessionLogger } from "../sessionLog";
-
-// [임시 진단 — #83 M5 IME 중복] 재현 불가한 최신 macOS(M5)에서 글자가 중복되는 경로를
-// 알아내기 위한 계측. 첫 IME-관여 줄에서 "구조만"(키코드 229 여부·composition 이벤트 개수·
-// 보낸 글자 수 등 숫자, 실제 입력 내용은 절대 보내지 않음)을 GlitchTip으로 1회 전송한다.
-// 진단 후 제거 예정.
-let imeDiagSent = false;
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { LangDict, useT } from "../i18n";
@@ -386,6 +380,17 @@ export function Terminal({
       }),
     );
     term.open(containerRef.current);
+    // WebGL 렌더러로 전환한다. xterm 기본 DOM 렌더러는 최신 macOS WKWebView에서 zsh
+    // 라인 재그리기(oh-my-zsh의 syntax-highlighting 등)의 옛 글자를 제대로 지우지 못해
+    // 프롬프트가 겹쳐 보이는 잔상이 생긴다(#83). WebGL은 뷰포트를 통째로 리페인트해 잔상이
+    // 없다. 컨텍스트 손실/실패 시 dispose하면 xterm이 자동으로 DOM 렌더러로 폴백한다.
+    try {
+      const webgl = new WebglAddon();
+      webgl.onContextLoss(() => webgl.dispose());
+      term.loadAddon(webgl);
+    } catch {
+      // WebGL 미지원 환경 — 기본 DOM 렌더러 유지.
+    }
     // 컨테이너에 실제 크기가 있을 때만 fit(0 크기면 cols/rows가 최소로 줄어 spawn 크기가 깨짐).
     if (
       containerRef.current.clientWidth >= 8 &&
@@ -503,43 +508,6 @@ export function Terminal({
     const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
 
-    // [임시 진단] IME 경로 카운터(구조만, 내용 없음). 첫 IME-관여 줄 Enter 시 1회 전송.
-    const imeDiag = {
-      n229: 0, // keyCode 229(조합) keydown 수
-      nCS: 0, // compositionstart 수
-      nCU: 0, // compositionupdate 수
-      nCE: 0, // compositionend 수
-      mirrorChars: 0, // 미러가 보낸 일반 글자 수
-      mirrorBs: 0, // 미러가 보낸 백스페이스 수
-      onDataChars: 0, // onData가 보낸 글자 수(미러 미관여 경로)
-    };
-    const sendImeDiag = () => {
-      // 첫 입력 있는 줄의 Enter에서 1회 전송(빈 Enter는 제외). 229/composition뿐 아니라
-      // onData·미러 경로도 포함해, M5 중복이 어느 경로든 잡히게 한다.
-      const any =
-        imeDiag.n229 +
-        imeDiag.nCS +
-        imeDiag.nCU +
-        imeDiag.nCE +
-        imeDiag.mirrorChars +
-        imeDiag.onDataChars;
-      if (imeDiagSent || any === 0) return;
-      imeDiagSent = true;
-      try {
-        Sentry.captureMessage("wt-ime-diag", {
-          level: "info",
-          extra: { ua: navigator.userAgent, isMac: isMacWebView, ...imeDiag },
-        });
-      } catch {}
-    };
-    // [임시 진단] M5는 Enter가 IME에 먹혀 e.key!=="Enter"(Process)일 수 있어 Enter 트리거가
-    // 빗나간다. 입력이 멈춘 뒤 1.5초 디바운스로도 전송해 Enter 의존을 없앤다.
-    let imeDiagTimer = 0;
-    const scheduleImeDiag = () => {
-      clearTimeout(imeDiagTimer);
-      imeDiagTimer = window.setTimeout(sendImeDiag, 3000);
-    };
-
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
@@ -554,13 +522,10 @@ export function Terminal({
       }
       writeToSession(data);
       broadcastInput(paneId ?? "", data); // 브로드캐스트 ON이면 다른 패널에도.
-      imeDiag.onDataChars += data.length; // [임시 진단]
-      scheduleImeDiag(); // [임시 진단] Enter 무관 디바운스 전송
 
       // 입력 라인 추적 (단순): 타이핑/백스페이스/엔터만 정확. 화살표 등은 라인 리셋.
       for (const ch of data) {
         if (ch === "\r" || ch === "\n") {
-          sendImeDiag(); // [임시 진단] 첫 IME-관여 줄 Enter 시 1회 전송
           const cmd = lineBufRef.current.trim();
           if (cmd) addHistory(cmd);
           lineBufRef.current = "";
@@ -608,9 +573,6 @@ export function Terminal({
           let out = "";
           for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
           out += full.slice(c);
-          imeDiag.mirrorBs += imeSent.length - c; // [임시 진단]
-          imeDiag.mirrorChars += full.length - c; // [임시 진단]
-          scheduleImeDiag(); // [임시 진단]
           if (out) {
             writeToSession(out);
             broadcastInput(paneId ?? "", out);
@@ -624,25 +586,15 @@ export function Terminal({
       // Windows/Linux에서는 등록하지 않는다 — 거긴 미러가 한글을 처리해야 한다.
       if (isMacWebView) {
         ta.addEventListener("compositionstart", () => {
-          imeDiag.nCS++; // [임시 진단]
           nativeComposition = true;
           resetIme();
         });
-      } else {
-        // [임시 진단] 비-macOS에서도 compositionstart 발생 여부만 카운트(동작은 그대로 미러).
-        ta.addEventListener("compositionstart", () => imeDiag.nCS++);
       }
-      // [임시 진단] composition update/end 발생 여부 카운트(동작 변경 없음).
-      ta.addEventListener("compositionupdate", () => imeDiag.nCU++);
-      ta.addEventListener("compositionend", () => imeDiag.nCE++);
     }
 
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
-      // [임시 진단] Enter 시 IME 카운터 전송. onData의 Enter 분기는 imeActive면 early-return
-      // 으로 도달 못 해(미러 stuck 시 전송 누락) M5에서 이벤트가 안 왔다. 여기서 보낸다.
-      if (e.key === "Enter") sendImeDiag();
       // ⌘F: 터미널 스크롤백 검색 오버레이 열기.
       if (e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "f" || e.key === "F")) {
         e.preventDefault();
@@ -688,8 +640,6 @@ export function Terminal({
       // 통과시킨다 — 커스텀 미러와 동시 전송돼 글자가 중복되는 것을 막는다.
       // 구형 WKWebView(composition 이벤트 없음)는 종전대로 미러로 처리한다.
       if (e.keyCode === 229) {
-        imeDiag.n229++; // [임시 진단]
-        scheduleImeDiag(); // [임시 진단]
         if (nativeComposition) return true;
         imeActive = true;
         return false;
@@ -951,7 +901,6 @@ export function Terminal({
       cancelAnimationFrame(roRaf);
       clearTimeout(fitT1);
       clearTimeout(fitT2);
-      clearTimeout(imeDiagTimer); // [임시 진단]
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
