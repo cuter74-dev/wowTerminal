@@ -549,6 +549,10 @@ export function Terminal({
     // 그런 환경에선 xterm 네이티브 IME가 입력을 처리하므로 커스텀 미러를 꺼야 한다(둘 다
     // 입력을 보내 글자가 중복되는 버그 방지 — 최신 macOS는 영어 입력도 인라인 예측 텍스트로
     // composition을 거친다). compositionstart가 한 번이라도 관찰되면 true로 고정된다.
+    // **macOS 한정**: Windows(WebView2)·Linux(WebKitGTK)는 원래부터 composition 이벤트를
+    // 발생시키지만 거기선 커스텀 미러가 한글 입력을 담당한다. 네이티브로 넘기면 Windows에서
+    // 한글이 전혀 입력되지 않으므로(#83 회귀), 이 바이패스는 macOS에서만 적용한다.
+    const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
 
     const onDataDisposable = term.onData((data) => {
@@ -624,12 +628,15 @@ export function Terminal({
         },
         true,
       );
-      // 표준 composition 이벤트가 발생하는 WKWebView면 그 사실을 기억해 커스텀 미러를 끈다.
-      // (한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다.)
-      ta.addEventListener("compositionstart", () => {
-        nativeComposition = true;
-        resetIme();
-      });
+      // macOS에서 표준 composition 이벤트가 발생하면(최신 WKWebView) 그 사실을 기억해 커스텀
+      // 미러를 끈다(한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다).
+      // Windows/Linux에서는 등록하지 않는다 — 거긴 미러가 한글을 처리해야 한다.
+      if (isMacWebView) {
+        ta.addEventListener("compositionstart", () => {
+          nativeComposition = true;
+          resetIme();
+        });
+      }
     }
 
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.

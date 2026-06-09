@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.1] — 2026-06-09
+
+### Fixed
+- Korean (Hangul) input completely broken on Windows — a regression from the v0.13.0 IME fix (#83): the native-composition bypass (meant for the newest macOS WKWebView) also triggered on Windows WebView2, which always fires composition events, disabling the custom IME mirror that Windows relies on. The bypass is now gated to macOS only; Windows/Linux keep the mirror (#84)
+
 ## [0.13.0] — 2026-06-08
 
 ### Added
@@ -158,7 +163,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.1...HEAD
+[0.13.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.12.0...v0.13.0
 [0.12.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.1...v0.12.0
 [0.11.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.11.0...v0.11.1
