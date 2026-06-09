@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.5] — 2026-06-09
+
+### Changed
+- Internal only (no user-facing change): the temporary macOS IME diagnostic (#83) now sends on an input-idle debounce instead of on Enter — on the affected machine the Enter keydown is consumed by the IME (`e.key` is not `Enter`), so the previous trigger missed. To be removed once the IME duplication is diagnosed (#83)
+
 ## [0.13.4] — 2026-06-09
 
 ### Changed
@@ -181,7 +186,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.4...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.5...HEAD
+[0.13.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.4...v0.13.5
 [0.13.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.3...v0.13.4
 [0.13.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.1...v0.13.2

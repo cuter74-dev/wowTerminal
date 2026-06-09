@@ -532,6 +532,13 @@ export function Terminal({
         });
       } catch {}
     };
+    // [임시 진단] M5는 Enter가 IME에 먹혀 e.key!=="Enter"(Process)일 수 있어 Enter 트리거가
+    // 빗나간다. 입력이 멈춘 뒤 1.5초 디바운스로도 전송해 Enter 의존을 없앤다.
+    let imeDiagTimer = 0;
+    const scheduleImeDiag = () => {
+      clearTimeout(imeDiagTimer);
+      imeDiagTimer = window.setTimeout(sendImeDiag, 3000);
+    };
 
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
@@ -548,6 +555,7 @@ export function Terminal({
       writeToSession(data);
       broadcastInput(paneId ?? "", data); // 브로드캐스트 ON이면 다른 패널에도.
       imeDiag.onDataChars += data.length; // [임시 진단]
+      scheduleImeDiag(); // [임시 진단] Enter 무관 디바운스 전송
 
       // 입력 라인 추적 (단순): 타이핑/백스페이스/엔터만 정확. 화살표 등은 라인 리셋.
       for (const ch of data) {
@@ -602,6 +610,7 @@ export function Terminal({
           out += full.slice(c);
           imeDiag.mirrorBs += imeSent.length - c; // [임시 진단]
           imeDiag.mirrorChars += full.length - c; // [임시 진단]
+          scheduleImeDiag(); // [임시 진단]
           if (out) {
             writeToSession(out);
             broadcastInput(paneId ?? "", out);
@@ -680,6 +689,7 @@ export function Terminal({
       // 구형 WKWebView(composition 이벤트 없음)는 종전대로 미러로 처리한다.
       if (e.keyCode === 229) {
         imeDiag.n229++; // [임시 진단]
+        scheduleImeDiag(); // [임시 진단]
         if (nativeComposition) return true;
         imeActive = true;
         return false;
@@ -941,6 +951,7 @@ export function Terminal({
       cancelAnimationFrame(roRaf);
       clearTimeout(fitT1);
       clearTimeout(fitT2);
+      clearTimeout(imeDiagTimer); // [임시 진단]
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
