@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.10] — 2026-06-09
+
+### Changed
+- Internal only (no user-facing change): extended the Windows IME diagnostic (#88) with document-level keydown capture + textarea focus tracking. The v0.13.9 trace showed no keydown/composition reaching the terminal at all — only a focus-out signal — so this build records every keydown at the document level (key/keyCode/isComposing/target/activeElement) and textarea focusin/focusout, to see whether the Hangul key reaches the page and which element holds focus. To be removed once the cause is identified (#88)
+
 ## [0.13.9] — 2026-06-09
 
 ### Changed
@@ -209,7 +214,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.9...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.10...HEAD
+[0.13.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.9...v0.13.10
 [0.13.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.8...v0.13.9
 [0.13.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.7...v0.13.8
 [0.13.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.6...v0.13.7

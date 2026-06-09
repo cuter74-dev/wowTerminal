@@ -541,6 +541,24 @@ export function Terminal({
       clearTimeout(diagTimer);
       diagTimer = window.setTimeout(flushWinDiag, 2500);
     };
+    // [임시 진단 #88-2] document 캡처 단계에서 모든 keydown을 기록한다. xterm 핸들러
+    // (attachCustomKeyEventHandler)는 textarea에 포커스가 있어야 불리는데, 진단 #88에서
+    // keydown이 전혀 안 잡혔다 → 키가 터미널에 안 온다는 뜻. document 레벨에서 잡으면
+    // "키가 OS/WebView에는 오는데 어느 요소로 가는지(target/activeElement)"가 보인다.
+    // 한/영 키(Hangul/HangulMode)·한글 키가 여기에 오는지로 OS IME 가로채기 여부를 가린다.
+    const onDocKeyDiag = (e: KeyboardEvent) => {
+      const el = (x: Element | null) =>
+        x ? `${x.tagName}.${(x as HTMLElement).className || ""}`.slice(0, 40) : null;
+      winDiag({
+        t: "docKeydown",
+        key: e.key,
+        kc: e.keyCode,
+        ic: e.isComposing,
+        tgt: el(e.target as Element | null),
+        ae: el(document.activeElement),
+      });
+    };
+    if (!isMacWebView) document.addEventListener("keydown", onDocKeyDiag, true);
 
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
@@ -643,6 +661,17 @@ export function Terminal({
       );
       ta.addEventListener("compositionend", (ev) =>
         winDiag({ t: "compositionend", data: (ev as CompositionEvent).data, val: ta.value }),
+      );
+      // [임시 진단 #88-2] textarea 포커스 이동 추적 — 한/영 전환 시 어디로 포커스가 가는지.
+      const elTag = (el: Element | null) =>
+        el ? `${el.tagName}.${(el as HTMLElement).className || ""}`.slice(0, 40) : null;
+      ta.addEventListener("focusin", () => winDiag({ t: "focusin" }));
+      ta.addEventListener("focusout", (ev) =>
+        winDiag({
+          t: "focusout",
+          rel: elTag((ev as FocusEvent).relatedTarget as Element | null),
+          ae: elTag(document.activeElement),
+        }),
       );
       if (isMacWebView) {
         // macOS에서 표준 composition 이벤트가 발생하면(최신 WKWebView) 그 사실을 기억해 커스텀
@@ -991,6 +1020,7 @@ export function Terminal({
       clearTimeout(fitT1);
       clearTimeout(fitT2);
       clearTimeout(diagTimer); // [임시 진단 #88]
+      document.removeEventListener("keydown", onDocKeyDiag, true); // [임시 진단 #88-2]
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
