@@ -238,11 +238,13 @@ function addCommandBadge(
     el.style.gap = "4px";
     el.style.paddingRight = "8px";
     const ok = exit === 0;
+    // 즉시 끝나는 명령(<100ms)은 "0ms" 같은 노이즈 대신 시간을 숨기고 ✓/✗만 보여준다.
     const dur =
       durMs >= 1000 ? `${(durMs / 1000).toFixed(1)}s` : `${durMs}ms`;
+    const durPart = durMs >= 100 ? ` ${dur}` : "";
 
     const badge = document.createElement("span");
-    badge.textContent = ok ? `✓ ${dur}` : `✗ ${exit} · ${dur}`;
+    badge.textContent = ok ? `✓${durPart}` : `✗ ${exit}${durPart}`;
     badge.title = "Copy output";
     badge.style.cssText =
       "pointer-events:auto;cursor:pointer;font-size:10px;line-height:15px;border-radius:8px;padding:0 6px;" +
@@ -408,6 +410,10 @@ export function Terminal({
       cursorBlink: s.cursorBlink,
       scrollback: s.scrollback,
       theme: TERMINAL_THEMES[s.theme],
+      // 명령 배지(OSC 133)가 쓰는 registerDecoration/registerMarker는 xterm의 proposed API라
+      // 이 옵션이 없으면 호출 시 예외가 발생해 출력 파서가 멈춘다(명령 실행 직후 화면이 멈추는
+      // 현상). @xterm/xterm 6.0.0이 이를 enforce한다.
+      allowProposedApi: true,
     });
     termRef.current = term;
     const fit = new FitAddon();
@@ -476,6 +482,9 @@ export function Terminal({
     let cMarker: IMarker | undefined;
     const cmdMarkers: IMarker[] = []; // ⌘↑/↓ 명령 점프용.
     term.parser.registerOscHandler(133, (payload) => {
+      // 배지/마커는 proposed API라 예외가 날 수 있다 — 한 번의 실패가 xterm 출력 파서를
+      // 멈춰 이후 모든 출력이 안 그려지는 일이 없도록 핸들러 전체를 가드한다.
+      try {
       const kind = payload[0];
       if (kind === "C") {
         cmdStart = Date.now();
@@ -511,6 +520,9 @@ export function Terminal({
         }
         cmdStart = 0;
         cMarker = undefined;
+      }
+      } catch {
+        // 배지 실패는 무시 — 출력 표시가 멈추지 않게 한다.
       }
       return true;
     });
