@@ -9,6 +9,8 @@ export interface TerminalHandle {
   sendInput: (text: string) => void;
   /** 컨테이너 크기에 맞춰 다시 fit (탭 전환/표시 시 — display:none에서 복귀 후 필요). */
   fit: () => void;
+  /** 이 터미널에 키보드 포커스를 준다 (탭 전환 시 클릭 없이 바로 입력되도록). */
+  focus: () => void;
   /** 현재 화면+스크롤백을 ANSI 포함 문자열로 직렬화 (세션 인계 시 새 창 복원용). */
   serialize: () => string;
   /** OSC 7로 추적한 셸 현재 작업 디렉토리 (없으면 null). 파일 브라우저 시작 위치용. */

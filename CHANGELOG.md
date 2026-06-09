@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- Switching tabs by keyboard (Ctrl+Tab / Ctrl+Shift+Tab / Ctrl+number) activated the tab but didn't focus the terminal, so you had to click the terminal before typing. The active tab's focused pane now receives keyboard focus on switch — type immediately, no click needed (#87)
+
 ## [0.13.6] — 2026-06-09
 
 ### Fixed

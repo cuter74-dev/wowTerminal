@@ -786,6 +786,7 @@ export function Terminal({
           });
         },
         fit: safeFit,
+        focus: () => term.focus(),
         serialize: () => {
           try {
             return serializeAddon.serialize();

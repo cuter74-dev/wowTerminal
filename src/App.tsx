@@ -905,11 +905,15 @@ function App() {
 
   // 탭 활성화/전환 시 활성 탭의 모든 leaf를 다시 fit (xterm은 display:none에서 0 크기라
   // 표시될 때 재계산이 필요). 등록 직후 동작하도록 rAF로 지연.
+  // 동시에 포커스된 leaf 터미널에 키보드 포커스를 줘, Ctrl+Tab/Ctrl+숫자로 탭을 바꾸면
+  // 화면을 클릭하지 않아도 바로 입력되게 한다.
   useEffect(() => {
     if (!activeTab) return;
     const ids = collectLeaves(activeTab.root).map((l) => l.id);
+    const focusId = activeTab.focusedPaneId ?? ids[0];
     const raf = requestAnimationFrame(() => {
       ids.forEach((id) => getTerminal(id)?.fit());
+      getTerminal(focusId)?.focus();
     });
     return () => cancelAnimationFrame(raf);
   }, [activeTabId, activeTab]);
