@@ -514,7 +514,16 @@ export function Terminal({
       onDataChars: 0, // onData가 보낸 글자 수(미러 미관여 경로)
     };
     const sendImeDiag = () => {
-      if (imeDiagSent || (imeDiag.n229 === 0 && imeDiag.nCS === 0)) return;
+      // 첫 입력 있는 줄의 Enter에서 1회 전송(빈 Enter는 제외). 229/composition뿐 아니라
+      // onData·미러 경로도 포함해, M5 중복이 어느 경로든 잡히게 한다.
+      const any =
+        imeDiag.n229 +
+        imeDiag.nCS +
+        imeDiag.nCU +
+        imeDiag.nCE +
+        imeDiag.mirrorChars +
+        imeDiag.onDataChars;
+      if (imeDiagSent || any === 0) return;
       imeDiagSent = true;
       try {
         Sentry.captureMessage("wt-ime-diag", {
@@ -622,6 +631,9 @@ export function Terminal({
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // [임시 진단] Enter 시 IME 카운터 전송. onData의 Enter 분기는 imeActive면 early-return
+      // 으로 도달 못 해(미러 stuck 시 전송 누락) M5에서 이벤트가 안 왔다. 여기서 보낸다.
+      if (e.key === "Enter") sendImeDiag();
       // ⌘F: 터미널 스크롤백 검색 오버레이 열기.
       if (e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "f" || e.key === "F")) {
         e.preventDefault();

@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.4] — 2026-06-09
+
+### Changed
+- Internal only (no user-facing change): fixed delivery of the temporary macOS IME diagnostic (#83) — the trace was sent from a path that's skipped while the IME mirror is active, so it never reached telemetry on the affected machine; it now sends from the key handler on Enter. To be removed once the IME duplication is diagnosed (#83)
+
 ## [0.13.3] — 2026-06-09
 
 ### Fixed
@@ -176,7 +181,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.3...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.4...HEAD
+[0.13.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.3...v0.13.4
 [0.13.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.0...v0.13.1
