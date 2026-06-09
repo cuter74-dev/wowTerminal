@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.3] — 2026-06-09
+
+### Fixed
+- Terminal garbled/ghosting after shrinking the window very small then enlarging it — FitAddon was shrinking the terminal to ~2 columns, so the shell re-wrapped its prompt and those narrow lines stayed as ghosting. The terminal is now clamped to a minimum width (20 cols) and its container clips overflow, so it never shrinks to a degenerate width or overlaps the AI panel (#86)
+
 ## [0.13.2] — 2026-06-09
 
 ### Fixed
@@ -171,7 +176,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.2...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.3...HEAD
+[0.13.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.2...v0.13.3
 [0.13.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.1...v0.13.2
 [0.13.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.0...v0.13.1
 [0.13.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.12.0...v0.13.0

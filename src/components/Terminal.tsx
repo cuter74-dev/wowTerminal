@@ -15,7 +15,14 @@ import {
   broadcastInput,
 } from "../terminalRegistry";
 import { emitCommandDone } from "../commandBus";
+import * as Sentry from "@sentry/react";
 import { SessionLogger } from "../sessionLog";
+
+// [임시 진단 — #83 M5 IME 중복] 재현 불가한 최신 macOS(M5)에서 글자가 중복되는 경로를
+// 알아내기 위한 계측. 첫 IME-관여 줄에서 "구조만"(키코드 229 여부·composition 이벤트 개수·
+// 보낸 글자 수 등 숫자, 실제 입력 내용은 절대 보내지 않음)을 GlitchTip으로 1회 전송한다.
+// 진단 후 제거 예정.
+let imeDiagSent = false;
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { LangDict, useT } from "../i18n";
@@ -496,6 +503,27 @@ export function Terminal({
     const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
 
+    // [임시 진단] IME 경로 카운터(구조만, 내용 없음). 첫 IME-관여 줄 Enter 시 1회 전송.
+    const imeDiag = {
+      n229: 0, // keyCode 229(조합) keydown 수
+      nCS: 0, // compositionstart 수
+      nCU: 0, // compositionupdate 수
+      nCE: 0, // compositionend 수
+      mirrorChars: 0, // 미러가 보낸 일반 글자 수
+      mirrorBs: 0, // 미러가 보낸 백스페이스 수
+      onDataChars: 0, // onData가 보낸 글자 수(미러 미관여 경로)
+    };
+    const sendImeDiag = () => {
+      if (imeDiagSent || (imeDiag.n229 === 0 && imeDiag.nCS === 0)) return;
+      imeDiagSent = true;
+      try {
+        Sentry.captureMessage("wt-ime-diag", {
+          level: "info",
+          extra: { ua: navigator.userAgent, isMac: isMacWebView, ...imeDiag },
+        });
+      } catch {}
+    };
+
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
@@ -510,10 +538,12 @@ export function Terminal({
       }
       writeToSession(data);
       broadcastInput(paneId ?? "", data); // 브로드캐스트 ON이면 다른 패널에도.
+      imeDiag.onDataChars += data.length; // [임시 진단]
 
       // 입력 라인 추적 (단순): 타이핑/백스페이스/엔터만 정확. 화살표 등은 라인 리셋.
       for (const ch of data) {
         if (ch === "\r" || ch === "\n") {
+          sendImeDiag(); // [임시 진단] 첫 IME-관여 줄 Enter 시 1회 전송
           const cmd = lineBufRef.current.trim();
           if (cmd) addHistory(cmd);
           lineBufRef.current = "";
@@ -561,6 +591,8 @@ export function Terminal({
           let out = "";
           for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
           out += full.slice(c);
+          imeDiag.mirrorBs += imeSent.length - c; // [임시 진단]
+          imeDiag.mirrorChars += full.length - c; // [임시 진단]
           if (out) {
             writeToSession(out);
             broadcastInput(paneId ?? "", out);
@@ -574,10 +606,17 @@ export function Terminal({
       // Windows/Linux에서는 등록하지 않는다 — 거긴 미러가 한글을 처리해야 한다.
       if (isMacWebView) {
         ta.addEventListener("compositionstart", () => {
+          imeDiag.nCS++; // [임시 진단]
           nativeComposition = true;
           resetIme();
         });
+      } else {
+        // [임시 진단] 비-macOS에서도 compositionstart 발생 여부만 카운트(동작은 그대로 미러).
+        ta.addEventListener("compositionstart", () => imeDiag.nCS++);
       }
+      // [임시 진단] composition update/end 발생 여부 카운트(동작 변경 없음).
+      ta.addEventListener("compositionupdate", () => imeDiag.nCU++);
+      ta.addEventListener("compositionend", () => imeDiag.nCE++);
     }
 
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
@@ -628,6 +667,7 @@ export function Terminal({
       // 통과시킨다 — 커스텀 미러와 동시 전송돼 글자가 중복되는 것을 막는다.
       // 구형 WKWebView(composition 이벤트 없음)는 종전대로 미러로 처리한다.
       if (e.keyCode === 229) {
+        imeDiag.n229++; // [임시 진단]
         if (nativeComposition) return true;
         imeActive = true;
         return false;
@@ -944,7 +984,9 @@ export function Terminal({
 
   return (
     <div
-      style={{ position: "relative", width: "100%", height: "100%" }}
+      // overflow:hidden — 컨테이너가 최소 cols(20)보다 좁아지면 터미널이 더 넓게 렌더되는데,
+      // 이를 클리핑하지 않으면 옆 AI 패널/프롬프트와 글자가 겹친다.
+      style={{ position: "relative", width: "100%", height: "100%", overflow: "hidden" }}
       onContextMenu={(e) => {
         e.preventDefault();
         setCtxMenu({ x: e.clientX, y: e.clientY });
@@ -955,6 +997,7 @@ export function Terminal({
         style={{
           width: "100%",
           height: "100%",
+          overflow: "hidden",
           background: TERMINAL_THEMES[termSettings.theme].background,
         }}
       />
