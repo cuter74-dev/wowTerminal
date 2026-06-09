@@ -557,6 +557,25 @@ export function Terminal({
       imeSent = "";
       if (ta) ta.value = "";
     };
+    // textarea.value(항상 올바른 전체 텍스트)와 이미 보낸 부분(imeSent)의 차이를 계산해,
+    // 공통 접두 이후를 백스페이스로 지우고 새 꼬리를 PTY로 보낸다. 셸 라인을 textarea와
+    // 일치시킨다. input 이벤트와 compositionend 양쪽에서 호출(둘 다 idempotent).
+    const flushMirror = () => {
+      if (!ta) return;
+      const full = ta.value;
+      let c = 0;
+      while (c < full.length && c < imeSent.length && full[c] === imeSent[c]) {
+        c++;
+      }
+      let out = "";
+      for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
+      out += full.slice(c);
+      if (out) {
+        writeToSession(out);
+        broadcastInput(paneId ?? "", out);
+      }
+      imeSent = full;
+    };
     if (ta) {
       // 캡처 단계로 등록해 xterm의 input 핸들러보다 먼저 실행 → IME 중에는
       // stopImmediatePropagation으로 xterm이 같은 input을 또 보내는 이중 전송을 막는다.
@@ -565,28 +584,30 @@ export function Terminal({
         (ev) => {
           if (!imeActive) return; // 영어/제어키는 xterm 기존 경로가 담당.
           ev.stopImmediatePropagation();
-          const full = ta.value;
-          let c = 0;
-          while (c < full.length && c < imeSent.length && full[c] === imeSent[c]) {
-            c++;
-          }
-          let out = "";
-          for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
-          out += full.slice(c);
-          if (out) {
-            writeToSession(out);
-            broadcastInput(paneId ?? "", out);
-          }
-          imeSent = full;
+          flushMirror();
         },
         true,
       );
-      // macOS에서 표준 composition 이벤트가 발생하면(최신 WKWebView) 그 사실을 기억해 커스텀
-      // 미러를 끈다(한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다).
-      // Windows/Linux에서는 등록하지 않는다 — 거긴 미러가 한글을 처리해야 한다.
       if (isMacWebView) {
+        // macOS에서 표준 composition 이벤트가 발생하면(최신 WKWebView) 그 사실을 기억해 커스텀
+        // 미러를 끈다(한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다).
         ta.addEventListener("compositionstart", () => {
           nativeComposition = true;
+          resetIme();
+        });
+      } else {
+        // Windows(WebView2)/Linux(WebKitGTK)는 표준 composition 이벤트를 정확히 보낸다.
+        // keyCode 229만으로 imeActive를 켜면 *끄는* 시점(compositionend)을 놓쳐, 한글 조합을
+        // 끝낸 뒤에도 imeActive가 true로 stuck된다 → 이후 한글/영어 입력이 전부 막힌다(#88,
+        // "한글로 바꾸면 안 되고 영어로 돌아와도 안 됨"). composition 라이프사이클로 미러를
+        // 정확히 켜고(start) 끈다(end). macOS 경로는 위에서 그대로 두어 회귀 위험을 격리한다.
+        ta.addEventListener("compositionstart", () => {
+          imeActive = true;
+          imeSent = "";
+        });
+        ta.addEventListener("compositionend", () => {
+          // 확정 문자를 마지막으로 한 번 더 동기화(input이 이미 보냈으면 out=""이라 무전송).
+          if (imeActive) flushMirror();
           resetIme();
         });
       }

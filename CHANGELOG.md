@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.8] — 2026-06-09
+
+### Fixed
+- Windows: Korean input dying after switching the IME to Hangul, and staying dead even after switching back to English — the custom IME mirror set `imeActive` on `keyCode 229` but nothing turned it off on Windows (the off-switch was a macOS-only `compositionstart` listener), so once a composition started it stuck on and swallowed every subsequent keystroke. On Windows/Linux the mirror is now driven by the composition lifecycle (`compositionstart` on, `compositionend` flush + reset); macOS paths are unchanged (#88)
+
 ## [0.13.7] — 2026-06-09
 
 ### Fixed
@@ -199,7 +204,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.7...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.8...HEAD
+[0.13.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.7...v0.13.8
 [0.13.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.6...v0.13.7
 [0.13.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.5...v0.13.6
 [0.13.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.4...v0.13.5
