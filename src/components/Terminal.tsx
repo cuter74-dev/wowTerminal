@@ -16,8 +16,15 @@ import {
   broadcastInput,
 } from "../terminalRegistry";
 import { emitCommandDone } from "../commandBus";
+import * as Sentry from "@sentry/react";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
+
+// [임시 진단 — #88 Windows 한글 stuck] 재현 불가한 Windows WebView2에서 한글 입력이
+// 막히는 원인을 보려고, 입력 중 발생하는 이벤트 시퀀스(keydown / composition / input과
+// 그 값, 미러 상태 전이)를 순서대로 모아 입력-유휴 시 GlitchTip으로 보낸다. non-macOS
+// 에서만 동작. 원인 확인 후 제거.
+let imeWinDiagSends = 0;
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { LangDict, useT } from "../i18n";
 
@@ -508,8 +515,36 @@ export function Terminal({
     const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
 
+    // [임시 진단 #88] Windows IME 이벤트 시퀀스 수집. non-macOS에서만. 입력이 2.5초간
+    // 멈추면 모은 이벤트를 GlitchTip으로 1회 전송하고 버퍼를 비운다(세션당 최대 12회).
+    const diagEvents: Record<string, unknown>[] = [];
+    let diagTimer = 0;
+    const flushWinDiag = () => {
+      if (!diagEvents.length || imeWinDiagSends >= 12) return;
+      imeWinDiagSends++;
+      try {
+        Sentry.captureMessage("wt-ime-win-diag", {
+          level: "info",
+          extra: {
+            ua: navigator.userAgent,
+            isMac: isMacWebView,
+            count: diagEvents.length,
+            events: diagEvents.slice(0, 120),
+          },
+        });
+      } catch {}
+      diagEvents.length = 0;
+    };
+    const winDiag = (e: Record<string, unknown>) => {
+      if (isMacWebView) return; // Windows/Linux만 추적.
+      if (diagEvents.length < 120) diagEvents.push(e);
+      clearTimeout(diagTimer);
+      diagTimer = window.setTimeout(flushWinDiag, 2500);
+    };
+
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
+      winDiag({ t: "onData", data, ia: imeActive }); // [임시 진단 #88]
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
       // 한글 입력은 아래 textarea input 미러만 PTY로 보낸다.
       if (imeActive) return;
@@ -570,6 +605,7 @@ export function Terminal({
       let out = "";
       for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
       out += full.slice(c);
+      winDiag({ t: "flushMirror", full, sent: imeSent, out }); // [임시 진단 #88]
       if (out) {
         writeToSession(out);
         broadcastInput(paneId ?? "", out);
@@ -582,11 +618,31 @@ export function Terminal({
       ta.addEventListener(
         "input",
         (ev) => {
+          // [임시 진단 #88] imeActive와 무관하게 모든 input을 기록.
+          const ie = ev as InputEvent;
+          winDiag({
+            t: "input",
+            it: ie.inputType,
+            data: ie.data,
+            ic: ie.isComposing,
+            val: ta.value,
+            ia: imeActive,
+          });
           if (!imeActive) return; // 영어/제어키는 xterm 기존 경로가 담당.
           ev.stopImmediatePropagation();
           flushMirror();
         },
         true,
+      );
+      // [임시 진단 #88] composition 이벤트는 모든 플랫폼에서 기록(동작과 별개로 관찰만).
+      ta.addEventListener("compositionstart", (ev) =>
+        winDiag({ t: "compositionstart", data: (ev as CompositionEvent).data, val: ta.value }),
+      );
+      ta.addEventListener("compositionupdate", (ev) =>
+        winDiag({ t: "compositionupdate", data: (ev as CompositionEvent).data, val: ta.value }),
+      );
+      ta.addEventListener("compositionend", (ev) =>
+        winDiag({ t: "compositionend", data: (ev as CompositionEvent).data, val: ta.value }),
       );
       if (isMacWebView) {
         // macOS에서 표준 composition 이벤트가 발생하면(최신 WKWebView) 그 사실을 기억해 커스텀
@@ -616,6 +672,17 @@ export function Terminal({
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // [임시 진단 #88] keydown 기록(수정자 단독 키 제외해 노이즈 감소).
+      if (e.key !== "Shift" && e.key !== "Control" && e.key !== "Alt" && e.key !== "Meta") {
+        winDiag({
+          t: "keydown",
+          key: e.key,
+          kc: e.keyCode,
+          ic: (e as KeyboardEvent).isComposing,
+          ia: imeActive,
+          nc: nativeComposition,
+        });
+      }
       // ⌘F: 터미널 스크롤백 검색 오버레이 열기.
       if (e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "f" || e.key === "F")) {
         e.preventDefault();
@@ -923,6 +990,7 @@ export function Terminal({
       cancelAnimationFrame(roRaf);
       clearTimeout(fitT1);
       clearTimeout(fitT2);
+      clearTimeout(diagTimer); // [임시 진단 #88]
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();

@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.9] — 2026-06-09
+
+### Changed
+- Internal only (no user-facing change): added temporary, Windows/Linux-only IME diagnostic instrumentation (#88) — since the Windows Hangul-stuck bug isn't reproducible on the maintainer's machine, the actual event sequence (keydown / composition / input with their values and the mirror state transitions) is collected and sent once to GlitchTip on input idle. To be removed once the cause is identified (#88)
+
 ## [0.13.8] — 2026-06-09
 
 ### Fixed
@@ -204,7 +209,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.8...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.9...HEAD
+[0.13.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.8...v0.13.9
 [0.13.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.7...v0.13.8
 [0.13.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.6...v0.13.7
 [0.13.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.5...v0.13.6
