@@ -708,11 +708,20 @@ export function Terminal({
     // 줄고, 그 작은 크기가 PTY/원격으로 전달된다. 여러 탭이 같은 tmux 세션에 attach돼
     // 있으면 tmux가 가장 작은 클라이언트에 맞춰 폭을 1~2칸으로 줄여 화면이 깨진다.
     // 실제 크기가 있을 때만 fit한다.
+    // 창을 아주 작게 줄이면 fit이 폭을 ~2칸까지 줄여, 그 폭에서 셸이 프롬프트를 세로로 쪼개
+    // 그린 줄들이 스크롤백에 남는다(창을 키워도 잔상으로 남음). cols/rows에 최소값을 둬서
+    // 터미널이 그 밑으로는 안 줄어들게 한다(컨테이너가 더 좁으면 내용이 잘릴 뿐, 깨지지 않음).
+    const MIN_COLS = 20;
+    const MIN_ROWS = 4;
     const safeFit = () => {
       const el = containerRef.current;
       if (!el || el.clientWidth < 8 || el.clientHeight < 8) return;
       try {
-        fit.fit();
+        const dims = fit.proposeDimensions();
+        if (!dims || !isFinite(dims.cols) || !isFinite(dims.rows)) return;
+        const cols = Math.max(MIN_COLS, dims.cols);
+        const rows = Math.max(MIN_ROWS, dims.rows);
+        if (cols !== term.cols || rows !== term.rows) term.resize(cols, rows);
       } catch {}
     };
     // RO 콜백 안에서 fit()이 동기로 크기를 바꾸면 "ResizeObserver loop" 경고가 나고,
