@@ -35,16 +35,20 @@ function sanitize(name: string): string {
   return name.replace(/[^A-Za-z0-9_@-]/g, "");
 }
 
-/** 기존 세션 attach/전환 입력 (tmux 안/밖 공용). \x15 = Ctrl-U(현재 입력 줄 비움). */
+/** 기존 세션 attach/전환 입력 (tmux 안/밖 공용). \x15 = Ctrl-U(현재 입력 줄 비움).
+ *  순서가 중요하다: attach 먼저, 실패 시 switch-client. 반대(switch 먼저)로 하면 tmux 밖에서
+ *  switch-client가 "다른 곳에 붙어 있는 클라이언트"를 조용히 전환하고 성공해 버려, 정작 이
+ *  터미널에선 아무 일도 일어나지 않는다. attach는 밖에서 성공하고 안에서는 중첩 거부로
+ *  실패하므로(stderr 숨김) 그때만 switch-client가 자기 클라이언트를 전환한다. */
 function attachInput(name: string): string {
   const n = sanitize(name);
-  return `\x15tmux switch-client -t '${n}' 2>/dev/null || tmux attach-session -t '${n}'\r`;
+  return `\x15tmux attach-session -t '${n}' 2>/dev/null || tmux switch-client -t '${n}'\r`;
 }
 
 /** 새 세션 생성 후 attach/전환 입력. 이름이 이미 있으면 new -d가 조용히 실패하고 attach만 된다. */
 function createInput(name: string): string {
   const n = sanitize(name);
-  return `\x15tmux new-session -d -s '${n}' 2>/dev/null; tmux switch-client -t '${n}' 2>/dev/null || tmux attach-session -t '${n}'\r`;
+  return `\x15tmux new-session -d -s '${n}' 2>/dev/null; tmux attach-session -t '${n}' 2>/dev/null || tmux switch-client -t '${n}'\r`;
 }
 
 interface Props {
