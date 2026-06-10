@@ -15,7 +15,8 @@ import { getHistory } from "./commandHistory";
 import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
 import { SessionDashboard, DashRow } from "./components/SessionDashboard";
-import { TmuxPicker } from "./components/TmuxPicker";
+import { TmuxPicker, attachInput as tmuxAttachInput } from "./components/TmuxPicker";
+import { loadSessionSnapshot, saveSessionSnapshot } from "./sessionRestore";
 import { PortForwardModal } from "./components/PortForwardModal";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
@@ -76,6 +77,10 @@ const CURRENT_WINDOW_LABEL = (() => {
   }
 })();
 const IS_DETACHED_WINDOW = CURRENT_WINDOW_LABEL.startsWith("detached-");
+
+// 세션 복원 (#90): 메인 창은 이전 실행의 탭 레이아웃을 모듈 로드 시 1회 읽는다.
+// (detached 창은 백엔드 registry 인계 흐름을 그대로 쓴다.)
+const RESTORED_SESSION = IS_DETACHED_WINDOW ? null : loadSessionSnapshot();
 
 interface DetachedInit {
   source: TerminalSource;
@@ -457,10 +462,12 @@ function App() {
   }, [broadcast]);
   // detached 윈도우는 백엔드 registry에서 source를 받기 전까지 빈 상태로 시작 — 메인은 즉시 로컬셸.
   const [tabs, setTabs] = useState<Tab[]>(() =>
-    IS_DETACHED_WINDOW ? [] : [makeLocalTab(tr.localShellN(1))],
+    IS_DETACHED_WINDOW
+      ? []
+      : RESTORED_SESSION?.tabs ?? [makeLocalTab(tr.localShellN(1))],
   );
   const [activeTabId, setActiveTabId] = useState<string | null>(() =>
-    IS_DETACHED_WINDOW ? null : tabs[0].id,
+    IS_DETACHED_WINDOW ? null : RESTORED_SESSION?.activeId ?? tabs[0].id,
   );
   const [bootstrapped, setBootstrapped] = useState<boolean>(!IS_DETACHED_WINDOW);
   // 백그라운드 탭에서 오래 걸린 명령이 끝나면 알림 + 탭 배지 (#55, OSC 133 D).
@@ -490,6 +497,12 @@ function App() {
   const [drag, setDrag] = useState<{ tabId: string; active: boolean } | null>(null);
   // leaf id → spawn된 sessionId (세션 인계 시 조회).
   const sessionByLeaf = useRef<Record<string, string>>({});
+  // leaf가 붙어 있는(우리가 붙인) tmux 세션 이름 — 세션 복원 스냅샷에 저장 (#89/#90).
+  const tmuxByLeaf = useRef<Record<string, string>>({});
+  // 복원된 leaf가 세션 시작 후 attach해야 할 tmux 세션 (#90). onSession에서 소비.
+  const initTmuxByLeaf = useRef<Record<string, string>>(
+    RESTORED_SESSION?.initTmux ?? {},
+  );
   // leaf id → attach할 기존 sessionId (분리 윈도우 부트스트랩).
   const [attachSessionByLeaf, setAttachSessionByLeaf] = useState<Record<string, string>>({});
   const [attachScreenByLeaf, setAttachScreenByLeaf] = useState<Record<string, string>>({});
@@ -766,6 +779,35 @@ function App() {
       source.kind === "local" ? tr.localShell : labelForHost(source.hostId),
     [labelForHost],
   );
+
+  // tmux attach 시 탭 라벨에 세션 이름을 표시 (#89) — 원격이 set-titles를 안 켜도 보이게.
+  const labelTabForLeaf = useCallback(
+    (leafId: string, session: string) => {
+      setTabs((prev) =>
+        prev.map((tab) => {
+          const leaf = findLeaf(tab.root, leafId);
+          if (!leaf || leaf.kind !== "leaf") return tab;
+          const next = `${session} · ${labelForSource(leaf.source)}`.slice(0, 32);
+          return tab.label === next ? tab : { ...tab, label: next };
+        }),
+      );
+    },
+    [labelForSource],
+  );
+
+  // 세션 복원 스냅샷 저장 (#90): 탭 구조가 바뀔 때 + 15초 주기(cwd/tmux 변화 반영).
+  useEffect(() => {
+    if (IS_DETACHED_WINDOW) return;
+    const save = () =>
+      saveSessionSnapshot(tabs, activeTabId, {
+        getCwd: (leafId) => getTerminal(leafId)?.getCwd() ?? null,
+        getTmux: (leafId) =>
+          tmuxByLeaf.current[leafId] ?? initTmuxByLeaf.current[leafId] ?? null,
+      });
+    save();
+    const iv = setInterval(save, 15000);
+    return () => clearInterval(iv);
+  }, [tabs, activeTabId]);
 
   // hosts가 늦게 도착하면 SSH 탭 라벨 갱신.
   useEffect(() => {
@@ -1115,11 +1157,15 @@ function App() {
       const tab0 = tabs.find((t) => t.id === tabId);
       const leaf0 = tab0 ? findLeaf(tab0.root, leafId) : null;
       const src0 = leaf0 && leaf0.kind === "leaf" ? leaf0.source : null;
-      if (src0 && src0.kind === "ssh") {
+      if (src0 && src0.kind === "ssh" && !initTmuxByLeaf.current[leafId]) {
         const hostId0 = src0.hostId;
         const host = hosts.find((h) => h.id === hostId0);
         const name = (host?.tmux_session ?? "").replace(/[^A-Za-z0-9_@-]/g, "");
-        if (name) getTerminal(leafId)?.sendInput(`tmux new-session -A -s '${name}'\r`);
+        if (name) {
+          getTerminal(leafId)?.sendInput(`tmux new-session -A -s '${name}'\r`);
+          tmuxByLeaf.current[leafId] = name;
+          labelTabForLeaf(leafId, name);
+        }
       }
     }
 
@@ -1814,6 +1860,15 @@ function App() {
                 termSettings={settings.terminal}
                 onSession={(leafId, sid) => {
                   sessionByLeaf.current[leafId] = sid;
+                  // 세션 복원 (#90): 이 leaf가 이전 실행에서 tmux에 붙어 있었다면 재attach.
+                  // (입력은 PTY/sshd가 버퍼링하므로 셸 준비 전에 보내도 안전.)
+                  const pending = initTmuxByLeaf.current[leafId];
+                  if (pending) {
+                    delete initTmuxByLeaf.current[leafId];
+                    getTerminal(leafId)?.sendInput(tmuxAttachInput(pending));
+                    tmuxByLeaf.current[leafId] = pending;
+                    labelTabForLeaf(leafId, pending);
+                  }
                 }}
                 attachSessionByLeaf={attachSessionByLeaf}
                 attachScreenByLeaf={attachScreenByLeaf}
@@ -1926,8 +1981,10 @@ function App() {
         <TmuxPicker
           source={focusedLeaf.source}
           sshSessionId={sessionByLeaf.current[focusedLeaf.id] ?? null}
-          onPick={(input) => {
+          onPick={(input, sessionName) => {
             getTerminal(focusedLeaf.id)?.sendInput(input);
+            tmuxByLeaf.current[focusedLeaf.id] = sessionName;
+            labelTabForLeaf(focusedLeaf.id, sessionName);
             setTmuxPickerOpen(false);
             getTerminal(focusedLeaf.id)?.focus();
           }}

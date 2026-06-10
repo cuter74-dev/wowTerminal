@@ -111,7 +111,8 @@ export interface SearchHit {
 }
 
 export type TerminalSource =
-  | { kind: "local" }
+  /** cwd: 세션 복원(#90) 시 spawn 시작 디렉터리(OSC 7로 추적된 이전 cwd). */
+  | { kind: "local"; cwd?: string | null }
   | { kind: "ssh"; hostId: string };
 
 /** 분할 트리의 노드. leaf는 하나의 PTY/SSH 세션을, split은 두 자식 패널의 비율을 가진다. */

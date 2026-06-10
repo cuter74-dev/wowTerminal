@@ -132,6 +132,7 @@ impl PtyManager {
         &self,
         program: Option<&str>,
         dims: PtyDims,
+        cwd: Option<&str>,
     ) -> Result<SessionId, PtyError> {
         let pty_system = native_pty_system();
         let pair = pty_system
@@ -158,6 +159,13 @@ impl PtyManager {
             // bash는 로그인(-l)이면 --rcfile을 무시하므로(OSC133 주입 불가) 비로그인으로 두고,
             // rcfile 안에서 로그인 프로필(/etc/profile·~/.bash_profile 등)을 직접 source해 PATH를 잡는다.
             setup_bash_integration(&mut cmd);
+        }
+
+        // 세션 복원(#90): 이전 작업 디렉터리에서 시작. 디렉터리가 사라졌으면 무시(홈에서 시작).
+        if let Some(dir) = cwd {
+            if std::path::Path::new(dir).is_dir() {
+                cmd.cwd(dir);
+            }
         }
 
         let child = pair
@@ -387,7 +395,7 @@ mod tests {
         let (sink, rx) = collect_sink();
         let mgr = PtyManager::new(sink);
         let id = mgr
-            .spawn(Some("/bin/sh"), PtyDims { cols: 80, rows: 24 })
+            .spawn(Some("/bin/sh"), PtyDims { cols: 80, rows: 24 }, None)
             .expect("spawn");
         assert_eq!(mgr.session_count(), 1);
 
@@ -422,7 +430,7 @@ mod tests {
         let (sink, _rx) = collect_sink();
         let mgr = PtyManager::new(sink);
         let id = mgr
-            .spawn(Some("/bin/sh"), PtyDims::default())
+            .spawn(Some("/bin/sh"), PtyDims::default(), None)
             .expect("spawn");
         assert_eq!(mgr.session_count(), 1);
         mgr.kill(&id).expect("kill");

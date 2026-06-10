@@ -52,6 +52,8 @@ pub struct SpawnArgs {
     pub program: Option<String>,
     pub cols: Option<u16>,
     pub rows: Option<u16>,
+    /// 시작 디렉터리 (#90 세션 복원). 존재하지 않으면 무시하고 기본(홈)에서 시작.
+    pub cwd: Option<String>,
 }
 
 #[tauri::command]
@@ -62,7 +64,7 @@ pub fn pty_spawn(args: SpawnArgs, state: State<'_, PtyState>) -> Result<SessionI
     };
     state
         .0
-        .spawn(args.program.as_deref(), dims)
+        .spawn(args.program.as_deref(), dims, args.cwd.as_deref())
         .map_err(|e| e.to_string())
 }
 

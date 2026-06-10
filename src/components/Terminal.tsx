@@ -240,7 +240,9 @@ function commandsFor(source: TerminalSource, password?: string): Commands {
       resizeCmd: "pty_resize",
       killCmd: "pty_kill",
       outputEvent: "pty:output",
-      spawnArgs: (cols, rows) => ({ args: { cols, rows } }),
+      spawnArgs: (cols, rows) => ({
+        args: { cols, rows, cwd: source.cwd ?? null },
+      }),
     };
   }
   return {

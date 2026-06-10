@@ -10,7 +10,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Added
 - tmux auto-attach on SSH connect — a per-host "tmux auto-attach" field (session name); when set, connecting runs `tmux new-session -A -s <name>` so the connection always lands in a persistent tmux session (#89)
 - tmux session picker — ⌘K → "tmux sessions" lists the tmux sessions of the focused terminal's machine (local or SSH, fetched without touching the visible shell) with window count and attached badge; click to attach/switch (works both inside and outside tmux), or create a new session from the same dialog (#89)
-- Tab title sync — the terminal title (OSC 0/2; includes tmux window titles when `set-titles on`) is reflected in the tab label, falling back to the host/shell name when cleared (#89)
+- Tab title sync — the terminal title (OSC 0/2; includes tmux window titles when `set-titles on`) is reflected in the tab label, falling back to the host/shell name when cleared; attaching to a tmux session (auto-attach or picker) immediately labels the tab `session · host` without requiring remote config (#89)
+- Session restore — on restart the previous tabs reopen: tab/split layout, local shells starting in their previous working directory (spawned with the tracked cwd — no visible `cd`), SSH tabs reconnecting, and panes that were attached to a known tmux session re-attaching to it (#90)
 
 ## [0.13.14] — 2026-06-10
 

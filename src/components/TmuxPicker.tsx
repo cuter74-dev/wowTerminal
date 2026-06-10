@@ -40,7 +40,7 @@ function sanitize(name: string): string {
  *  switch-client가 "다른 곳에 붙어 있는 클라이언트"를 조용히 전환하고 성공해 버려, 정작 이
  *  터미널에선 아무 일도 일어나지 않는다. attach는 밖에서 성공하고 안에서는 중첩 거부로
  *  실패하므로(stderr 숨김) 그때만 switch-client가 자기 클라이언트를 전환한다. */
-function attachInput(name: string): string {
+export function attachInput(name: string): string {
   const n = sanitize(name);
   return `\x15tmux attach-session -t '${n}' 2>/dev/null || tmux switch-client -t '${n}'\r`;
 }
@@ -55,8 +55,8 @@ interface Props {
   source: TerminalSource;
   /** source가 ssh일 때 백엔드 세션 ID (목록 조회용 exec 채널에 필요). */
   sshSessionId: string | null;
-  /** 선택/생성 시 터미널로 보낼 입력 텍스트를 전달. */
-  onPick: (input: string) => void;
+  /** 선택/생성 시 (터미널로 보낼 입력, tmux 세션 이름)을 전달. */
+  onPick: (input: string, sessionName: string) => void;
   onClose: () => void;
 }
 
@@ -149,7 +149,7 @@ export function TmuxPicker({ source, sshSessionId, onPick, onClose }: Props) {
             sessions.map((s) => (
               <div
                 key={s.name}
-                onClick={() => onPick(attachInput(s.name))}
+                onClick={() => onPick(attachInput(s.name), sanitize(s.name))}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -197,7 +197,7 @@ export function TmuxPicker({ source, sshSessionId, onPick, onClose }: Props) {
             value={newName}
             onChange={(e) => setNewName(sanitize(e.target.value))}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && newName.trim()) onPick(createInput(newName));
+              if (e.key === "Enter" && newName.trim()) onPick(createInput(newName), sanitize(newName));
             }}
             placeholder={t.newPlaceholder}
             style={{
@@ -212,7 +212,7 @@ export function TmuxPicker({ source, sshSessionId, onPick, onClose }: Props) {
             }}
           />
           <button
-            onClick={() => newName.trim() && onPick(createInput(newName))}
+            onClick={() => newName.trim() && onPick(createInput(newName), sanitize(newName))}
             disabled={!newName.trim()}
             style={{
               background: newName.trim() ? "#0a5380" : "#2a2a35",
