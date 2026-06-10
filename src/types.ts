@@ -17,6 +17,15 @@ export interface SshHost {
   group_id?: string | null;
   /** ProxyJump 점프 호스트의 ID (#61). 지정 시 이 호스트를 거쳐 접속. */
   proxy_jump?: string | null;
+  /** tmux 자동 attach 세션 이름 (#89). 설정 시 접속 직후 tmux new -A -s <이름> 실행. */
+  tmux_session?: string | null;
+}
+
+/** tmux 세션 정보 (#89) — Rust TmuxSessionInfo와 일치. */
+export interface TmuxSessionInfo {
+  name: string;
+  windows: number;
+  attached: boolean;
 }
 
 export interface Group {

@@ -94,3 +94,31 @@ pub fn pty_kill(session_id: String, state: State<'_, PtyState>) -> Result<(), St
     state.0.kill(&session_id).map_err(|e| e.to_string())
 }
 
+
+
+/// 로컬 머신의 tmux 세션 목록 (#89). 로그인 셸을 거쳐 실행해 Homebrew 등 PATH를 잡는다.
+/// tmux 미설치/서버 없음이면 None. Windows에는 tmux가 없으므로 항상 None.
+#[tauri::command]
+pub async fn local_tmux_sessions() -> Option<Vec<crate::ssh::types::TmuxSessionInfo>> {
+    #[cfg(target_family = "unix")]
+    {
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".into());
+        let out = tokio::process::Command::new(shell)
+            .arg("-lc")
+            .arg("tmux list-sessions -F '#{session_name}\t#{session_windows}\t#{session_attached}' 2>/dev/null")
+            .output()
+            .await
+            .ok()?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        let list = crate::ssh::types::TmuxSessionInfo::parse_lines(&text);
+        if list.is_empty() {
+            None
+        } else {
+            Some(list)
+        }
+    }
+    #[cfg(target_family = "windows")]
+    {
+        None
+    }
+}

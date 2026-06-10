@@ -19,6 +19,41 @@ pub struct SshHost {
     /// ProxyJump 점프 호스트의 ID (#61). 지정되면 이 호스트를 거쳐 접속. None이면 직접.
     #[serde(default)]
     pub proxy_jump: Option<String>,
+    /// tmux 자동 attach 세션 이름 (#89). Some이면 접속 직후 프론트가 셸에
+    /// `tmux new-session -A -s <이름>`을 보내 영속 세션에 들어간다. None이면 끔.
+    #[serde(default)]
+    pub tmux_session: Option<String>,
+}
+
+/// tmux 세션 한 줄 (#89). `tmux list-sessions -F '#{session_name}\t#{session_windows}\t#{session_attached}'`
+/// 출력의 파싱 결과. 로컬/원격 공용.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TmuxSessionInfo {
+    pub name: String,
+    pub windows: u32,
+    pub attached: bool,
+}
+
+impl TmuxSessionInfo {
+    /// list-sessions 출력(탭 구분 3필드/줄)을 파싱한다. 형식이 안 맞는 줄은 버린다.
+    pub fn parse_lines(out: &str) -> Vec<TmuxSessionInfo> {
+        out.lines()
+            .filter_map(|l| {
+                let mut it = l.trim().split('\t');
+                let name = it.next()?.trim();
+                if name.is_empty() {
+                    return None;
+                }
+                let windows = it.next()?.trim().parse().ok()?;
+                let attached: u32 = it.next()?.trim().parse().ok()?;
+                Some(TmuxSessionInfo {
+                    name: name.to_string(),
+                    windows,
+                    attached: attached > 0,
+                })
+            })
+            .collect()
+    }
 }
 
 /// 호스트를 묶는 단순 그룹. v1은 flat (parent 없음); 와이어프레임의 3단계 중첩은 후속.

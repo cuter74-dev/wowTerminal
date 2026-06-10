@@ -281,6 +281,15 @@ pub async fn ssh_remote_cwd(
     Ok(state.manager.remote_cwd(&session_id).await)
 }
 
+/// 원격 tmux 세션 목록 (#89). tmux 미설치/서버 없음이면 null — UI가 "세션 없음"으로 안내.
+#[tauri::command]
+pub async fn ssh_tmux_sessions(
+    session_id: String,
+    state: State<'_, SshState>,
+) -> Result<Option<Vec<super::types::TmuxSessionInfo>>, String> {
+    Ok(state.manager.tmux_sessions(&session_id).await)
+}
+
 #[tauri::command]
 pub async fn ssh_resize(
     session_id: String,

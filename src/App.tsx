@@ -10,11 +10,12 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { onCommandDone } from "./commandBus";
+import { onCommandDone, onTitleChange } from "./commandBus";
 import { getHistory } from "./commandHistory";
 import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
 import { SessionDashboard, DashRow } from "./components/SessionDashboard";
+import { TmuxPicker } from "./components/TmuxPicker";
 import { PortForwardModal } from "./components/PortForwardModal";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
@@ -418,18 +419,19 @@ const PAL_STR: LangDict<{
   snippet: string;
   dashboard: string;
   portForward: string;
+  tmuxSessions: string;
 }> = {
-  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet", dashboard: "Session dashboard", portForward: "Port forwarding" },
-  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫", dashboard: "세션 대시보드", portForward: "포트 포워딩" },
-  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento", dashboard: "Panel de sesiones", portForward: "Reenvío de puertos" },
-  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段", dashboard: "会话仪表板", portForward: "端口转发" },
-  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット", dashboard: "セッションダッシュボード", portForward: "ポート転送" },
-  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет", dashboard: "Панель сессий", portForward: "Проброс портов" },
-  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait", dashboard: "Tableau de bord des sessions", portForward: "Redirection de ports" },
-  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet", dashboard: "Sitzungs-Dashboard", portForward: "Portweiterleitung" },
-  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã", dashboard: "Bảng điều khiển phiên", portForward: "Chuyển tiếp cổng" },
-  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan", dashboard: "Dasbor sesi", portForward: "Penerusan porta" },
-  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट", dashboard: "सत्र डैशबोर्ड", portForward: "पोर्ट फ़ॉरवर्डिंग" },
+  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet", dashboard: "Session dashboard", portForward: "Port forwarding", tmuxSessions: "tmux sessions" },
+  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫", dashboard: "세션 대시보드", portForward: "포트 포워딩", tmuxSessions: "tmux 세션" },
+  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento", dashboard: "Panel de sesiones", portForward: "Reenvío de puertos", tmuxSessions: "Sesiones tmux" },
+  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段", dashboard: "会话仪表板", portForward: "端口转发", tmuxSessions: "tmux 会话" },
+  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット", dashboard: "セッションダッシュボード", portForward: "ポート転送", tmuxSessions: "tmux セッション" },
+  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет", dashboard: "Панель сессий", portForward: "Проброс портов", tmuxSessions: "Сессии tmux" },
+  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait", dashboard: "Tableau de bord des sessions", portForward: "Redirection de ports", tmuxSessions: "Sessions tmux" },
+  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet", dashboard: "Sitzungs-Dashboard", portForward: "Portweiterleitung", tmuxSessions: "tmux-Sitzungen" },
+  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã", dashboard: "Bảng điều khiển phiên", portForward: "Chuyển tiếp cổng", tmuxSessions: "Phiên tmux" },
+  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan", dashboard: "Dasbor sesi", portForward: "Penerusan porta", tmuxSessions: "Sesi tmux" },
+  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट", dashboard: "सत्र डैशबोर्ड", portForward: "पोर्ट फ़ॉरवर्डिंग", tmuxSessions: "tmux सत्र" },
 };
 
 function App() {
@@ -440,6 +442,8 @@ function App() {
   const [dashboardOpen, setDashboardOpen] = useState(false);
   // #60 포트 포워딩 모달.
   const [portForwardOpen, setPortForwardOpen] = useState(false);
+  // #89 tmux 세션 선택 모달.
+  const [tmuxPickerOpen, setTmuxPickerOpen] = useState(false);
   const [sessionStats, setSessionStats] = useState<
     Record<
       string,
@@ -785,6 +789,24 @@ function App() {
   tabsRef.current = tabs;
   const activeTabIdRef = useRef(activeTabId);
   activeTabIdRef.current = activeTabId;
+  // 터미널 제목(OSC 0/2) → 탭 라벨 동기화 (#89). tmux(set-titles on)/셸이 제목을 보내면
+  // 그 leaf가 속한 탭의 라벨을 갱신하고, 제목이 비면 소스 기본 라벨로 되돌린다.
+  useEffect(() => {
+    return onTitleChange(({ paneId, title }) => {
+      if (!paneId) return;
+      setTabs((prev) =>
+        prev.map((tab) => {
+          const leaf = findLeaf(tab.root, paneId);
+          if (!leaf || leaf.kind !== "leaf") return tab;
+          const next = title.trim()
+            ? title.trim().slice(0, 32)
+            : labelForSource(leaf.source);
+          return next === tab.label ? tab : { ...tab, label: next };
+        }),
+      );
+    });
+  }, [labelForSource]);
+
   useEffect(() => {
     if (IS_DETACHED_WINDOW) return;
     void requestPermission();
@@ -868,6 +890,7 @@ function App() {
       { id: "act-newlocal", label: pal.newLocalTab, action: newLocalTab },
       { id: "act-dashboard", label: pal.dashboard, action: () => setDashboardOpen(true) },
       { id: "act-portforward", label: pal.portForward, action: () => setPortForwardOpen(true) },
+      { id: "act-tmux", label: pal.tmuxSessions, action: () => setTmuxPickerOpen(true) },
       { id: "act-settings", label: pal.settings, action: () => setShowSettings(true) },
     ];
     for (const h of hosts) {
@@ -1085,6 +1108,21 @@ function App() {
   /** SSH 접속 성공 시: 사용자가 keychain 저장을 요청했으면 백엔드에 위임. 어느 경우든
    *  메모리에 남은 password와 remember 플래그는 즉시 비운다 (보안). */
   async function handleSshConnected(tabId: string, leafId: string) {
+    // tmux 자동 attach (#89): 호스트에 세션 이름이 설정돼 있으면 접속 직후 셸에
+    // `tmux new-session -A -s <이름>`을 보낸다. tmux가 attach하며 화면 전체를 다시
+    // 그리므로 명령 에코는 곧 지워진다(숨김 주입의 #34/#37 잔상 문제를 피하는 방식).
+    {
+      const tab0 = tabs.find((t) => t.id === tabId);
+      const leaf0 = tab0 ? findLeaf(tab0.root, leafId) : null;
+      const src0 = leaf0 && leaf0.kind === "leaf" ? leaf0.source : null;
+      if (src0 && src0.kind === "ssh") {
+        const hostId0 = src0.hostId;
+        const host = hosts.find((h) => h.id === hostId0);
+        const name = (host?.tmux_session ?? "").replace(/[^A-Za-z0-9_@-]/g, "");
+        if (name) getTerminal(leafId)?.sendInput(`tmux new-session -A -s '${name}'\r`);
+      }
+    }
+
     const pw = passwordByLeaf[leafId];
     const remember = rememberByLeaf[leafId];
     // 항상 클리어 — 한 번 invoke로 전달됐고 더 이상 필요 없음.
@@ -1882,6 +1920,19 @@ function App() {
 
       {portForwardOpen && (
         <PortForwardModal hosts={hosts} onClose={() => setPortForwardOpen(false)} />
+      )}
+
+      {tmuxPickerOpen && focusedLeaf && (
+        <TmuxPicker
+          source={focusedLeaf.source}
+          sshSessionId={sessionByLeaf.current[focusedLeaf.id] ?? null}
+          onPick={(input) => {
+            getTerminal(focusedLeaf.id)?.sendInput(input);
+            setTmuxPickerOpen(false);
+            getTerminal(focusedLeaf.id)?.focus();
+          }}
+          onClose={() => setTmuxPickerOpen(false)}
+        />
       )}
 
       {drag?.active && <DropZoneOverlay />}

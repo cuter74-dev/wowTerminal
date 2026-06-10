@@ -144,6 +144,8 @@ pub fn run() {
             ssh::commands::ssh_connect,
             ssh::commands::ssh_write,
             ssh::commands::ssh_remote_cwd,
+            ssh::commands::ssh_tmux_sessions,
+            pty::commands::local_tmux_sessions,
             ssh::commands::ssh_resize,
             ssh::commands::ssh_kill,
             ssh::commands::ssh_list_known_hosts,

@@ -110,6 +110,7 @@ mod tests {
             tags: vec!["prod".into()],
             group_id: None,
             proxy_jump: None,
+            tmux_session: None,
         }
     }
 

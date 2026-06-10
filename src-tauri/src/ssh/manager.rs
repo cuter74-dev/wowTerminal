@@ -171,4 +171,10 @@ impl SshManager {
         let session = { self.sessions.lock().await.get(id).cloned()? };
         session.remote_cwd().await
     }
+
+    /// 원격 tmux 세션 목록 (#89). 세션 없음/조회 실패면 None.
+    pub async fn tmux_sessions(&self, id: &str) -> Option<Vec<super::types::TmuxSessionInfo>> {
+        let session = { self.sessions.lock().await.get(id).cloned()? };
+        session.tmux_sessions().await
+    }
 }

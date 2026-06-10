@@ -30,6 +30,8 @@ const STR: LangDict<{
     ungrouped: string;
     proxyJump: string;
     proxyDirect: string;
+    tmuxSession: string;
+    tmuxSessionPh: string;
     noTags: string;
     cancel: string;
     saving: string;
@@ -55,6 +57,8 @@ const STR: LangDict<{
     ungrouped: "(Ungrouped)",
     proxyJump: "Jump host (ProxyJump)",
     proxyDirect: "(Direct — no jump)",
+    tmuxSession: "tmux auto-attach",
+    tmuxSessionPh: "Session name (empty = off) — runs tmux new -A -s <name> on connect",
     noTags: "No tags registered — add them via Group/Tag Manager in the sidebar",
     cancel: "Cancel",
     saving: "Saving...",
@@ -79,6 +83,8 @@ const STR: LangDict<{
     ungrouped: "(미분류)",
     proxyJump: "점프 호스트 (ProxyJump)",
     proxyDirect: "(직접 — 점프 없음)",
+    tmuxSession: "tmux 자동 attach",
+    tmuxSessionPh: "세션 이름 (비우면 끔) — 접속 시 tmux new -A -s <이름> 실행",
     noTags: "등록된 태그 없음 — 사이드바의 그룹/태그 관리로 추가",
     cancel: "취소",
     saving: "저장 중...",
@@ -103,6 +109,8 @@ const STR: LangDict<{
     ungrouped: "(Sin grupo)",
     proxyJump: "Host de salto (ProxyJump)",
     proxyDirect: "(Directo — sin salto)",
+    tmuxSession: "Auto-adjuntar tmux",
+    tmuxSessionPh: "Nombre de sesión (vacío = desactivado) — ejecuta tmux new -A -s <nombre> al conectar",
     noTags: "No hay etiquetas registradas — agrégalas con el Gestor de grupos/etiquetas en la barra lateral",
     cancel: "Cancelar",
     saving: "Guardando...",
@@ -127,6 +135,8 @@ const STR: LangDict<{
     ungrouped: "(未分组)",
     proxyJump: "跳板主机 (ProxyJump)",
     proxyDirect: "(直连 — 无跳板)",
+    tmuxSession: "tmux 自动附加",
+    tmuxSessionPh: "会话名（留空=关闭）— 连接时执行 tmux new -A -s <名称>",
     noTags: "没有已注册的标签 — 通过侧边栏的分组/标签管理器添加",
     cancel: "取消",
     saving: "保存中...",
@@ -151,6 +161,8 @@ const STR: LangDict<{
     ungrouped: "(未分類)",
     proxyJump: "踏み台ホスト (ProxyJump)",
     proxyDirect: "(直接 — 踏み台なし)",
+    tmuxSession: "tmux 自動アタッチ",
+    tmuxSessionPh: "セッション名（空=オフ）— 接続時に tmux new -A -s <名前> を実行",
     noTags: "登録済みのタグなし — サイドバーのグループ/タグ管理から追加",
     cancel: "キャンセル",
     saving: "保存中...",
@@ -175,6 +187,8 @@ const STR: LangDict<{
     ungrouped: "(Без группы)",
     proxyJump: "Прыжковый хост (ProxyJump)",
     proxyDirect: "(Прямое — без прыжка)",
+    tmuxSession: "Автоподключение tmux",
+    tmuxSessionPh: "Имя сессии (пусто = выкл) — при подключении выполняется tmux new -A -s <имя>",
     noTags: "Нет зарегистрированных тегов — добавьте их в Менеджере групп/тегов на боковой панели",
     cancel: "Отмена",
     saving: "Сохранение...",
@@ -199,6 +213,8 @@ const STR: LangDict<{
     ungrouped: "(Sans groupe)",
     proxyJump: "Hôte de rebond (ProxyJump)",
     proxyDirect: "(Direct — sans rebond)",
+    tmuxSession: "Attachement auto tmux",
+    tmuxSessionPh: "Nom de session (vide = désactivé) — exécute tmux new -A -s <nom> à la connexion",
     noTags: "Aucune étiquette enregistrée — ajoutez-les via le Gestionnaire de groupes/étiquettes dans la barre latérale",
     cancel: "Annuler",
     saving: "Enregistrement...",
@@ -223,6 +239,8 @@ const STR: LangDict<{
     ungrouped: "(Ohne Gruppe)",
     proxyJump: "Sprung-Host (ProxyJump)",
     proxyDirect: "(Direkt — kein Sprung)",
+    tmuxSession: "tmux Auto-Attach",
+    tmuxSessionPh: "Sitzungsname (leer = aus) — führt beim Verbinden tmux new -A -s <Name> aus",
     noTags: "Keine Tags registriert — füge sie über die Gruppen-/Tag-Verwaltung in der Seitenleiste hinzu",
     cancel: "Abbrechen",
     saving: "Wird gespeichert...",
@@ -247,6 +265,8 @@ const STR: LangDict<{
     ungrouped: "(Chưa phân nhóm)",
     proxyJump: "Máy chủ nhảy (ProxyJump)",
     proxyDirect: "(Trực tiếp — không nhảy)",
+    tmuxSession: "Tự động gắn tmux",
+    tmuxSessionPh: "Tên phiên (trống = tắt) — chạy tmux new -A -s <tên> khi kết nối",
     noTags: "Không có thẻ nào được đăng ký — thêm chúng qua Trình quản lý nhóm/thẻ ở thanh bên",
     cancel: "Hủy",
     saving: "Đang lưu...",
@@ -271,6 +291,8 @@ const STR: LangDict<{
     ungrouped: "(Tanpa grup)",
     proxyJump: "Host lompat (ProxyJump)",
     proxyDirect: "(Langsung — tanpa lompat)",
+    tmuxSession: "Lampir otomatis tmux",
+    tmuxSessionPh: "Nama sesi (kosong = mati) — menjalankan tmux new -A -s <nama> saat terhubung",
     noTags: "Tidak ada tag terdaftar — tambahkan melalui Pengelola grup/tag di bilah sisi",
     cancel: "Batal",
     saving: "Menyimpan...",
@@ -295,6 +317,8 @@ const STR: LangDict<{
     ungrouped: "(समूह रहित)",
     proxyJump: "जंप होस्ट (ProxyJump)",
     proxyDirect: "(सीधा — कोई जंप नहीं)",
+    tmuxSession: "tmux ऑटो-अटैच",
+    tmuxSessionPh: "सत्र नाम (खाली = बंद) — कनेक्ट पर tmux new -A -s <नाम> चलता है",
     noTags: "कोई टैग पंजीकृत नहीं — साइडबार में समूह/टैग प्रबंधक के माध्यम से जोड़ें",
     cancel: "रद्द करें",
     saving: "सहेजा जा रहा है...",
@@ -328,6 +352,8 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
   const [proxyJump, setProxyJump] = useState<string | null>(
     initial?.proxy_jump ?? null,
   );
+  // tmux 자동 attach 세션 이름 (#89). 빈 문자열 = 끔.
+  const [tmuxSession, setTmuxSession] = useState(initial?.tmux_session ?? "");
   const [hostTags, setHostTags] = useState<string[]>(initial?.tags ?? []);
   const [groups, setGroups] = useState<Group[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -404,6 +430,7 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
       tags: hostTags,
       group_id: groupId,
       proxy_jump: proxyJump,
+      tmux_session: tmuxSession.trim() ? tmuxSession.trim() : null,
     };
 
     try {
@@ -583,6 +610,18 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
                 </option>
               ))}
           </select>
+        </Field>
+
+        <Field label={t.tmuxSession}>
+          <input
+            value={tmuxSession}
+            onChange={(e) =>
+              // tmux 세션 이름으로 안전한 문자만 허용(인용/체이닝 방지 — 셸로 전송되므로).
+              setTmuxSession(e.target.value.replace(/[^A-Za-z0-9_@-]/g, ""))
+            }
+            placeholder={t.tmuxSessionPh}
+            style={inputStyle}
+          />
         </Field>
 
         <Field label="Tags">

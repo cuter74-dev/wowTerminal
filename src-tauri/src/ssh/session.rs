@@ -21,7 +21,7 @@ use crate::pty::manager::DataSink;
 
 use super::known_hosts::{KnownHostsStore, MatchResult};
 use super::manager::SshError;
-use super::types::SshAuthMethod;
+use super::types::{SshAuthMethod, TmuxSessionInfo};
 
 pub type SessionId = String;
 
@@ -444,9 +444,35 @@ impl SshSession {
     /// 별도 exec 채널에서 `REMOTE_CWD_SCRIPT`를 실행해 stdout의 cwd 한 줄을 읽는다.
     /// 실패/타임아웃/비-Linux 원격이면 None → 호출자가 원격 홈으로 폴백한다.
     pub async fn remote_cwd(&self) -> Option<String> {
+        let text = self.exec_capture(REMOTE_CWD_SCRIPT).await?;
+        text.lines()
+            .map(|l| l.trim())
+            .find(|l| l.starts_with('/'))
+            .map(|l| l.to_string())
+    }
+
+    /// 원격 tmux 세션 목록 (#89). 별도 exec 채널에서 `tmux list-sessions`를 실행해 파싱.
+    /// tmux 미설치/서버 없음(목록 없음)/타임아웃이면 None.
+    pub async fn tmux_sessions(&self) -> Option<Vec<TmuxSessionInfo>> {
+        let out = self
+            .exec_capture(
+                "tmux list-sessions -F '#{session_name}\t#{session_windows}\t#{session_attached}' 2>/dev/null",
+            )
+            .await?;
+        let list = TmuxSessionInfo::parse_lines(&out);
+        if list.is_empty() {
+            None
+        } else {
+            Some(list)
+        }
+    }
+
+    /// 별도 exec 채널에서 명령을 실행하고 stdout 전체를 돌려준다(2초 상한).
+    /// 대화형 셸 화면에 흔적을 남기지 않는다 — remote_cwd/tmux 목록 조회 공용.
+    async fn exec_capture(&self, cmd: &str) -> Option<String> {
         let fut = async {
             let mut ch = self.handle.channel_open_session().await.ok()?;
-            ch.exec(true, REMOTE_CWD_SCRIPT.as_bytes()).await.ok()?;
+            ch.exec(true, cmd.as_bytes()).await.ok()?;
             let mut out: Vec<u8> = Vec::new();
             while let Some(msg) = ch.wait().await {
                 match msg {
@@ -455,13 +481,9 @@ impl SshSession {
                     _ => {}
                 }
             }
-            let text = String::from_utf8_lossy(&out);
-            text.lines()
-                .map(|l| l.trim())
-                .find(|l| l.starts_with('/'))
-                .map(|l| l.to_string())
+            Some(String::from_utf8_lossy(&out).to_string())
         };
-        // 원격이 응답 안 하거나 /proc가 막혀도 드래그가 멈추지 않도록 2초 상한.
+        // 원격이 응답 안 해도 호출 UI가 멈추지 않도록 2초 상한.
         tokio::time::timeout(std::time::Duration::from_secs(2), fut)
             .await
             .ok()

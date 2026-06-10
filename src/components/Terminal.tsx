@@ -15,7 +15,7 @@ import {
   unregisterTerminal,
   broadcastInput,
 } from "../terminalRegistry";
-import { emitCommandDone } from "../commandBus";
+import { emitCommandDone, emitTitleChange } from "../commandBus";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
@@ -732,6 +732,11 @@ export function Terminal({
       void invoke(cmds.resizeCmd, { sessionId, cols, rows });
     });
 
+    // 셸/tmux가 설정한 터미널 제목(OSC 0/2)을 App에 알려 탭 라벨에 반영한다 (#89).
+    const onTitleDisposable = term.onTitleChange((title) => {
+      emitTitleChange({ paneId: paneId ?? "", title });
+    });
+
     // 숨김(배경) 탭은 컨테이너가 0 크기가 된다. 이때 fit()하면 cols/rows가 최소값으로
     // 줄고, 그 작은 크기가 PTY/원격으로 전달된다. 여러 탭이 같은 tmux 세션에 attach돼
     // 있으면 tmux가 가장 작은 클라이언트에 맞춰 폭을 1~2칸으로 줄여 화면이 깨진다.
@@ -930,6 +935,7 @@ export function Terminal({
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
+      onTitleDisposable.dispose();
       if (unlistenOutput) unlistenOutput();
       // kill은 항상 보내되, 인계된 세션은 백엔드 detach_guard가 첫 kill을 무시한다.
       if (sessionId) {
