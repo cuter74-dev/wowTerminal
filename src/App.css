@@ -9,11 +9,13 @@ body,
   overflow: hidden;
 }
 
-/* 한글/CJK IME 이중 표시 수정 (#75).
-   WKWebView에서 조합(composition) 이벤트가 발생하면 xterm이 .composition-view 오버레이로
-   조합 중 글자를 한 번 더 그린다. 우리는 textarea 미러로 조합 텍스트를 이미 PTY에 보내
-   셸/TUI가 직접 표시하므로, 이 오버레이가 겹쳐 "차차"처럼 이중으로 보였다. 오버레이를 숨긴다. */
-.xterm .composition-view,
-.xterm .composition-view.active {
+/* 한글/CJK IME 이중 표시 수정 (#75) — macOS 한정.
+   macOS의 커스텀 IME 미러는 조합 텍스트를 즉시 PTY로 보내 셸이 직접 표시하므로, xterm의
+   .composition-view 오버레이가 겹치면 "차차"처럼 이중으로 보인다. 미러가 도는 macOS에서만
+   숨긴다(plat-mac 클래스는 main.tsx에서 부여). Windows/Linux는 xterm 네이티브 IME가
+   처리하며 조합 중 글자가 이 오버레이에만 표시되므로 숨기면 안 된다(#88 — 숨겨져 있으면
+   한글 조합이 화면에 전혀 안 보인다). */
+body.plat-mac .xterm .composition-view,
+body.plat-mac .xterm .composition-view.active {
   display: none !important;
 }

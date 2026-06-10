@@ -7,6 +7,12 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.13] — 2026-06-10
+
+### Fixed
+- Windows/Linux: Korean composition was invisible while typing — the #75 CSS that hides xterm's `.composition-view` overlay (needed to avoid double display with the macOS mirror) applied on all platforms, but with the native IME path (v0.13.11) the in-progress syllable is shown *only* in that overlay, so hiding it left nothing on screen while composing. The hide is now scoped to macOS (`plat-mac` body class); Windows/Linux show the composition preview at the cursor (#88)
+- Windows/Linux: standalone Korean jamo (ㄱ, ㅏ, …) committed by the native IME were silently dropped — the onData filter that discards stray compatibility jamo (a macOS-mirror leakage guard) now applies only on macOS (#88)
+
 ## [0.13.12] — 2026-06-10
 
 ### Fixed
@@ -224,7 +230,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.12...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.13...HEAD
+[0.13.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.12...v0.13.13
 [0.13.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.11...v0.13.12
 [0.13.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.10...v0.13.11
 [0.13.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.9...v0.13.10

@@ -523,10 +523,10 @@ export function Terminal({
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
       // 한글 입력은 아래 textarea input 미러만 PTY로 보낸다.
       if (imeActive) return;
-      // 단독 호환 자모(U+3130–U+318F: ㄱ, ㅏ 등)는 정상 입력으로 나올 수 없다.
-      // imeActive 설정 직전 타이밍 틈에 xterm이 흘리는 조합 누수이므로 버린다.
-      // (완성 음절 가-힣은 위 input 미러가 보내므로 여기로 오지 않는다.)
-      if (data.length === 1) {
+      // (macOS 미러 한정) 단독 호환 자모(U+3130–U+318F: ㄱ, ㅏ 등)는 imeActive 설정 직전
+      // 타이밍 틈에 xterm이 흘리는 조합 누수이므로 버린다. Windows/Linux는 xterm 네이티브
+      // IME가 처리하므로 단독 자모도 정상 커밋일 수 있다 — 버리면 안 된다.
+      if (isMacWebView && data.length === 1) {
         const cp = data.charCodeAt(0);
         if (cp >= 0x3130 && cp <= 0x318f) return;
       }
