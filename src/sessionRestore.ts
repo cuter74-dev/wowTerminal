@@ -77,7 +77,10 @@ export interface RestoredSession {
 function restorePane(saved: SavedPane, initTmux: Record<string, string>): Pane {
   if (saved.k === "l") {
     const id = newId();
-    if (saved.tmux) initTmux[id] = saved.tmux;
+    // 같은 tmux 세션이 여러 leaf에 저장돼 있으면 첫 leaf만 자동 attach한다 —
+    // 복원 attach는 -d(다른 클라이언트 분리)라 둘 다 attach하면 서로 쫓아낸다.
+    const dup = saved.tmux && Object.values(initTmux).includes(saved.tmux);
+    if (saved.tmux && !dup) initTmux[id] = saved.tmux;
     const source: TerminalSource =
       saved.src.kind === "ssh"
         ? { kind: "ssh", hostId: saved.src.hostId }

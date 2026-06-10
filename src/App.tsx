@@ -795,6 +795,21 @@ function App() {
     [labelForSource],
   );
 
+  // 복원된 leaf의 tmux 재attach (#90). 반드시 leaf가 **보이고 크기가 잡힌 뒤** 호출해야
+  // 한다 — 숨김(0크기) 상태로 attach하면 tmux가 기본 80x24로 그려 TUI가 줄바꿈된 채 열린다.
+  const flushPendingTmux = useCallback(
+    (leafId: string) => {
+      const pending = initTmuxByLeaf.current[leafId];
+      if (!pending || !sessionByLeaf.current[leafId]) return;
+      delete initTmuxByLeaf.current[leafId];
+      // 복원 attach만 -d(죽은 옛 클라이언트 분리) — 형제 탭은 안 쫓아낸다.
+      getTerminal(leafId)?.sendInput(tmuxAttachInput(pending, true));
+      tmuxByLeaf.current[leafId] = pending;
+      labelTabForLeaf(leafId, pending);
+    },
+    [labelTabForLeaf],
+  );
+
   // 세션 복원 스냅샷 저장 (#90): 탭 구조가 바뀔 때 + 15초 주기(cwd/tmux 변화 반영).
   useEffect(() => {
     if (IS_DETACHED_WINDOW) return;
@@ -990,8 +1005,16 @@ function App() {
       ids.forEach((id) => getTerminal(id)?.fit());
       getTerminal(focusId)?.focus();
     });
-    return () => cancelAnimationFrame(raf);
-  }, [activeTabId, activeTab]);
+    // 복원 tmux attach (#90): 숨김 상태로 spawn된 leaf는 탭이 보이고 fit/resize가
+    // PTY에 전달된 뒤 attach해야 tmux가 실제 크기로 그린다. fit 직후 잠깐 띄워 전송.
+    const tmr = setTimeout(() => {
+      ids.forEach((id) => flushPendingTmux(id));
+    }, 200);
+    return () => {
+      cancelAnimationFrame(raf);
+      clearTimeout(tmr);
+    };
+  }, [activeTabId, activeTab, flushPendingTmux]);
   const focusedLeaf = useMemo(() => {
     if (!activeTab) return null;
     const leaf = findLeaf(activeTab.root, activeTab.focusedPaneId);
@@ -1870,16 +1893,13 @@ function App() {
                 termSettings={settings.terminal}
                 onSession={(leafId, sid) => {
                   sessionByLeaf.current[leafId] = sid;
-                  // 세션 복원 (#90): 이 leaf가 이전 실행에서 tmux에 붙어 있었다면 재attach.
-                  // (입력은 PTY/sshd가 버퍼링하므로 셸 준비 전에 보내도 안전.)
-                  const pending = initTmuxByLeaf.current[leafId];
-                  if (pending) {
-                    delete initTmuxByLeaf.current[leafId];
-                    // 복원 attach만 -d(죽은 옛 클라이언트 분리) — 형제 탭은 안 쫓아낸다.
-                    getTerminal(leafId)?.sendInput(tmuxAttachInput(pending, true));
-                    tmuxByLeaf.current[leafId] = pending;
-                    labelTabForLeaf(leafId, pending);
-                  }
+                  // 세션 복원 (#90): 활성 탭의 leaf만 즉시 재attach — 숨김 탭은 0크기라
+                  // xterm이 기본 80x24이고, 그 크기로 attach하면 TUI가 좁게 그려진다.
+                  // 숨김 탭의 attach는 탭 활성화(fit 후) 시점에 flushPendingTmux로 처리.
+                  const at = tabsRef.current.find(
+                    (t) => t.id === activeTabIdRef.current,
+                  );
+                  if (at && findLeaf(at.root, leafId)) flushPendingTmux(leafId);
                 }}
                 attachSessionByLeaf={attachSessionByLeaf}
                 attachScreenByLeaf={attachScreenByLeaf}
