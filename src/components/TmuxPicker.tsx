@@ -66,7 +66,14 @@ export function TmuxPicker({ source, sshSessionId, onPick, onClose }: Props) {
     undefined, // undefined = 로딩 중, null = 없음/미설치
   );
   const [newName, setNewName] = useState("");
+  // 키보드 내비게이션: ↑/↓로 목록 선택, Enter로 attach (새 이름이 비어 있을 때).
+  const [sel, setSel] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  // 입력칸에 바로 포커스 — 화살표/Enter가 여기로 들어와 키보드만으로 조작 가능.
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -80,7 +87,10 @@ export function TmuxPicker({ source, sshSessionId, onPick, onClose }: Props) {
                 })
               : null
             : await invoke<TmuxSessionInfo[] | null>("local_tmux_sessions");
-        if (alive) setSessions(list ?? null);
+        if (alive) {
+          setSessions(list ?? null);
+          setSel(0);
+        }
       } catch {
         if (alive) setSessions(null);
       }
@@ -146,10 +156,14 @@ export function TmuxPicker({ source, sshSessionId, onPick, onClose }: Props) {
             <div style={{ padding: 14, fontSize: 12, color: "#789" }}>{t.none}</div>
           )}
           {Array.isArray(sessions) &&
-            sessions.map((s) => (
+            sessions.map((s, i) => (
               <div
                 key={s.name}
+                ref={(el) => {
+                  if (i === sel && el) el.scrollIntoView({ block: "nearest" });
+                }}
                 onClick={() => onPick(attachInput(s.name), sanitize(s.name))}
+                onMouseEnter={() => setSel(i)}
                 style={{
                   display: "flex",
                   alignItems: "center",
@@ -157,11 +171,10 @@ export function TmuxPicker({ source, sshSessionId, onPick, onClose }: Props) {
                   padding: "8px 14px",
                   cursor: "pointer",
                   fontSize: 13,
-                  color: "#e6e6e6",
+                  color: i === sel ? "#fff" : "#e6e6e6",
+                  background: i === sel ? "#094771" : "transparent",
                   fontFamily: "monospace",
                 }}
-                onMouseEnter={(e) => ((e.currentTarget as HTMLDivElement).style.background = "#23232c")}
-                onMouseLeave={(e) => ((e.currentTarget as HTMLDivElement).style.background = "transparent")}
               >
                 <span style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis" }}>
                   {s.name}
@@ -197,7 +210,21 @@ export function TmuxPicker({ source, sshSessionId, onPick, onClose }: Props) {
             value={newName}
             onChange={(e) => setNewName(sanitize(e.target.value))}
             onKeyDown={(e) => {
-              if (e.key === "Enter" && newName.trim()) onPick(createInput(newName), sanitize(newName));
+              const n = Array.isArray(sessions) ? sessions.length : 0;
+              if (e.key === "ArrowDown" && n > 0) {
+                e.preventDefault();
+                setSel((v) => Math.min(v + 1, n - 1));
+              } else if (e.key === "ArrowUp" && n > 0) {
+                e.preventDefault();
+                setSel((v) => Math.max(v - 1, 0));
+              } else if (e.key === "Enter") {
+                if (newName.trim()) {
+                  onPick(createInput(newName), sanitize(newName));
+                } else if (Array.isArray(sessions) && sessions[sel]) {
+                  // 새 이름이 비어 있으면 Enter = 선택된 세션 attach.
+                  onPick(attachInput(sessions[sel].name), sanitize(sessions[sel].name));
+                }
+              }
             }}
             placeholder={t.newPlaceholder}
             style={{

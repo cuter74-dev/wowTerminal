@@ -815,7 +815,13 @@ function App() {
       prev.map((t) => {
         if (t.root.kind !== "leaf") return t;
         if (t.root.source.kind !== "ssh") return t;
-        return { ...t, label: labelForHost(t.root.source.hostId) };
+        const base = labelForHost(t.root.source.hostId);
+        // tmux에 붙은(또는 복원 attach 예약된) 탭은 "세션 · 호스트" 라벨을 유지한다 —
+        // 시작 직후 hosts가 도착하면서 복원된 라벨을 호스트 이름으로 덮어쓰던 문제(#90).
+        const tmux =
+          tmuxByLeaf.current[t.root.id] ?? initTmuxByLeaf.current[t.root.id];
+        const label = tmux ? `${tmux} · ${base}`.slice(0, 32) : base;
+        return t.label === label ? t : { ...t, label };
       }),
     );
   }, [labelForHost]);
