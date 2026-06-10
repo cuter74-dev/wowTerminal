@@ -1,7 +1,7 @@
 {
   "name": "wowterminal",
   "private": true,
-  "version": "0.13.11",
+  "version": "0.13.12",
   "license": "MIT",
   "type": "module",
   "scripts": {

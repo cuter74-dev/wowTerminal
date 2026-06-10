@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.12] — 2026-06-10
+
+### Fixed
+- Newest-macOS prompt showing duplicated/ghost characters while typing (e.g. `df -h` → `ddf -hdff f -h`, command still executes correctly) — the real root cause, finally pinned by the v0.13.5 GlitchTip trace from the affected machine: macOS inline predictive text ("writing suggestions") routes even English keystrokes through IME processing (keyCode 229, **no** composition events), engaging the custom IME mirror; predictive text then rewrites the hidden textarea, so the mirror's diff sends a backspace+resend storm (15 chars + 10 backspaces for 5 keystrokes) whose interleaving with oh-my-zsh's per-keystroke line redraw leaves real stray characters in the buffer (which is why the v0.13.6 WebGL renderer change didn't help — net input was correct, so commands ran fine). Fixed by disabling inline predictive text on xterm's input textarea via the WebKit `writingsuggestions="false"` attribute (xterm only disables autocorrect/autocapitalize/spellcheck); English now takes the plain input path and the mirror only ever sees real IME composition (#83)
+
 ## [0.13.11] — 2026-06-09
 
 ### Fixed
@@ -219,7 +224,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.11...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.12...HEAD
+[0.13.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.11...v0.13.12
 [0.13.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.10...v0.13.11
 [0.13.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.9...v0.13.10
 [0.13.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.8...v0.13.9

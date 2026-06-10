@@ -380,10 +380,16 @@ export function Terminal({
       }),
     );
     term.open(containerRef.current);
-    // WebGL 렌더러로 전환한다. xterm 기본 DOM 렌더러는 최신 macOS WKWebView에서 zsh
-    // 라인 재그리기(oh-my-zsh의 syntax-highlighting 등)의 옛 글자를 제대로 지우지 못해
-    // 프롬프트가 겹쳐 보이는 잔상이 생긴다(#83). WebGL은 뷰포트를 통째로 리페인트해 잔상이
-    // 없다. 컨텍스트 손실/실패 시 dispose하면 xterm이 자동으로 DOM 렌더러로 폴백한다.
+    // 최신 macOS WKWebView의 인라인 예측 텍스트(작성 제안)를 끈다. 켜져 있으면 **영어 입력도**
+    // IME 처리(keyCode 229, composition 이벤트는 없음)로 흘러 커스텀 미러가 개입하고, 예측
+    // 텍스트가 textarea 값을 고쳐 쓰면서 미러 diff가 백스페이스+재전송 폭풍이 된다(M5에서
+    // `df -h` 5타에 15글자+백스페이스 10개 전송 — GlitchTip 트레이스). 그 churn이 oh-my-zsh
+    // 라인 재그리기와 얽혀 프롬프트에 실제 잔상 글자를 남긴다(#83 — net은 맞아 명령은 정상
+    // 실행). xterm은 autocorrect/autocapitalize/spellcheck만 끄고 이 속성은 모른다.
+    term.textarea?.setAttribute("writingsuggestions", "false");
+    // WebGL 렌더러(GPU 가속). 컨텍스트 손실/실패 시 dispose하면 xterm이 자동으로 DOM
+    // 렌더러로 폴백한다. (#83 잔상 수정 시도로 도입했으나 원인은 렌더러가 아니라 위
+    // writingsuggestions였다 — 성능 이점이 있어 유지.)
     try {
       const webgl = new WebglAddon();
       webgl.onContextLoss(() => webgl.dispose());
