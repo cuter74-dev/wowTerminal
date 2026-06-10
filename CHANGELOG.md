@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.1] — 2026-06-10
+
+### Fixed
+- Windows/Linux: app shortcuts (Ctrl+K palette, Ctrl+Tab, Ctrl+number, …) not working while the terminal had focus — xterm consumes Ctrl combos with stopPropagation, so the app's bubble-phase listener never saw them. The shortcut listener now runs in the capture phase on Windows/Linux (macOS unchanged) and stops propagation for keys it consumes, so e.g. Ctrl+K opens the palette instead of typing into the prompt (#92)
+
 ## [0.14.0] — 2026-06-10
 
 ### Added
@@ -245,7 +250,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.1...HEAD
+[0.14.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.14...v0.14.0
 [0.13.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.13...v0.13.14
 [0.13.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.12...v0.13.13

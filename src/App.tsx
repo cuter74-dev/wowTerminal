@@ -77,6 +77,7 @@ const CURRENT_WINDOW_LABEL = (() => {
   }
 })();
 const IS_DETACHED_WINDOW = CURRENT_WINDOW_LABEL.startsWith("detached-");
+const IS_MAC = navigator.userAgent.includes("Mac");
 
 // 세션 복원 (#90): 메인 창은 이전 실행의 탭 레이아웃을 모듈 로드 시 1회 읽는다.
 // (detached 창은 백엔드 registry 인계 흐름을 그대로 쓴다.)
@@ -1568,6 +1569,12 @@ function App() {
   // 키보드 단축키
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
+      onKeyImpl(e);
+      // 캡처 단계(non-macOS)에서 우리가 처리한(preventDefault한) 키는 전파를 끊어
+      // xterm이 같은 키를 제어문자로 PTY에 보내는 이중 처리를 막는다.
+      if (e.defaultPrevented) e.stopPropagation();
+    }
+    function onKeyImpl(e: KeyboardEvent) {
       // ⌘K / Ctrl-K: 명령 팔레트 (편집 중이어도 동작).
       if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K")) {
         e.preventDefault();
@@ -1653,8 +1660,11 @@ function App() {
         }
       }
     }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // macOS: 버블 단계(기존 동작 유지 — ⌘ 조합은 xterm이 안 삼킨다).
+    // Windows/Linux: xterm이 Ctrl 조합(Ctrl+K 등)을 stopPropagation으로 삼키므로,
+    // 캡처 단계로 등록해 터미널에 포커스가 있어도 앱 단축키가 먼저 동작하게 한다.
+    window.addEventListener("keydown", onKey, !IS_MAC);
+    return () => window.removeEventListener("keydown", onKey, !IS_MAC);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tabs, activeTabId, editingTabId, activeTab, focusedLeaf, settings.keybindings]);
 
