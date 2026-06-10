@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-06-10
+
 ### Added
 - tmux auto-attach on SSH connect — a per-host "tmux auto-attach" field (session name); when set, connecting runs `tmux new-session -A -s <name>` so the connection always lands in a persistent tmux session (#89)
 - tmux session picker — ⌘K → "tmux sessions" lists the tmux sessions of the focused terminal's machine (local or SSH, fetched without touching the visible shell) with window count and attached badge; click to attach/switch (works both inside and outside tmux), or create a new session from the same dialog (#89)
@@ -243,7 +245,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.14...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.0...HEAD
+[0.14.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.14...v0.14.0
 [0.13.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.13...v0.13.14
 [0.13.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.12...v0.13.13
 [0.13.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.11...v0.13.12
