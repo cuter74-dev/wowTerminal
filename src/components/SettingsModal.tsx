@@ -55,6 +55,7 @@ const STR: LangDict<{
     altScreenWheelScroll: string;
     logging: string;
     logDir: string;
+    startDir: string;
     chooseDir: string;
     applyNote: string;
     readonlyNote: string;
@@ -104,6 +105,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "Wheel scroll in alt-screen (less/vim)",
     logging: "Session logging (save output to file)",
     logDir: "Log folder (blank = ~/wowterminal-logs)",
+    startDir: "New terminal start folder (blank = home)",
     chooseDir: "Choose…",
     applyNote: "Applied to all terminals immediately.",
     readonlyNote: "v1 is read-only. Custom key bindings later.",
@@ -155,6 +157,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "대체 화면 휠 스크롤 (less/vim)",
     logging: "세션 로깅 (출력을 파일로 저장)",
     logDir: "로그 폴더 (비우면 ~/wowterminal-logs)",
+    startDir: "새 터미널 시작 폴더 (비우면 홈)",
     chooseDir: "선택…",
     applyNote: "변경 즉시 모든 터미널에 적용됩니다.",
     readonlyNote: "v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.",
@@ -206,6 +209,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "Rueda en pantalla alternativa (less/vim)",
     logging: "Registro de sesión (guardar salida en archivo)",
     logDir: "Carpeta de registros (vacío = ~/wowterminal-logs)",
+    startDir: "Carpeta inicial de nuevos terminales (vacío = inicio)",
     chooseDir: "Elegir…",
     applyNote: "Aplicado a todas las terminales de inmediato.",
     readonlyNote: "v1 es de solo lectura. Atajos personalizados más adelante.",
@@ -257,6 +261,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "备用屏幕滚轮滚动 (less/vim)",
     logging: "会话日志（输出保存到文件）",
     logDir: "日志文件夹（留空 = ~/wowterminal-logs）",
+    startDir: "新终端起始文件夹（留空 = 主目录）",
     chooseDir: "选择…",
     applyNote: "立即应用到所有终端。",
     readonlyNote: "v1 为只读。自定义按键绑定稍后推出。",
@@ -308,6 +313,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "代替画面でホイールスクロール (less/vim)",
     logging: "セッションログ（出力をファイルに保存）",
     logDir: "ログフォルダ（空欄 = ~/wowterminal-logs）",
+    startDir: "新しいターミナルの開始フォルダ（空欄 = ホーム）",
     chooseDir: "選択…",
     applyNote: "すべてのターミナルに即座に適用されます。",
     readonlyNote: "v1 は読み取り専用です。カスタムキーバインドは後日。",
@@ -359,6 +365,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "Колесо в alt-экране (less/vim)",
     logging: "Логирование сессии (вывод в файл)",
     logDir: "Папка логов (пусто = ~/wowterminal-logs)",
+    startDir: "Начальная папка новых терминалов (пусто = домашняя)",
     chooseDir: "Выбрать…",
     applyNote: "Применяется ко всем терминалам мгновенно.",
     readonlyNote: "v1 только для чтения. Пользовательские сочетания клавиш позже.",
@@ -410,6 +417,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "Molette en écran alternatif (less/vim)",
     logging: "Journalisation de session (sortie vers fichier)",
     logDir: "Dossier des journaux (vide = ~/wowterminal-logs)",
+    startDir: "Dossier de départ des nouveaux terminaux (vide = accueil)",
     chooseDir: "Choisir…",
     applyNote: "Appliqué immédiatement à tous les terminaux.",
     readonlyNote: "v1 est en lecture seule. Raccourcis personnalisés plus tard.",
@@ -461,6 +469,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "Mausrad im Alt-Bildschirm (less/vim)",
     logging: "Sitzungsprotokoll (Ausgabe in Datei)",
     logDir: "Log-Ordner (leer = ~/wowterminal-logs)",
+    startDir: "Startordner neuer Terminals (leer = Home)",
     chooseDir: "Wählen…",
     applyNote: "Wird sofort auf alle Terminals angewendet.",
     readonlyNote: "v1 ist schreibgeschützt. Benutzerdefinierte Tastenbelegungen später.",
@@ -512,6 +521,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "Cuộn chuột ở màn hình thay thế (less/vim)",
     logging: "Ghi log phiên (lưu đầu ra ra tệp)",
     logDir: "Thư mục log (trống = ~/wowterminal-logs)",
+    startDir: "Thư mục bắt đầu của terminal mới (trống = home)",
     chooseDir: "Chọn…",
     applyNote: "Áp dụng ngay cho tất cả các terminal.",
     readonlyNote: "v1 chỉ đọc. Tùy chỉnh phím tắt sẽ có sau.",
@@ -563,6 +573,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "Gulir roda di layar alternatif (less/vim)",
     logging: "Log sesi (simpan output ke berkas)",
     logDir: "Folder log (kosong = ~/wowterminal-logs)",
+    startDir: "Folder awal terminal baru (kosong = home)",
     chooseDir: "Pilih…",
     applyNote: "Diterapkan ke semua terminal segera.",
     readonlyNote: "v1 hanya-baca. Pengikatan tombol khusus nanti.",
@@ -614,6 +625,7 @@ const STR: LangDict<{
     altScreenWheelScroll: "ऑल्ट-स्क्रीन में व्हील स्क्रॉल (less/vim)",
     logging: "सत्र लॉगिंग (आउटपुट फ़ाइल में सहेजें)",
     logDir: "लॉग फ़ोल्डर (खाली = ~/wowterminal-logs)",
+    startDir: "नए टर्मिनल का प्रारंभ फ़ोल्डर (खाली = होम)",
     chooseDir: "चुनें…",
     applyNote: "सभी टर्मिनलों पर तुरंत लागू।",
     readonlyNote: "v1 केवल-पढ़ने के लिए है। कस्टम की बाइंडिंग बाद में।",
@@ -655,6 +667,33 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
     { id: "snippets", label: t.tabSnippets },
     { id: "backup", label: t.tabBackup },
   ];
+
+  // 키보드 조작 (#91): Esc = 닫기, ←/→ = 설정 탭 전환(텍스트 입력에 포커스가 없을 때).
+  // 단축키 녹화 중에는 그쪽 캡처 핸들러가 stopPropagation하므로 여기 도달하지 않는다.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+        return;
+      }
+      const el = document.activeElement;
+      const typing =
+        el instanceof HTMLElement &&
+        (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
+      if (typing) return;
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        setTab((cur) => {
+          const idx = TABS.findIndex((tb) => tb.id === cur);
+          const n = TABS.length;
+          return TABS[(idx + (e.key === "ArrowRight" ? 1 : -1) + n) % n].id;
+        });
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClose]);
 
   function patchTerminal(p: Partial<AppSettings["terminal"]>) {
     onChange({ ...settings, terminal: { ...settings.terminal, ...p } });
@@ -856,6 +895,34 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   }
                   style={inputStyle}
                 />
+              </Row>
+              <Row label={t.startDir}>
+                <div style={{ display: "flex", gap: 6, flex: 1 }}>
+                  <input
+                    type="text"
+                    value={settings.terminal.startDir}
+                    placeholder="~"
+                    onChange={(e) => patchTerminal({ startDir: e.target.value })}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button
+                    onClick={async () => {
+                      const dir = await open({ directory: true, multiple: false });
+                      if (typeof dir === "string") patchTerminal({ startDir: dir });
+                    }}
+                    style={{
+                      background: "#2a2a2e",
+                      border: "1px solid #444",
+                      color: "#ddd",
+                      borderRadius: 4,
+                      padding: "0 10px",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    …
+                  </button>
+                </div>
               </Row>
               <Row label={t.altScreenWheelScroll}>
                 <input

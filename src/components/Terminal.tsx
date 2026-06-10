@@ -232,7 +232,11 @@ type Commands = {
 //   __wt7(){ printf '\033]7;file://%s\007' "$PWD"; }
 //   if [ -n "$ZSH_VERSION" ]; then precmd_functions+=(__wt7); else PROMPT_COMMAND="__wt7;$PROMPT_COMMAND"; fi
 
-function commandsFor(source: TerminalSource, password?: string): Commands {
+function commandsFor(
+  source: TerminalSource,
+  password?: string,
+  defaultCwd?: string,
+): Commands {
   if (source.kind === "local") {
     return {
       spawnCmd: "pty_spawn",
@@ -240,8 +244,9 @@ function commandsFor(source: TerminalSource, password?: string): Commands {
       resizeCmd: "pty_resize",
       killCmd: "pty_kill",
       outputEvent: "pty:output",
+      // 세션 복원(#90)의 저장 cwd가 우선, 없으면 설정의 기본 시작 폴더(#91), 없으면 홈.
       spawnArgs: (cols, rows) => ({
-        args: { cols, rows, cwd: source.cwd ?? null },
+        args: { cols, rows, cwd: source.cwd ?? (defaultCwd || null) },
       }),
     };
   }
@@ -407,7 +412,7 @@ export function Terminal({
       fit.fit();
     }
 
-    const cmds = commandsFor(source, password);
+    const cmds = commandsFor(source, password, initialSettings.current.startDir);
     let sessionId: string | null = null;
     let unlistenOutput: UnlistenFn | null = null;
     // OSC 7로 추적하는 셸 현재 작업 디렉토리 (파일 브라우저 시작 위치용).

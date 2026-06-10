@@ -161,10 +161,19 @@ impl PtyManager {
             setup_bash_integration(&mut cmd);
         }
 
-        // 세션 복원(#90): 이전 작업 디렉터리에서 시작. 디렉터리가 사라졌으면 무시(홈에서 시작).
+        // 세션 복원(#90)/기본 시작 폴더(#91): 지정 디렉터리에서 시작. `~`는 홈으로 확장,
+        // 디렉터리가 사라졌으면 무시(홈에서 시작).
         if let Some(dir) = cwd {
-            if std::path::Path::new(dir).is_dir() {
-                cmd.cwd(dir);
+            let expanded = if let Some(rest) = dir.strip_prefix('~') {
+                let home = std::env::var("HOME")
+                    .or_else(|_| std::env::var("USERPROFILE"))
+                    .unwrap_or_default();
+                format!("{home}{rest}")
+            } else {
+                dir.to_string()
+            };
+            if std::path::Path::new(&expanded).is_dir() {
+                cmd.cwd(&expanded);
             }
         }
 

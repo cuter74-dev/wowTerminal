@@ -12,6 +12,8 @@ export interface TerminalSettings {
   logging: boolean;
   /** 로그 저장 디렉터리. 비우면 ~/wowterminal-logs 사용. */
   logDir: string;
+  /** 새 로컬 터미널의 시작 디렉터리 (#91). 비우면 홈. `~` 확장은 Rust 쪽에서. */
+  startDir: string;
 }
 
 export type Lang =
@@ -252,6 +254,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     altScreenWheelScroll: true,
     logging: false,
     logDir: "",
+    startDir: "",
   },
   layout: {
     showHostPanel: true,
