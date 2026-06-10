@@ -40,18 +40,20 @@ function sanitize(name: string): string {
  *  switch-client가 "다른 곳에 붙어 있는 클라이언트"를 조용히 전환하고 성공해 버려, 정작 이
  *  터미널에선 아무 일도 일어나지 않는다. attach는 밖에서 성공하고 안에서는 중첩 거부로
  *  실패하므로(stderr 숨김) 그때만 switch-client가 자기 클라이언트를 전환한다. */
-export function attachInput(name: string): string {
+export function attachInput(name: string, detachOthers = false): string {
   const n = sanitize(name);
-  // attach의 -d: 다른(특히 앱 재시작으로 죽었지만 아직 남아 있는) 클라이언트를 분리한다.
-  // tmux는 가장 작은 클라이언트에 맞춰 폭을 제한하므로, 죽은 옛 클라이언트가 남아 있으면
-  // TUI가 좁은 폭으로 줄바꿈된 채 열린다(#90). -d로 이 pane 크기에 맞춰 다시 그린다.
-  return `\x15tmux attach-session -d -t '${n}' 2>/dev/null || tmux switch-client -t '${n}'\r`;
+  // detachOthers(-d)는 **재시작 복원에서만** 쓴다: 그 시점의 옛 클라이언트는 확실히 죽었고,
+  // tmux는 가장 작은 클라이언트에 맞춰 폭을 제한하므로 떼어내지 않으면 TUI가 좁은 폭으로
+  // 줄바꿈된 채 열린다(#90). 선택기/수동 attach는 -d 없이 — 같은 세션을 여러 탭이 미러로
+  // 보는 것은 정상 tmux 사용이고, -d면 살아 있는 형제 탭까지 쫓아낸다.
+  const d = detachOthers ? "-d " : "";
+  return `\x15tmux attach-session ${d}-t '${n}' 2>/dev/null || tmux switch-client -t '${n}'\r`;
 }
 
 /** 새 세션 생성 후 attach/전환 입력. 이름이 이미 있으면 new -d가 조용히 실패하고 attach만 된다. */
 function createInput(name: string): string {
   const n = sanitize(name);
-  return `\x15tmux new-session -d -s '${n}' 2>/dev/null; tmux attach-session -d -t '${n}' 2>/dev/null || tmux switch-client -t '${n}'\r`;
+  return `\x15tmux new-session -d -s '${n}' 2>/dev/null; tmux attach-session -t '${n}' 2>/dev/null || tmux switch-client -t '${n}'\r`;
 }
 
 interface Props {

@@ -842,6 +842,10 @@ function App() {
   useEffect(() => {
     return onTitleChange(({ paneId, title }) => {
       if (!paneId) return;
+      // tmux에 붙은(혹은 복원 예약된) leaf의 탭은 "세션 · 호스트" 라벨을 유지한다 —
+      // tmux가 attach/detach하며 제목을 저장·복원할 때 빈/옛 제목 이벤트가 흘러와
+      // 세션 라벨을 덮어쓰는 것을 막는다(#90).
+      if (tmuxByLeaf.current[paneId] ?? initTmuxByLeaf.current[paneId]) return;
       setTabs((prev) =>
         prev.map((tab) => {
           const leaf = findLeaf(tab.root, paneId);
@@ -1168,9 +1172,7 @@ function App() {
         const host = hosts.find((h) => h.id === hostId0);
         const name = (host?.tmux_session ?? "").replace(/[^A-Za-z0-9_@-]/g, "");
         if (name) {
-          // -AD: 있으면 attach(-A), attach 시 다른/죽은 클라이언트 분리(-D) — 작은 옛
-          // 클라이언트가 남아 폭이 좁게 제한되는 것을 방지(#90과 동일).
-          getTerminal(leafId)?.sendInput(`tmux new-session -AD -s '${name}'\r`);
+          getTerminal(leafId)?.sendInput(`tmux new-session -A -s '${name}'\r`);
           tmuxByLeaf.current[leafId] = name;
           labelTabForLeaf(leafId, name);
         }
@@ -1873,7 +1875,8 @@ function App() {
                   const pending = initTmuxByLeaf.current[leafId];
                   if (pending) {
                     delete initTmuxByLeaf.current[leafId];
-                    getTerminal(leafId)?.sendInput(tmuxAttachInput(pending));
+                    // 복원 attach만 -d(죽은 옛 클라이언트 분리) — 형제 탭은 안 쫓아낸다.
+                    getTerminal(leafId)?.sendInput(tmuxAttachInput(pending, true));
                     tmuxByLeaf.current[leafId] = pending;
                     labelTabForLeaf(leafId, pending);
                   }
