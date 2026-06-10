@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.13.14] — 2026-06-10
+
+### Fixed
+- Input lines wrapping early at stale widths (most visible on Windows cmd.exe while typing Korean — the line broke after a few characters at inconsistent columns) — resizes that happen while the session is still spawning were dropped (`onResize` bails when `sessionId` isn't set yet), so the PTY/ConPTY kept the spawn-time size while xterm grew with the layout, and the shell wrapped its input echo at the old width. The current size is now synced once right after spawn completes (#88)
+
 ## [0.13.13] — 2026-06-10
 
 ### Fixed
@@ -230,7 +235,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.13...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.14...HEAD
+[0.13.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.13...v0.13.14
 [0.13.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.12...v0.13.13
 [0.13.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.11...v0.13.12
 [0.13.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.10...v0.13.11

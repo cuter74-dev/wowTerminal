@@ -876,6 +876,15 @@ export function Terminal({
             onSshConnected?.();
           }
           onSession?.(sessionId);
+          // spawn이 진행되는 동안 발생한 리사이즈(레이아웃 정착 refit 등)는 onResize에서
+          // sessionId가 아직 없어 버려진다. 그 사이 xterm 크기가 바뀌었으면 PTY는 스폰 시점
+          // 크기로 남아 셸이 옛 폭에서 줄을 꺾는다(특히 Windows ConPTY+cmd 입력 에코 — #88
+          // 한글 입력 중 조기 줄바꿈). 스폰 직후 현재 크기를 한 번 동기화한다.
+          void invoke(cmds.resizeCmd, {
+            sessionId,
+            cols: term.cols,
+            rows: term.rows,
+          }).catch(() => {});
           // OSC 7 cwd 훅의 런타임 주입은 제거했다. 주입 명령 에코를 지우는 커서 정리가
           // 프롬프트 폭/줄바꿈/tmux 대체화면 등에 취약해 상단 프롬프트 잔상을 반복적으로
           // 만들었다(여러 차례 수정 시도에도). 대신 OSC 7 *수신* 핸들러는 유지하므로,
