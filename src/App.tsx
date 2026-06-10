@@ -1168,7 +1168,9 @@ function App() {
         const host = hosts.find((h) => h.id === hostId0);
         const name = (host?.tmux_session ?? "").replace(/[^A-Za-z0-9_@-]/g, "");
         if (name) {
-          getTerminal(leafId)?.sendInput(`tmux new-session -A -s '${name}'\r`);
+          // -AD: 있으면 attach(-A), attach 시 다른/죽은 클라이언트 분리(-D) — 작은 옛
+          // 클라이언트가 남아 폭이 좁게 제한되는 것을 방지(#90과 동일).
+          getTerminal(leafId)?.sendInput(`tmux new-session -AD -s '${name}'\r`);
           tmuxByLeaf.current[leafId] = name;
           labelTabForLeaf(leafId, name);
         }
