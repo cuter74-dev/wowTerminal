@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.3] — 2026-06-11
+
 ### Fixed
 - macOS: Korean input breaking permanently mid-session (until app restart) — the `nativeComposition` switch latched forever after a *single* composition event (e.g. press-and-hold accent popup, dictation), disabling the custom IME mirror that 229-only WKWebViews need for Hangul. The switch is now active only while a composition is actually in progress (confirmed on the maintainer's machine: Korean is pure keyCode-229 + mirror, no composition events — local diag `n229:33, mirror 36/31, nCS:0`) (#83)
 - Windows: every confirm dialog (deleting hosts, SSH keys, groups/tags, remote files, LLM backends) silently failed — WebView2 routes `window.confirm` through the Tauri dialog plugin, whose `confirm` command wasn't granted in the capability file (`plugin:dialog|confirm not allowed by ACL`, captured by GlitchTip). Granted `dialog:allow-confirm/ask/message`; macOS was unaffected (#93)
@@ -262,7 +264,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.2...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.3...HEAD
+[0.14.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.14...v0.14.0
