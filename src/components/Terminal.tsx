@@ -16,10 +16,15 @@ import {
   broadcastInput,
 } from "../terminalRegistry";
 import { emitCommandDone, emitTitleChange } from "../commandBus";
+import * as Sentry from "@sentry/react";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { LangDict, useT } from "../i18n";
+
+// [진단 #83 — M5 영문 잔상] writingsuggestions=false로도 안 잡혀 재계측. 구조 카운터만
+// (타이핑 내용 없음) 입력 유휴 시 GlitchTip 전송. macOS 한정, 세션당 최대 4회. 해결 후 제거.
+let imeDiagSends = 0;
 
 const STR: LangDict<{
     sessionHandover: string;
@@ -525,6 +530,39 @@ export function Terminal({
     const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
 
+    // [진단 #83] IME 경로 카운터(구조만). 3초 입력 유휴 시 1회 전송 후 리셋.
+    const imeDiag = {
+      n229: 0,
+      nCS: 0,
+      onDataChars: 0,
+      mirrorBs: 0,
+      mirrorChars: 0,
+      bsSuppressed: 0, // ASCII 다중 백스페이스 재작성 억제량 (이번 수정의 효과 지표)
+    };
+    let imeDiagTimer = 0;
+    const scheduleImeDiag = () => {
+      if (!isMacWebView) return;
+      clearTimeout(imeDiagTimer);
+      imeDiagTimer = window.setTimeout(() => {
+        const any =
+          imeDiag.n229 + imeDiag.onDataChars + imeDiag.mirrorChars + imeDiag.bsSuppressed;
+        if (any === 0 || imeDiagSends >= 4) return;
+        imeDiagSends++;
+        try {
+          Sentry.captureMessage("wt-ime-diag2", {
+            level: "info",
+            extra: {
+              ua: navigator.userAgent,
+              ws: term.textarea?.getAttribute("writingsuggestions") ?? null,
+              ...imeDiag,
+            },
+          });
+        } catch {}
+        imeDiag.n229 = imeDiag.nCS = imeDiag.onDataChars = 0;
+        imeDiag.mirrorBs = imeDiag.mirrorChars = imeDiag.bsSuppressed = 0;
+      }, 3000);
+    };
+
     const onDataDisposable = term.onData((data) => {
       if (!sessionId) return;
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
@@ -539,6 +577,8 @@ export function Terminal({
       }
       writeToSession(data);
       broadcastInput(paneId ?? "", data); // 브로드캐스트 ON이면 다른 패널에도.
+      imeDiag.onDataChars += data.length; // [진단 #83]
+      scheduleImeDiag();
 
       // 입력 라인 추적 (단순): 타이핑/백스페이스/엔터만 정확. 화살표 등은 라인 리셋.
       for (const ch of data) {
@@ -584,8 +624,24 @@ export function Terminal({
       while (c < full.length && c < imeSent.length && full[c] === imeSent[c]) {
         c++;
       }
+      const bs = imeSent.length - c;
+      // 순수 ASCII 값에서 2글자 이상을 되감는 재작성은 사용자가 친 키가 아니라 macOS
+      // 예측 텍스트류가 textarea를 고쳐 쓴 것이다(#83 M5: `df -h` 5타에 백스페이스 10개
+      // 폭풍 → zsh 재그리기와 얽혀 프롬프트 잔상; writingsuggestions=false로도 안 막힘).
+      // 터미널은 raw 키 입력을 원하므로 그런 재작성은 PTY로 보내지 않고 추적값만 동기화
+      // 한다(이후 append는 정상 전송). 한글/CJK가 섞인 값은 진짜 조합 되감기이므로 종전대로
+      // 전부 미러링. (백스페이스 1개는 실제 Backspace 키/단일 교정이라 허용.)
+      const asciiOnly =
+        /^[\x20-\x7e]*$/.test(full) && /^[\x20-\x7e]*$/.test(imeSent);
+      if (asciiOnly && bs > 1) {
+        imeDiag.bsSuppressed += bs; // [진단 #83]
+        imeSent = full;
+        return;
+      }
+      imeDiag.mirrorBs += bs; // [진단 #83]
+      imeDiag.mirrorChars += full.length - c; // [진단 #83]
       let out = "";
-      for (let i = 0; i < imeSent.length - c; i++) out += "\x7f";
+      for (let i = 0; i < bs; i++) out += "\x7f";
       out += full.slice(c);
       if (out) {
         writeToSession(out);
@@ -604,12 +660,14 @@ export function Terminal({
           if (!imeActive) return; // 영어/제어키는 xterm 기존 경로가 담당.
           ev.stopImmediatePropagation();
           flushMirror();
+          scheduleImeDiag(); // [진단 #83]
         },
         true,
       );
       // 최신 WKWebView에서 표준 composition 이벤트가 발생하면 그 사실을 기억해 커스텀 미러를
       // 끈다(한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다 — 구형은 미러 유지).
       ta.addEventListener("compositionstart", () => {
+        imeDiag.nCS++; // [진단 #83]
         nativeComposition = true;
         resetIme();
       });
@@ -663,6 +721,8 @@ export function Terminal({
       // (Windows/Linux) 최신 WKWebView(nativeComposition)면 xterm 네이티브 IME가 처리하도록
       // 그대로 통과시킨다. 구형 macOS WKWebView(composition 이벤트 없음)만 미러로 처리한다.
       if (e.keyCode === 229) {
+        imeDiag.n229++; // [진단 #83]
+        scheduleImeDiag();
         if (!isMacWebView || nativeComposition) return true;
         imeActive = true;
         return false;
@@ -941,6 +1001,7 @@ export function Terminal({
       cancelAnimationFrame(roRaf);
       clearTimeout(fitT1);
       clearTimeout(fitT2);
+      clearTimeout(imeDiagTimer); // [진단 #83]
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();

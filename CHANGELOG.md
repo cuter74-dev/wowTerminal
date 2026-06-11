@@ -7,6 +7,14 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.2] — 2026-06-11
+
+### Fixed
+- Newest-macOS stray characters while typing English (`df -h` → `ddf -h…`) — second attempt, made robust against the root cause being unknown: the damage always comes from the custom IME mirror sending multi-backspace rewrite storms when macOS predictive features rewrite the hidden textarea (the v0.13.12 `writingsuggestions=false` attribute didn't stop it on the affected machine). The mirror now refuses to send rewrites that would erase 2+ characters of pure-ASCII content — a terminal wants raw keystrokes, so OS-driven rewrites are ignored while real typing (appends, single backspaces) and genuine CJK composition rewinds flow unchanged (#83)
+
+### Changed
+- Internal: re-added the lightweight macOS IME counters (structure only, no typed content) sent to GlitchTip on input idle, now including the suppressed-rewrite count, to verify the fix on the affected machine. To be removed once confirmed (#83)
+
 ## [0.14.1] — 2026-06-10
 
 ### Fixed
@@ -250,7 +258,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.1...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.2...HEAD
+[0.14.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.0...v0.14.1
 [0.14.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.14...v0.14.0
 [0.13.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.13.13...v0.13.14
