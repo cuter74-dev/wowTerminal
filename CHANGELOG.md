@@ -8,6 +8,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Fixed
+- macOS: Korean input breaking permanently mid-session (until app restart) — the `nativeComposition` switch latched forever after a *single* composition event (e.g. press-and-hold accent popup, dictation), disabling the custom IME mirror that 229-only WKWebViews need for Hangul. The switch is now active only while a composition is actually in progress (confirmed on the maintainer's machine: Korean is pure keyCode-229 + mirror, no composition events — local diag `n229:33, mirror 36/31, nCS:0`) (#83)
 - Windows: every confirm dialog (deleting hosts, SSH keys, groups/tags, remote files, LLM backends) silently failed — WebView2 routes `window.confirm` through the Tauri dialog plugin, whose `confirm` command wasn't granted in the capability file (`plugin:dialog|confirm not allowed by ACL`, captured by GlitchTip). Granted `dialog:allow-confirm/ask/message`; macOS was unaffected (#93)
 
 ## [0.14.2] — 2026-06-11

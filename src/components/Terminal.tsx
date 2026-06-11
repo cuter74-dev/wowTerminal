@@ -523,10 +523,11 @@ export function Terminal({
     // **macOS 한정**: Windows(WebView2)·Linux(WebKitGTK)는 원래부터 composition 이벤트를
     // 발생시키지만 거기선 커스텀 미러가 한글 입력을 담당한다. 네이티브로 넘기면 Windows에서
     // 한글이 전혀 입력되지 않으므로(#83 회귀), 이 바이패스는 macOS에서만 적용한다.
-    // 커스텀 IME 미러는 **구형 macOS WKWebView 전용**이다(아래 input 핸들러 설명 참고).
-    // Windows(WebView2)·Linux(WebKitGTK)·최신 macOS는 표준 composition 이벤트로 xterm이
-    // 네이티브 IME를 직접 처리하므로 미러를 끈다. 과거 Windows에 미러를 적용했더니 첫 한글
-    // 음절 후 imeActive가 stuck되어 이후 입력이 막혔다(#88). 미러는 isMacWebView일 때만 켠다.
+    // 커스텀 IME 미러는 **macOS(229-only WKWebView) 전용**이다(아래 input 핸들러 설명 참고).
+    // Windows(WebView2)·Linux(WebKitGTK)는 표준 composition 이벤트로 xterm이 네이티브 IME를
+    // 직접 처리하므로 미러를 끈다(#88). nativeComposition은 **조합이 진행 중인 동안만** true:
+    // 영구 latch로 두면 악센트 길게 누르기/받아쓰기 같은 단발 composition 한 번에 미러가
+    // 영영 꺼져, 229-only 맥에서 그 순간부터 한글이 깨진다(재시작 전까지 — #83에서 실측).
     const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
 
@@ -534,6 +535,8 @@ export function Terminal({
     const imeDiag = {
       n229: 0,
       nCS: 0,
+      nCU: 0,
+      nCE: 0,
       onDataChars: 0,
       mirrorBs: 0,
       mirrorChars: 0,
@@ -545,20 +548,43 @@ export function Terminal({
       clearTimeout(imeDiagTimer);
       imeDiagTimer = window.setTimeout(() => {
         const any =
-          imeDiag.n229 + imeDiag.onDataChars + imeDiag.mirrorChars + imeDiag.bsSuppressed;
-        if (any === 0 || imeDiagSends >= 4) return;
-        imeDiagSends++;
+          imeDiag.n229 +
+          imeDiag.nCS +
+          imeDiag.nCU +
+          imeDiag.nCE +
+          imeDiag.onDataChars +
+          imeDiag.mirrorChars +
+          imeDiag.bsSuppressed;
+        if (any === 0) return;
+        // 로컬 누적 덤프 — 전송 한도와 무관하게 localStorage에 합산(로컬 디버깅용).
         try {
-          Sentry.captureMessage("wt-ime-diag2", {
-            level: "info",
-            extra: {
-              ua: navigator.userAgent,
-              ws: term.textarea?.getAttribute("writingsuggestions") ?? null,
-              ...imeDiag,
-            },
-          });
+          const k = "wt.ime.local-diag";
+          const prev = JSON.parse(localStorage.getItem(k) ?? "{}") as Record<
+            string,
+            number
+          >;
+          const merged: Record<string, number> = { ...prev };
+          for (const [key, v] of Object.entries(imeDiag)) {
+            merged[key] = (merged[key] ?? 0) + v;
+          }
+          merged.at = Date.now();
+          localStorage.setItem(k, JSON.stringify(merged));
         } catch {}
-        imeDiag.n229 = imeDiag.nCS = imeDiag.onDataChars = 0;
+        if (imeDiagSends < 4) {
+          imeDiagSends++;
+          try {
+            Sentry.captureMessage("wt-ime-diag2", {
+              level: "info",
+              extra: {
+                ua: navigator.userAgent,
+                ws: term.textarea?.getAttribute("writingsuggestions") ?? null,
+                ...imeDiag,
+              },
+            });
+          } catch {}
+        }
+        imeDiag.n229 = imeDiag.nCS = imeDiag.nCU = imeDiag.nCE = 0;
+        imeDiag.onDataChars = 0;
         imeDiag.mirrorBs = imeDiag.mirrorChars = imeDiag.bsSuppressed = 0;
       }, 3000);
     };
@@ -668,8 +694,24 @@ export function Terminal({
       // 끈다(한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다 — 구형은 미러 유지).
       ta.addEventListener("compositionstart", () => {
         imeDiag.nCS++; // [진단 #83]
+        scheduleImeDiag();
         nativeComposition = true;
         resetIme();
+      });
+      // [진단 #83] composition 경로 관찰용.
+      ta.addEventListener("compositionupdate", () => {
+        imeDiag.nCU++;
+        scheduleImeDiag();
+      });
+      ta.addEventListener("compositionend", () => {
+        imeDiag.nCE++;
+        scheduleImeDiag();
+        // 조합이 끝나면 잠깐 뒤 미러 모드로 복귀한다(직후 따라오는 229 keydown까지는
+        // 네이티브로 통과). composition을 상시 쓰는 환경은 키마다 compositionstart가
+        // 다시 켜므로 사실상 네이티브 유지 — 영구 latch의 미러 박탈만 없앤다.
+        window.setTimeout(() => {
+          nativeComposition = false;
+        }, 80);
       });
     }
 
