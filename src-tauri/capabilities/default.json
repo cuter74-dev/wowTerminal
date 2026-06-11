@@ -13,6 +13,9 @@
     "dialog:default",
     "dialog:allow-save",
     "dialog:allow-open",
+    "dialog:allow-confirm",
+    "dialog:allow-ask",
+    "dialog:allow-message",
     "notification:default",
     "updater:default",
     "process:default"

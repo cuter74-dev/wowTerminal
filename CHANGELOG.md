@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- Windows: every confirm dialog (deleting hosts, SSH keys, groups/tags, remote files, LLM backends) silently failed — WebView2 routes `window.confirm` through the Tauri dialog plugin, whose `confirm` command wasn't granted in the capability file (`plugin:dialog|confirm not allowed by ACL`, captured by GlitchTip). Granted `dialog:allow-confirm/ask/message`; macOS was unaffected (#93)
+
 ## [0.14.2] — 2026-06-11
 
 ### Fixed
