@@ -962,6 +962,24 @@ function joinPosix(cwd: string, name: string): string {
   return `${cwd.replace(/\/+$/, "")}/${name}`;
 }
 
+// 로컬 pane 경로 조합 — Windows(역슬래시·드라이브 루트 C:\)와 POSIX 모두 처리한다.
+// joinPosix를 로컬에 쓰면 Windows 경로(C:\Users\...)에서 ".."가 "/"로 튕기고,
+// 하위 진입이 "C:\...\dir" 대신 "C:\.../dir"가 되어 os error 123이 난다(#94).
+function joinLocal(cwd: string, name: string): string {
+  const win = cwd.includes("\\");
+  const sep = win ? "\\" : "/";
+  const trimmed = cwd.replace(win ? /[\\/]+$/ : /\/+$/, "");
+  if (name === "..") {
+    const idx = Math.max(trimmed.lastIndexOf("/"), trimmed.lastIndexOf("\\"));
+    if (idx < 0) return cwd; // 더 올라갈 곳 없음
+    const parent = trimmed.slice(0, idx);
+    if (/^[A-Za-z]:$/.test(parent)) return parent + "\\"; // 드라이브 루트는 C:\ 형태 유지
+    return parent === "" ? "/" : parent;
+  }
+  if (/^[A-Za-z]:$/.test(trimmed)) return `${trimmed}\\${name}`;
+  return `${trimmed}${sep}${name}`;
+}
+
 function nameExists(listing: Listing | null, name: string): boolean {
   return !!listing?.entries.some((e) => e.name === name);
 }
@@ -1537,7 +1555,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
               onItemMouseDown={(entry, ev) => onItemMouseDown("local", entry, ev)}
               onFileActivate={(entry) => void previewLocal(entry)}
               dragging={!!paneDrag?.active}
-              joinPath={(cwd, name) => joinPosix(cwd, name)}
+              joinPath={(cwd, name) => joinLocal(cwd, name)}
             />
           </div>
           <div

@@ -736,6 +736,19 @@ pub fn local_list_dir(path: Option<String>) -> Result<Listing, String> {
         None => dirs::home_dir().unwrap_or_else(|| PathBuf::from(".")),
     };
     let canon = std::fs::canonicalize(&base).map_err(|e| e.to_string())?;
+    // Windows canonicalize는 verbatim 접두사(\\?\)를 붙이는데, verbatim 경로는 `/` 구분자
+    // 정규화를 하지 않아 프론트의 경로 조합과 만나면 os error 123(ERROR_INVALID_NAME)이
+    // 난다(#94). 접두사를 벗겨 일반 경로(C:\... 또는 \\server\...)로 노출한다.
+    let canon_str = {
+        let raw = canon.to_string_lossy().to_string();
+        if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+            format!(r"\\{rest}")
+        } else if let Some(rest) = raw.strip_prefix(r"\\?\") {
+            rest.to_string()
+        } else {
+            raw
+        }
+    };
     let mut entries = Vec::new();
     for e in std::fs::read_dir(&canon).map_err(|e| e.to_string())? {
         let e = match e {
@@ -767,7 +780,7 @@ pub fn local_list_dir(path: Option<String>) -> Result<Listing, String> {
         });
     }
     Ok(Listing {
-        cwd: canon.to_string_lossy().to_string(),
+        cwd: canon_str,
         entries,
     })
 }

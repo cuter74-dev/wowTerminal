@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.5] — 2026-06-11
+
+### Fixed
+- Windows file browser failing with "파일 이름, 디렉터리 이름 또는 볼륨 레이블 구문이 잘못되었습니다 (os error 123)" and showing the local path as `\?\C:\` — the local listing returned Rust `canonicalize`'s verbatim-prefixed path (which skips `/` normalization) and the UI joined local paths POSIX-style, so `..` collapsed to `/` and child paths became `\?\C:\/dir`. The verbatim prefix is now stripped and the local pane joins paths separator-aware (backslash, drive-root `C:\` floor); the remote SFTP pane keeps POSIX joins (#94)
+
 ## [0.14.4] — 2026-06-11
 
 ### Changed
@@ -269,7 +274,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.4...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.5...HEAD
+[0.14.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.4...v0.14.5
 [0.14.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.3...v0.14.4
 [0.14.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.1...v0.14.2
