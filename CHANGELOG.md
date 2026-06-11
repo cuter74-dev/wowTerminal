@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.4] — 2026-06-11
+
+### Changed
+- Internal (temporary diagnostic): on macOS the IME diag now also captures the last 14 mirror transitions (previous→current hidden-textarea content, **includes what was typed in the affected line**) — counters alone can't distinguish "the textarea's own composition is broken" (stray jamo + spaces being fed in) from a mirror bug, which is the leading suspicion for the newly reported Mac where deleting Hangul leaves 2-space gaps. Removed once #83 is closed (#83)
+
 ## [0.14.3] — 2026-06-11
 
 ### Fixed
@@ -264,7 +269,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.3...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.4...HEAD
+[0.14.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.3...v0.14.4
 [0.14.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.2...v0.14.3
 [0.14.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.1...v0.14.2
 [0.14.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.0...v0.14.1

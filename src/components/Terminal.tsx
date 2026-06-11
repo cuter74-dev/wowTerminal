@@ -542,6 +542,14 @@ export function Terminal({
       mirrorChars: 0,
       bsSuppressed: 0, // ASCII 다중 백스페이스 재작성 억제량 (이번 수정의 효과 지표)
     };
+    // [진단 #83] 최근 미러 전이 내용 링버퍼(최대 14건). 카운터만으로는 "textarea 조합
+    // 자체가 깨지는" 부류(자모+공백 유입)를 판별할 수 없어 내용을 본다 — 제보 머신의
+    // 한글 자모·공백 잔상 진단용. 전송 후 비움.
+    const imeRing: { s: string; f: string }[] = [];
+    const ringPush = (sent: string, full: string) => {
+      if (imeRing.length >= 14) imeRing.shift();
+      imeRing.push({ s: sent, f: full });
+    };
     let imeDiagTimer = 0;
     const scheduleImeDiag = () => {
       if (!isMacWebView) return;
@@ -579,6 +587,7 @@ export function Terminal({
                 ua: navigator.userAgent,
                 ws: term.textarea?.getAttribute("writingsuggestions") ?? null,
                 ...imeDiag,
+                ring: imeRing.slice(),
               },
             });
           } catch {}
@@ -586,6 +595,7 @@ export function Terminal({
         imeDiag.n229 = imeDiag.nCS = imeDiag.nCU = imeDiag.nCE = 0;
         imeDiag.onDataChars = 0;
         imeDiag.mirrorBs = imeDiag.mirrorChars = imeDiag.bsSuppressed = 0;
+        imeRing.length = 0;
       }, 3000);
     };
 
@@ -657,6 +667,7 @@ export function Terminal({
       // 터미널은 raw 키 입력을 원하므로 그런 재작성은 PTY로 보내지 않고 추적값만 동기화
       // 한다(이후 append는 정상 전송). 한글/CJK가 섞인 값은 진짜 조합 되감기이므로 종전대로
       // 전부 미러링. (백스페이스 1개는 실제 Backspace 키/단일 교정이라 허용.)
+      ringPush(imeSent, full); // [진단 #83]
       const asciiOnly =
         /^[\x20-\x7e]*$/.test(full) && /^[\x20-\x7e]*$/.test(imeSent);
       if (asciiOnly && bs > 1) {
