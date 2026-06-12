@@ -7,6 +7,14 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.9] — 2026-06-12
+
+### Fixed
+- Reconnect (#96) follow-up, from a user screen recording (#99):
+  - The "[disconnected — press Enter to reconnect]" / "[reconnecting…]" messages printed as literal `\r\n\x1b[33m…` text instead of colored lines — all 11 language strings were committed double-escaped.
+  - Clicking after a reconnect typed garbage like `0;90;14M…` into the new shell — the dead session's program (tmux/TUI) had enabled mouse tracking and the terminal kept its modes across the re-spawn. Leaked DEC private modes (mouse tracking, bracketed paste, application cursor keys, alternate screen, hidden cursor) are now reset locally on re-spawn without clearing the screen.
+  - Reconnecting landed in a bare shell instead of back in the pane's tmux session — only the host-level auto-attach was re-run. The pane's known tmux session now takes precedence and is re-attached with dead-client detach (#99)
+
 ## [0.14.8] — 2026-06-12
 
 ### Changed
@@ -292,7 +300,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.8...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.9...HEAD
+[0.14.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.8...v0.14.9
 [0.14.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.7...v0.14.8
 [0.14.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.6...v0.14.7
 [0.14.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.5...v0.14.6

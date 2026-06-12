@@ -51,8 +51,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Search command history (Enter to select, ESC to cancel)",
     noHistoryMatch: "No matching history",
-    sessionClosed: "\\r\\n\\x1b[33m[disconnected — press Enter to reconnect]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[reconnecting…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[disconnected — press Enter to reconnect]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[reconnecting…]\x1b[0m",
   },
   ko: {
     sessionHandover: "\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m",
@@ -66,8 +66,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "명령 히스토리 검색 (Enter 선택, ESC 취소)",
     noHistoryMatch: "일치하는 히스토리 없음",
-    sessionClosed: "\\r\\n\\x1b[33m[연결이 끊어졌습니다 — Enter 키로 다시 연결]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[다시 연결하는 중…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[연결이 끊어졌습니다 — Enter 키로 다시 연결]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[다시 연결하는 중…]\x1b[0m",
   },
   es: {
     sessionHandover: "\r\n\x1b[36m[sesión transferida — continúa en la nueva ventana]\x1b[0m",
@@ -81,8 +81,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Buscar en el historial de comandos (Enter para seleccionar, ESC para cancelar)",
     noHistoryMatch: "No hay coincidencias en el historial",
-    sessionClosed: "\\r\\n\\x1b[33m[desconectado — pulsa Enter para reconectar]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[reconectando…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[desconectado — pulsa Enter para reconectar]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[reconectando…]\x1b[0m",
   },
   zh: {
     sessionHandover: "\r\n\x1b[36m[会话已交接 — 在新窗口中继续]\x1b[0m",
@@ -96,8 +96,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "搜索命令历史（Enter 选择，ESC 取消）",
     noHistoryMatch: "没有匹配的历史记录",
-    sessionClosed: "\\r\\n\\x1b[33m[连接已断开 — 按 Enter 重新连接]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[正在重新连接…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[连接已断开 — 按 Enter 重新连接]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[正在重新连接…]\x1b[0m",
   },
   ja: {
     sessionHandover: "\r\n\x1b[36m[セッションを引き継ぎました — 新しいウィンドウで続行]\x1b[0m",
@@ -111,8 +111,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "コマンド履歴を検索（Enter で選択、ESC でキャンセル）",
     noHistoryMatch: "一致する履歴がありません",
-    sessionClosed: "\\r\\n\\x1b[33m[切断されました — Enter キーで再接続]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[再接続中…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[切断されました — Enter キーで再接続]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[再接続中…]\x1b[0m",
   },
   ru: {
     sessionHandover: "\r\n\x1b[36m[сессия передана — продолжите в новом окне]\x1b[0m",
@@ -126,8 +126,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Поиск по истории команд (Enter — выбрать, ESC — отменить)",
     noHistoryMatch: "Нет совпадений в истории",
-    sessionClosed: "\\r\\n\\x1b[33m[соединение разорвано — нажмите Enter для переподключения]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[переподключение…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[соединение разорвано — нажмите Enter для переподключения]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[переподключение…]\x1b[0m",
   },
   fr: {
     sessionHandover: "\r\n\x1b[36m[session transférée — continuez dans la nouvelle fenêtre]\x1b[0m",
@@ -141,8 +141,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Rechercher dans l'historique des commandes (Entrée pour sélectionner, ESC pour annuler)",
     noHistoryMatch: "Aucune correspondance dans l'historique",
-    sessionClosed: "\\r\\n\\x1b[33m[déconnecté — appuyez sur Entrée pour reconnecter]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[reconnexion…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[déconnecté — appuyez sur Entrée pour reconnecter]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[reconnexion…]\x1b[0m",
   },
   de: {
     sessionHandover: "\r\n\x1b[36m[Sitzung übergeben — im neuen Fenster fortfahren]\x1b[0m",
@@ -156,8 +156,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Befehlsverlauf durchsuchen (Enter zum Auswählen, ESC zum Abbrechen)",
     noHistoryMatch: "Keine passenden Verlaufseinträge",
-    sessionClosed: "\\r\\n\\x1b[33m[getrennt — Enter zum erneuten Verbinden]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[verbinde erneut…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[getrennt — Enter zum erneuten Verbinden]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[verbinde erneut…]\x1b[0m",
   },
   vi: {
     sessionHandover: "\r\n\x1b[36m[phiên đã được bàn giao — tiếp tục trong cửa sổ mới]\x1b[0m",
@@ -171,8 +171,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Tìm trong lịch sử lệnh (Enter để chọn, ESC để hủy)",
     noHistoryMatch: "Không có lịch sử khớp",
-    sessionClosed: "\\r\\n\\x1b[33m[mất kết nối — nhấn Enter để kết nối lại]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[đang kết nối lại…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[mất kết nối — nhấn Enter để kết nối lại]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[đang kết nối lại…]\x1b[0m",
   },
   id: {
     sessionHandover: "\r\n\x1b[36m[sesi diserahkan — lanjutkan di jendela baru]\x1b[0m",
@@ -186,8 +186,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Cari riwayat perintah (Enter untuk memilih, ESC untuk membatalkan)",
     noHistoryMatch: "Tidak ada riwayat yang cocok",
-    sessionClosed: "\\r\\n\\x1b[33m[terputus — tekan Enter untuk menyambung ulang]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[menyambung ulang…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[terputus — tekan Enter untuk menyambung ulang]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[menyambung ulang…]\x1b[0m",
   },
   hi: {
     sessionHandover: "\r\n\x1b[36m[सत्र सौंप दिया गया — नई विंडो में जारी रखें]\x1b[0m",
@@ -201,8 +201,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "कमांड इतिहास खोजें (चुनने के लिए Enter, रद्द करने के लिए ESC)",
     noHistoryMatch: "कोई मेल खाता इतिहास नहीं",
-    sessionClosed: "\\r\\n\\x1b[33m[कनेक्शन टूट गया — पुनः जोड़ने के लिए Enter दबाएं]\\x1b[0m",
-    reconnecting: "\\r\\n\\x1b[36m[पुनः जोड़ रहा है…]\\x1b[0m",
+    sessionClosed: "\r\n\x1b[33m[कनेक्शन टूट गया — पुनः जोड़ने के लिए Enter दबाएं]\x1b[0m",
+    reconnecting: "\r\n\x1b[36m[पुनः जोड़ रहा है…]\x1b[0m",
   },
 };
 
@@ -814,8 +814,10 @@ export function Terminal({
       // 재접속 시 onSshConnected가 다시 발화하므로 호스트 tmux 자동 attach도 복원된다.
       if (sessionDead && e.key === "Enter") {
         sessionDead = false;
-        term.writeln(tRef.current.reconnecting);
+        // spawnFresh의 첫 동작이 잔존 모드 해제(대체 화면 탈출 포함)라, 메시지는 그 뒤에
+        // 써야 normal 버퍼에 보인다 — TUI(대체 화면) 사용 중 끊긴 경우(#99).
         void spawnFresh();
+        term.writeln(tRef.current.reconnecting);
         return false;
       }
       // ⌘F: 터미널 스크롤백 검색 오버레이 열기.
@@ -1040,6 +1042,13 @@ export function Terminal({
     let unlistenClosed: UnlistenFn | null = null;
 
     const spawnFresh = async () => {
+      // 죽은 세션의 프로그램(tmux/TUI)이 켜둔 DEC 프라이빗 모드는 xterm 인스턴스에 그대로
+      // 남는다 — 마우스 트래킹이 잔존하면 새 셸에서 클릭이 "0;90;14M" 같은 시퀀스로
+      // 타이핑된다(#99). 버퍼는 지우지 않고 모드만 로컬 해제: 마우스(1000/1002/1003/
+      // 1005/1006/1015), 브래킷 페이스트(2004), 앱 커서(1), 대체 화면(1049), 커서 표시.
+      term.write(
+        "\x1b[?1003l\x1b[?1002l\x1b[?1000l\x1b[?1006l\x1b[?1005l\x1b[?1015l\x1b[?2004l\x1b[?1l\x1b[?1049l\x1b[?25h",
+      );
       try {
         sessionId = await invoke<string>(
           cmds.spawnCmd,

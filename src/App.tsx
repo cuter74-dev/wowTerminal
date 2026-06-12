@@ -1206,7 +1206,14 @@ function App() {
       const tab0 = tabs.find((t) => t.id === tabId);
       const leaf0 = tab0 ? findLeaf(tab0.root, leafId) : null;
       const src0 = leaf0 && leaf0.kind === "leaf" ? leaf0.source : null;
-      if (src0 && src0.kind === "ssh" && !initTmuxByLeaf.current[leafId]) {
+      // 재접속(#96/#99): 이 pane이 끊기기 전 tmux 세션에 붙어 있었다면(tmuxByLeaf는 attach
+      // 성공 시에만 기록되므로, 값이 있다는 것 자체가 재접속이라는 뜻) 그 세션으로 복귀한다.
+      // 호스트 자동 attach보다 우선 — 사용자가 실제로 쓰던 세션이 더 구체적이다.
+      // -d: 절전으로 죽은 옛 클라이언트를 분리(남겨두면 tmux가 그 폭에 맞춰 좁게 그린다).
+      const known = src0?.kind === "ssh" ? tmuxByLeaf.current[leafId] : undefined;
+      if (src0 && src0.kind === "ssh" && known) {
+        getTerminal(leafId)?.sendInput(tmuxAttachInput(known, true));
+      } else if (src0 && src0.kind === "ssh" && !initTmuxByLeaf.current[leafId]) {
         const hostId0 = src0.hostId;
         const host = hosts.find((h) => h.id === hostId0);
         const name = (host?.tmux_session ?? "").replace(/[^A-Za-z0-9_@-]/g, "");
