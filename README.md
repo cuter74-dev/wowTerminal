@@ -6,8 +6,6 @@ wowTerminal is a cross-platform desktop terminal that brings an AI assistant, an
 manager, and an SFTP file browser into one window. The assistant can read your current
 terminal output as context, suggest commands, and send them straight to the active pane.
 
-🌐 한국어 README: [README.ko.md](README.ko.md)
-
 ---
 
 ## Features
@@ -27,10 +25,17 @@ terminal output as context, suggest commands, and send them straight to the acti
   - Dual local ↔ remote panes, upload/download with a progress bar and transfer queue.
   - Remote file search and Unix permission editing.
 - **Terminal core**
-  - PTY-backed local shells, rendered with xterm.js.
+  - PTY-backed local shells, rendered with xterm.js (WebGL-accelerated).
   - Tabs, split panes (horizontal / vertical), and **detach a tab into a new window**
     (the live session and screen are handed over).
-  - Command history search (`Ctrl/⌘ + R`) and inline autocomplete (`Tab`).
+  - **Session restore** — on restart the previous tabs reopen: layout, local shells in their
+    previous working directory, SSH tabs reconnecting, tmux panes re-attaching.
+  - **tmux integration** — per-host auto-attach on SSH connect, a `⌘K` tmux session picker
+    (local or remote, with attach/switch/create), and tab titles that follow the session.
+  - Dead-session detection — if the connection drops (e.g. after sleep), the tab says so
+    and **Enter reconnects in place** (back into tmux when auto-attach is set).
+  - Command history search (`Ctrl/⌘ + R`), inline autocomplete (`Tab`), and a configurable
+    default start directory for new terminals.
 - **UI**
   - Collapsible left host panel and right AI panel, with draggable widths.
   - 11 UI languages (auto-detected from your OS locale, switchable in Settings).
