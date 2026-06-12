@@ -103,6 +103,9 @@ function firstLeafIdOf(pane: Pane): string {
 /** 저장된 스냅샷을 새 leaf ID로 복원. 스냅샷이 없거나 깨졌으면 null. */
 export function loadSessionSnapshot(): RestoredSession | null {
   try {
+    // 입력 자가 테스트(#95) 기동이면 복원하지 않는다 — 로컬 탭 1개의 격리 환경 보장
+    // (복원된 SSH/tmux 탭에 합성 입력이 들어가는 사고 방지).
+    if (localStorage.getItem("wowterminal.selftest") === "1") return null;
     const raw = localStorage.getItem(KEY);
     if (!raw) return null;
     const snap = JSON.parse(raw) as Snapshot;

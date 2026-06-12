@@ -17,6 +17,7 @@ import { CommandPalette, PaletteItem } from "./components/CommandPalette";
 import { SessionDashboard, DashRow } from "./components/SessionDashboard";
 import { TmuxPicker, attachInput as tmuxAttachInput } from "./components/TmuxPicker";
 import { loadSessionSnapshot, saveSessionSnapshot } from "./sessionRestore";
+import { selfTestRequested, clearSelfTest, runInputSelfTest } from "./inputSelfTest";
 import { PortForwardModal } from "./components/PortForwardModal";
 import { TitleBar } from "./components/TitleBar";
 import { TabBar } from "./components/TabBar";
@@ -853,6 +854,20 @@ function App() {
   tabsRef.current = tabs;
   const activeTabIdRef = useRef(activeTabId);
   activeTabIdRef.current = activeTabId;
+  // 입력 자가 테스트 (#95): selftest 플래그로 기동된 경우, 셸이 뜬 뒤 합성 입력
+  // 시나리오를 1회 실행한다(영어 타이핑/백스페이스/한글 미러). 플래그는 즉시 소거.
+  useEffect(() => {
+    if (!bootstrapped || IS_DETACHED_WINDOW) return;
+    if (!selfTestRequested()) return;
+    clearSelfTest();
+    try { localStorage.setItem("wt.selftest.trace", "scheduled;"); } catch { /* */ }
+    const t = setTimeout(() => {
+      void runInputSelfTest();
+    }, 3000);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bootstrapped]);
+
   // 터미널 제목(OSC 0/2) → 탭 라벨 동기화 (#89). tmux(set-titles on)/셸이 제목을 보내면
   // 그 leaf가 속한 탭의 라벨을 갱신하고, 제목이 비면 소스 기본 라벨로 되돌린다.
   useEffect(() => {

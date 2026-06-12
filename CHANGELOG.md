@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Changed
+- Internal: built-in input self-test harness (#95) — launching with a one-shot localStorage flag drives the real input paths (plain typing, Backspace, the macOS IME mirror with composition transitions and deletion) with synthetic events into a fresh local tab, and the shell's output files are asserted externally. Now part of the release checklist: Korean/English input is verified on every release. Inert without the flag (#95)
+
 ## [0.14.5] — 2026-06-11
 
 ### Fixed
