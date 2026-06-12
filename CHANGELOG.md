@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.7] — 2026-06-12
+
+### Fixed
+- macOS: paste being inserted again on the next keystroke — xterm's paste handler calls `stopPropagation` but not `preventDefault`, so WebKit's default action also wrote the clipboard text into the hidden textarea; the next keyCode-229 keydown engaged the IME mirror, which diffed against an empty baseline and re-sent the residue. The mirror now snapshots the textarea content as its baseline when it engages, and a paste listener clears the residue on the next tick. Covered by a new self-test scenario (paste → Korean typing must yield the pasted text exactly once) (#97)
+
 ## [0.14.6] — 2026-06-12
 
 ### Fixed
@@ -282,7 +287,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.6...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.7...HEAD
+[0.14.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.6...v0.14.7
 [0.14.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.5...v0.14.6
 [0.14.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.4...v0.14.5
 [0.14.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.3...v0.14.4

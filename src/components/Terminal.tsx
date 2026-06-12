@@ -710,6 +710,16 @@ export function Terminal({
       }
       imeSent = full;
     };
+    // ⌘V 붙여넣기 잔류 정리 (#97): xterm paste 핸들러는 텍스트를 PTY로 보낸 뒤
+    // preventDefault를 하지 않아, 기본 동작이 같은 텍스트를 textarea에 삽입해 남긴다.
+    // 다음 틱에 비워 미러가 잔류를 재전송하지 못하게 한다(조합 중이면 건드리지 않음).
+    if (ta) {
+      ta.addEventListener("paste", () => {
+        setTimeout(() => {
+          if (!imeActive && ta.value) ta.value = "";
+        }, 0);
+      });
+    }
     // 미러는 macOS에서만 켠다. Windows/Linux는 xterm 네이티브 IME가 한글/CJK를 직접 처리하므로
     // 미러 리스너를 등록하지 않는다(미러가 첫 음절 후 stuck되어 입력을 막던 #88을 근본 차단).
     if (ta && isMacWebView) {
@@ -809,6 +819,13 @@ export function Terminal({
         imeDiag.n229++; // [진단 #83]
         scheduleImeDiag();
         if (!isMacWebView || nativeComposition) return true;
+        if (!imeActive) {
+          // 미러 시작 시 textarea의 기존 내용(예: ⌘V 잔류 — xterm paste 핸들러는
+          // preventDefault하지 않아 전송 후 기본 동작이 같은 텍스트를 textarea에
+          // 남긴다)을 기준선으로 잡는다. 빈 기준선으로 시작하면 그 잔류가 통째로
+          // 다시 전송돼 "붙여넣기가 또 되는" 중복이 생긴다(#97).
+          imeSent = ta?.value ?? "";
+        }
         imeActive = true;
         return false;
       }

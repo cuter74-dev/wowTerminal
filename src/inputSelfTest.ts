@@ -149,6 +149,36 @@ async function runScenarios(): Promise<void> {
   trace("t3-enter");
   await sleep(400);
 
+  // T4 — 붙여넣기 후 한글 타이핑 (#97 회귀 테스트): 실제 ClipboardEvent로 붙여넣고,
+  // textarea 잔류 여부를 기록한 뒤 미러 타이핑 — 잔류가 있으면 미러가 그걸 재전송해
+  // "붙여넣기가 또 되는" 버그가 재현된다. 기대 파일 내용: "PB123가" 한 번만.
+  trace("t4-begin");
+  await typePlain("echo ");
+  const el4 = ta();
+  if (el4) {
+    try {
+      const dt = new DataTransfer();
+      dt.setData("text/plain", "PB123");
+      el4.dispatchEvent(
+        new ClipboardEvent("paste", { clipboardData: dt, bubbles: true, cancelable: true }),
+      );
+      // 합성 이벤트는 기본 동작(텍스트 삽입)이 없으므로, 실제 WebKit이 남기는 잔류를
+      // 직접 모사한다 — xterm paste 핸들러는 preventDefault하지 않는다(#97).
+      el4.value = "PB123";
+      await sleep(150);
+      trace("t4-residue:[" + el4.value + "]");
+    } catch (e) {
+      trace("t4-paste-ERR:" + String(e));
+    }
+  }
+  // 실제 IME는 잔류 뒤에 조합을 이어붙인다 — 값 전이도 잔류 접두를 포함해 모사.
+  // 수정(#97) 전이면 미러가 PB123을 재전송해 파일에 "PB123PB123가"가 찍힌다.
+  const rp = ta()?.value ?? "";
+  await typeMirror([rp + "ㄱ", rp + "가"]);
+  await typeMirror([rp + "가 ", rp + "가 > /tmp/wt-st4.txt"]);
+  await pressKey("Enter", 13);
+  await sleep(400);
+
   // 완료 마커 (검증 스크립트의 대기 종료용).
   await typePlain("echo done > /tmp/wt-st-done.txt");
   await pressKey("Enter", 13);
