@@ -426,10 +426,18 @@ export function Terminal({
     // WebGL 렌더러(GPU 가속). 컨텍스트 손실/실패 시 dispose하면 xterm이 자동으로 DOM
     // 렌더러로 폴백한다. (#83 잔상 수정 시도로 도입했으나 원인은 렌더러가 아니라 위
     // writingsuggestions였다 — 성능 이점이 있어 유지.)
+    // [진단 #83] 렌더러 상태 — M5 잔상은 입력 경로 결백으로 판명(0.14.7 실측: `df -h`가
+    // onData 6자뿐, 미러 미개입). 남은 용의자(렌더러 vs 에코/파싱)를 가리기 위해 수집.
+    const rendDiag = { webgl: false, ctxLost: 0 };
     try {
       const webgl = new WebglAddon();
-      webgl.onContextLoss(() => webgl.dispose());
+      webgl.onContextLoss(() => {
+        rendDiag.ctxLost++;
+        rendDiag.webgl = false;
+        webgl.dispose();
+      });
       term.loadAddon(webgl);
+      rendDiag.webgl = true;
     } catch {
       // WebGL 미지원 환경 — 기본 DOM 렌더러 유지.
     }
@@ -574,6 +582,24 @@ export function Terminal({
       if (imeRing.length >= 14) imeRing.shift();
       imeRing.push({ s: sent, f: full });
     };
+    // [진단 #83] 최근 PTY 에코 청크 링(최대 10건, 청크당 160자, 이스케이프 표기) — zsh
+    // 구문강조 재그리기가 실제로 무슨 시퀀스를 그리는지 본다. 입력 결백이 확정된 M5 잔상의
+    // 남은 분기: 에코가 잔상 글자를 포함(셸/파싱 쪽)하는지, 버퍼는 깨끗한데 화면만
+    // 더러운지(렌더러 쪽). #83 종결 시 제거.
+    const echoRing: string[] = [];
+    const echoDecoder = new TextDecoder();
+    const echoPush = (bytes: Uint8Array) => {
+      if (!isMacWebView) return;
+      let s: string;
+      try {
+        s = echoDecoder.decode(bytes);
+      } catch {
+        return;
+      }
+      if (s.length > 160) s = s.slice(0, 160) + `…(+${s.length - 160})`;
+      if (echoRing.length >= 10) echoRing.shift();
+      echoRing.push(JSON.stringify(s));
+    };
     let imeDiagTimer = 0;
     const scheduleImeDiag = () => {
       if (!isMacWebView) return;
@@ -604,6 +630,22 @@ export function Terminal({
         } catch {}
         if (imeDiagSends < 4) {
           imeDiagSends++;
+          // [진단 #83] 전송 시점의 커서 줄 + 위 3줄의 **버퍼 텍스트**. 화면의 잔상이
+          // 버퍼에 실재하면(파싱/에코 쪽) 여기 그대로 찍히고, 버퍼가 깨끗하면 렌더러가
+          // 못 지운 것이다 — M5 잔상의 결정적 분기점.
+          const bufTail = (): string[] => {
+            try {
+              const b = term.buffer.active;
+              const end = b.baseY + b.cursorY;
+              const out: string[] = [];
+              for (let i = Math.max(0, end - 3); i <= end; i++) {
+                out.push(b.getLine(i)?.translateToString(true) ?? "");
+              }
+              return out;
+            } catch {
+              return [];
+            }
+          };
           try {
             Sentry.captureMessage("wt-ime-diag2", {
               level: "info",
@@ -612,6 +654,10 @@ export function Terminal({
                 ws: term.textarea?.getAttribute("writingsuggestions") ?? null,
                 ...imeDiag,
                 ring: imeRing.slice(),
+                rend: { ...rendDiag, cols: term.cols, rows: term.rows },
+                echo: echoRing.slice(),
+                lines: bufTail(),
+                lang: navigator.language,
               },
             });
           } catch {}
@@ -620,6 +666,7 @@ export function Terminal({
         imeDiag.onDataChars = 0;
         imeDiag.mirrorBs = imeDiag.mirrorChars = imeDiag.bsSuppressed = 0;
         imeRing.length = 0;
+        echoRing.length = 0;
       }, 3000);
     };
 
@@ -1066,6 +1113,7 @@ export function Terminal({
           if (!sessionId || payload.session_id !== sessionId) return;
           const bytes = base64ToBytes(payload.data_b64);
           term.write(bytes);
+          echoPush(bytes);
           loggerRef.current?.append(bytes);
         });
 

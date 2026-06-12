@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.8] — 2026-06-12
+
+### Changed
+- Internal (temporary diagnostic, #83): the v0.14.7 data from the affected newest-Mac finally **cleared the input path** — typing `df -h` sent exactly 6 chars to the PTY (no keyCode-229, no mirror, no suppression) yet the prompt still showed `ddf -hdff f -h`, so the artifacts are born after input: in the shell echo/xterm parsing or in the renderer. The macOS IME diag now also captures the decisive split: whether the WebGL renderer is actually active (+ context losses), the **buffer text** of the cursor line + 3 lines above at send time (artifacts present in the buffer → echo/parsing side; buffer clean → renderer side), and the last 10 PTY echo chunks (escaped, 160 chars each — **includes terminal content**). Removed once #83 is closed (#83)
+
 ## [0.14.7] — 2026-06-12
 
 ### Fixed
@@ -287,7 +292,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.7...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.8...HEAD
+[0.14.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.7...v0.14.8
 [0.14.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.6...v0.14.7
 [0.14.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.5...v0.14.6
 [0.14.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.4...v0.14.5
