@@ -37,7 +37,12 @@ pub fn build_manager(
         };
         let _ = handle.emit("pty:output", payload);
     });
-    Arc::new(PtyManager::with_history(sink, history))
+    // 세션 종료 알림 (#96) — 프론트 Terminal이 듣고 "끊김/재접속" UI를 띄운다.
+    let closed_handle = app.clone();
+    let closed: crate::pty::manager::ClosedSink = Arc::new(move |session_id| {
+        let _ = closed_handle.emit("session:closed", SessionClosed { session_id });
+    });
+    Arc::new(PtyManager::with_closed(sink, history, closed))
 }
 
 #[derive(Clone, Serialize)]
@@ -45,6 +50,12 @@ struct PtyOutput {
     session_id: SessionId,
     /// PTY 바이트는 base64로 보낸다 (JSON에 비-UTF8 바이트 안전 운반).
     data_b64: String,
+}
+
+/// `session:closed` 이벤트 payload (#96). pty/ssh 공용 — 세션 ID는 전역 고유.
+#[derive(Clone, Serialize)]
+pub struct SessionClosed {
+    pub session_id: SessionId,
 }
 
 #[derive(Deserialize)]

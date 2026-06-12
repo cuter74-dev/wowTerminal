@@ -35,6 +35,8 @@ const STR: LangDict<{
     failedToStart: (err: string) => string;
     historyPlaceholder: string;
     noHistoryMatch: string;
+    sessionClosed: string;
+    reconnecting: string;
   }
 > = {
   en: {
@@ -49,6 +51,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Search command history (Enter to select, ESC to cancel)",
     noHistoryMatch: "No matching history",
+    sessionClosed: "\\r\\n\\x1b[33m[disconnected — press Enter to reconnect]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[reconnecting…]\\x1b[0m",
   },
   ko: {
     sessionHandover: "\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m",
@@ -62,6 +66,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "명령 히스토리 검색 (Enter 선택, ESC 취소)",
     noHistoryMatch: "일치하는 히스토리 없음",
+    sessionClosed: "\\r\\n\\x1b[33m[연결이 끊어졌습니다 — Enter 키로 다시 연결]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[다시 연결하는 중…]\\x1b[0m",
   },
   es: {
     sessionHandover: "\r\n\x1b[36m[sesión transferida — continúa en la nueva ventana]\x1b[0m",
@@ -75,6 +81,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Buscar en el historial de comandos (Enter para seleccionar, ESC para cancelar)",
     noHistoryMatch: "No hay coincidencias en el historial",
+    sessionClosed: "\\r\\n\\x1b[33m[desconectado — pulsa Enter para reconectar]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[reconectando…]\\x1b[0m",
   },
   zh: {
     sessionHandover: "\r\n\x1b[36m[会话已交接 — 在新窗口中继续]\x1b[0m",
@@ -88,6 +96,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "搜索命令历史（Enter 选择，ESC 取消）",
     noHistoryMatch: "没有匹配的历史记录",
+    sessionClosed: "\\r\\n\\x1b[33m[连接已断开 — 按 Enter 重新连接]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[正在重新连接…]\\x1b[0m",
   },
   ja: {
     sessionHandover: "\r\n\x1b[36m[セッションを引き継ぎました — 新しいウィンドウで続行]\x1b[0m",
@@ -101,6 +111,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "コマンド履歴を検索（Enter で選択、ESC でキャンセル）",
     noHistoryMatch: "一致する履歴がありません",
+    sessionClosed: "\\r\\n\\x1b[33m[切断されました — Enter キーで再接続]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[再接続中…]\\x1b[0m",
   },
   ru: {
     sessionHandover: "\r\n\x1b[36m[сессия передана — продолжите в новом окне]\x1b[0m",
@@ -114,6 +126,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Поиск по истории команд (Enter — выбрать, ESC — отменить)",
     noHistoryMatch: "Нет совпадений в истории",
+    sessionClosed: "\\r\\n\\x1b[33m[соединение разорвано — нажмите Enter для переподключения]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[переподключение…]\\x1b[0m",
   },
   fr: {
     sessionHandover: "\r\n\x1b[36m[session transférée — continuez dans la nouvelle fenêtre]\x1b[0m",
@@ -127,6 +141,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Rechercher dans l'historique des commandes (Entrée pour sélectionner, ESC pour annuler)",
     noHistoryMatch: "Aucune correspondance dans l'historique",
+    sessionClosed: "\\r\\n\\x1b[33m[déconnecté — appuyez sur Entrée pour reconnecter]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[reconnexion…]\\x1b[0m",
   },
   de: {
     sessionHandover: "\r\n\x1b[36m[Sitzung übergeben — im neuen Fenster fortfahren]\x1b[0m",
@@ -140,6 +156,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Befehlsverlauf durchsuchen (Enter zum Auswählen, ESC zum Abbrechen)",
     noHistoryMatch: "Keine passenden Verlaufseinträge",
+    sessionClosed: "\\r\\n\\x1b[33m[getrennt — Enter zum erneuten Verbinden]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[verbinde erneut…]\\x1b[0m",
   },
   vi: {
     sessionHandover: "\r\n\x1b[36m[phiên đã được bàn giao — tiếp tục trong cửa sổ mới]\x1b[0m",
@@ -153,6 +171,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Tìm trong lịch sử lệnh (Enter để chọn, ESC để hủy)",
     noHistoryMatch: "Không có lịch sử khớp",
+    sessionClosed: "\\r\\n\\x1b[33m[mất kết nối — nhấn Enter để kết nối lại]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[đang kết nối lại…]\\x1b[0m",
   },
   id: {
     sessionHandover: "\r\n\x1b[36m[sesi diserahkan — lanjutkan di jendela baru]\x1b[0m",
@@ -166,6 +186,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "Cari riwayat perintah (Enter untuk memilih, ESC untuk membatalkan)",
     noHistoryMatch: "Tidak ada riwayat yang cocok",
+    sessionClosed: "\\r\\n\\x1b[33m[terputus — tekan Enter untuk menyambung ulang]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[menyambung ulang…]\\x1b[0m",
   },
   hi: {
     sessionHandover: "\r\n\x1b[36m[सत्र सौंप दिया गया — नई विंडो में जारी रखें]\x1b[0m",
@@ -179,6 +201,8 @@ const STR: LangDict<{
     failedToStart: (err) => `\r\n[session] failed to start: ${err}`,
     historyPlaceholder: "कमांड इतिहास खोजें (चुनने के लिए Enter, रद्द करने के लिए ESC)",
     noHistoryMatch: "कोई मेल खाता इतिहास नहीं",
+    sessionClosed: "\\r\\n\\x1b[33m[कनेक्शन टूट गया — पुनः जोड़ने के लिए Enter दबाएं]\\x1b[0m",
+    reconnecting: "\\r\\n\\x1b[36m[पुनः जोड़ रहा है…]\\x1b[0m",
   },
 };
 
@@ -729,6 +753,14 @@ export function Terminal({
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // 세션이 죽었으면(절전 후 SSH 단절·셸 종료) Enter로 제자리 재접속 (#96).
+      // 재접속 시 onSshConnected가 다시 발화하므로 호스트 tmux 자동 attach도 복원된다.
+      if (sessionDead && e.key === "Enter") {
+        sessionDead = false;
+        term.writeln(tRef.current.reconnecting);
+        void spawnFresh();
+        return false;
+      }
       // ⌘F: 터미널 스크롤백 검색 오버레이 열기.
       if (e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "f" || e.key === "F")) {
         e.preventDefault();
@@ -939,10 +971,74 @@ export function Terminal({
       });
     }
 
+    // 세션이 죽었을 때(절전 후 SSH 단절, 셸 종료 등) Enter로 제자리 재접속 (#96).
+    let sessionDead = false;
+    let unlistenClosed: UnlistenFn | null = null;
+
+    const spawnFresh = async () => {
+      try {
+        sessionId = await invoke<string>(
+          cmds.spawnCmd,
+          cmds.spawnArgs(term.cols, term.rows),
+        );
+        if (source.kind === "ssh") {
+          onSshConnected?.();
+        }
+        // spawn이 진행되는 동안 발생한 리사이즈(레이아웃 정착 refit 등)는 onResize에서
+        // sessionId가 아직 없어 버려진다. 그 사이 xterm 크기가 바뀌었으면 PTY는 스폰 시점
+        // 크기로 남아 셸이 옛 폭에서 줄을 꺾는다(특히 Windows ConPTY+cmd 입력 에코 — #88
+        // 한글 입력 중 조기 줄바꿈). 스폰 직후 현재 크기를 한 번 동기화한다.
+        // onSession보다 먼저 — App이 onSession에서 tmux attach를 보내므로(#90 복원),
+        // attach가 최종 크기에서 일어나야 TUI가 옛 폭으로 그려지지 않는다.
+        void invoke(cmds.resizeCmd, {
+          sessionId,
+          cols: term.cols,
+          rows: term.rows,
+        }).catch(() => {});
+        onSession?.(sessionId);
+      } catch (err) {
+        if (source.kind === "ssh" && isSshConnectError(err)) {
+          if (err.kind === "host_key_mismatch") {
+            term.writeln(tRef.current.hostKeyMismatch(err.host, err.port));
+            onSshError?.(err);
+            return;
+          }
+          if (err.kind === "first_contact") {
+            term.writeln(tRef.current.firstContact(err.host, err.port));
+            onSshError?.(err);
+            return;
+          }
+          if (err.kind === "password_required") {
+            term.writeln(
+              tRef.current.passwordRequired(err.user, err.host, err.port),
+            );
+            onSshError?.(err);
+            return;
+          }
+          term.writeln(tRef.current.sshError(err.message));
+          onSshError?.(err);
+          return;
+        }
+        term.writeln(tRef.current.failedToStart(String(err)));
+      }
+    };
+
     (async () => {
       try {
         // attach 모드: listen 필터가 동작하도록 sessionId를 먼저 설정.
         if (attachSessionId) sessionId = attachSessionId;
+
+        // 세션 스트림 종료(절전 중 SSH 단절·셸 exit 등) 알림 (#96). 죽은 세션으로의
+        // 입력을 멈추고(아래에서 sessionId를 비움) 재접속 안내를 표시한다.
+        unlistenClosed = await listen<{ session_id: string }>(
+          "session:closed",
+          (event) => {
+            if (!sessionId || event.payload.session_id !== sessionId) return;
+            sessionDead = true;
+            sessionId = null;
+            term.writeln(tRef.current.sessionClosed);
+          },
+        );
 
         unlistenOutput = await listen<OutputPayload>(cmds.outputEvent, (event) => {
           const payload = event.payload;
@@ -993,53 +1089,11 @@ export function Terminal({
           };
           setTimeout(finishAttach, 250);
         } else {
-          sessionId = await invoke<string>(
-            cmds.spawnCmd,
-            cmds.spawnArgs(term.cols, term.rows),
-          );
-          if (source.kind === "ssh") {
-            onSshConnected?.();
-          }
-          // spawn이 진행되는 동안 발생한 리사이즈(레이아웃 정착 refit 등)는 onResize에서
-          // sessionId가 아직 없어 버려진다. 그 사이 xterm 크기가 바뀌었으면 PTY는 스폰 시점
-          // 크기로 남아 셸이 옛 폭에서 줄을 꺾는다(특히 Windows ConPTY+cmd 입력 에코 — #88
-          // 한글 입력 중 조기 줄바꿈). 스폰 직후 현재 크기를 한 번 동기화한다.
-          // onSession보다 먼저 — App이 onSession에서 tmux attach를 보내므로(#90 복원),
-          // attach가 최종 크기에서 일어나야 TUI가 옛 폭으로 그려지지 않는다.
-          void invoke(cmds.resizeCmd, {
-            sessionId,
-            cols: term.cols,
-            rows: term.rows,
-          }).catch(() => {});
-          onSession?.(sessionId);
-          // OSC 7 cwd 훅의 런타임 주입은 제거했다. 주입 명령 에코를 지우는 커서 정리가
-          // 프롬프트 폭/줄바꿈/tmux 대체화면 등에 취약해 상단 프롬프트 잔상을 반복적으로
-          // 만들었다(여러 차례 수정 시도에도). 대신 OSC 7 *수신* 핸들러는 유지하므로,
-          // 사용자가 원격 ~/.bashrc에 직접 훅을 넣으면(문서 참고) 깔끔하게 cwd 추적이 된다.
+          // 스폰/에러 처리는 spawnFresh로 일원화 — 끊김 후 Enter 재접속(#96)도 같은
+          // 경로를 다시 호출한다. (OSC 7 cwd 훅의 런타임 주입은 제거됨 — 수신만 유지.)
+          await spawnFresh();
         }
       } catch (err) {
-        if (source.kind === "ssh" && isSshConnectError(err)) {
-          if (err.kind === "host_key_mismatch") {
-            term.writeln(tRef.current.hostKeyMismatch(err.host, err.port));
-            onSshError?.(err);
-            return;
-          }
-          if (err.kind === "first_contact") {
-            term.writeln(tRef.current.firstContact(err.host, err.port));
-            onSshError?.(err);
-            return;
-          }
-          if (err.kind === "password_required") {
-            term.writeln(
-              tRef.current.passwordRequired(err.user, err.host, err.port),
-            );
-            onSshError?.(err);
-            return;
-          }
-          term.writeln(tRef.current.sshError(err.message));
-          onSshError?.(err);
-          return;
-        }
         term.writeln(tRef.current.failedToStart(String(err)));
       }
     })();
@@ -1060,6 +1114,7 @@ export function Terminal({
       onResizeDisposable.dispose();
       onTitleDisposable.dispose();
       if (unlistenOutput) unlistenOutput();
+      if (unlistenClosed) unlistenClosed();
       // kill은 항상 보내되, 인계된 세션은 백엔드 detach_guard가 첫 kill을 무시한다.
       if (sessionId) {
         void invoke(cmds.killCmd, { sessionId }).catch(() => {});

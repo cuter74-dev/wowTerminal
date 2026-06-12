@@ -146,11 +146,21 @@ pub fn build_state(
         );
     });
 
+    // 세션 종료 알림 (#96) — pty와 같은 `session:closed` 이벤트를 공유한다.
+    let closed_handle = app.clone();
+    let closed: crate::pty::manager::ClosedSink = Arc::new(move |session_id| {
+        let _ = closed_handle.emit(
+            "session:closed",
+            crate::pty::commands::SessionClosed { session_id },
+        );
+    });
+
     SshState {
-        manager: Arc::new(SshManager::with_history(
+        manager: Arc::new(SshManager::with_closed(
             sink,
             Arc::clone(&known_hosts),
             history,
+            closed,
         )),
         sftp: Arc::new(SftpManager::new(Arc::clone(&known_hosts), progress)),
         tunnel: Arc::new(TunnelManager::new(Arc::clone(&known_hosts))),

@@ -49,6 +49,10 @@ pub enum PtyError {
 /// 테스트에서는 채널이나 버퍼에 모을 수 있도록 추상화.
 pub type DataSink = Arc<dyn Fn(SessionId, Vec<u8>) + Send + Sync>;
 
+/// 세션 스트림 종료 콜백 (#96). SSH/PTY 공용 — 연결이 죽거나 셸이 종료되면 호출되어
+/// 프론트에 `session:closed`를 알린다(끊김 감지·재접속 UI용).
+pub type ClosedSink = Arc<dyn Fn(SessionId) + Send + Sync>;
+
 /// 세션별 출력 ring buffer. 탭 분리(세션 인계) 시 새 창이 이전 스크롤백을 복원하도록
 /// 출력 바이트를 세션마다 상한까지 누적한다. 상한 초과 시 오래된 앞부분부터 버린다.
 pub struct HistoryStore {
@@ -102,6 +106,7 @@ pub struct PtyManager {
     /// 다른 윈도우로 인계된 세션 — 다음 kill 1회 무시(세션 유지).
     detach_guard: Mutex<std::collections::HashSet<SessionId>>,
     sink: DataSink,
+    closed: ClosedSink,
     history: Arc<HistoryStore>,
 }
 
@@ -111,10 +116,20 @@ impl PtyManager {
     }
 
     pub fn with_history(sink: DataSink, history: Arc<HistoryStore>) -> Self {
+        Self::with_closed(sink, history, Arc::new(|_| {}))
+    }
+
+    /// closed 콜백까지 받는 생성자 (#96). 스트림 종료 시 세션 ID로 호출된다.
+    pub fn with_closed(
+        sink: DataSink,
+        history: Arc<HistoryStore>,
+        closed: ClosedSink,
+    ) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
             detach_guard: Mutex::new(std::collections::HashSet::new()),
             sink,
+            closed,
             history,
         }
     }
@@ -204,6 +219,7 @@ impl PtyManager {
 
         // reader 스레드: master에서 읽은 바이트를 sink로 전달.
         let sink = Arc::clone(&self.sink);
+        let closed = Arc::clone(&self.closed);
         let id_for_thread = session_id.clone();
         std::thread::spawn(move || {
             let mut buf = [0u8; 8192];
@@ -214,6 +230,8 @@ impl PtyManager {
                     Err(_) => break,
                 }
             }
+            // 셸 종료/스트림 끊김 — 프론트에 알린다 (#96).
+            (closed)(id_for_thread);
         });
 
         Ok(session_id)

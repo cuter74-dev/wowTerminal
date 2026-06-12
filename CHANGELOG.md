@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.6] — 2026-06-12
+
+### Fixed
+- Typing doing nothing after the screen was locked/asleep for a while, especially in SSH tabs — the TCP connection dies during sleep but the app had no keepalive, no dead-session detection, and no reconnect path, so keystrokes were silently dropped into a dead channel. Now: SSH keepalives (20s interval, 3 misses → dead within ~1 minute), a `session:closed` notification when a session's stream ends (SSH connection lost or local shell exited) showing "[disconnected — press Enter to reconnect]", and pressing Enter re-spawns the session in place — with tmux auto-attach configured, reconnecting drops you straight back into your tmux session (#96)
+
 ### Changed
 - Internal: built-in input self-test harness (#95) — launching with a one-shot localStorage flag drives the real input paths (plain typing, Backspace, the macOS IME mirror with composition transitions and deletion) with synthetic events into a fresh local tab, and the shell's output files are asserted externally. Now part of the release checklist: Korean/English input is verified on every release. Inert without the flag (#95)
 
@@ -277,7 +282,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.5...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.6...HEAD
+[0.14.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.5...v0.14.6
 [0.14.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.4...v0.14.5
 [0.14.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.3...v0.14.4
 [0.14.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.2...v0.14.3

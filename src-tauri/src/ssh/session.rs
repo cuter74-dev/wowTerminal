@@ -230,7 +230,14 @@ impl SshSession {
         remote_forwards: RemoteForwards,
     ) -> Result<client::Handle<TofuHandler>, SshError> {
         let (handler, shared) = make_handler(known_hosts, host, port, remote_forwards);
-        let config = Arc::new(client::Config::default());
+        let config = Arc::new({
+            let mut c = client::Config::default();
+            // 절전/네트워크 단절로 죽은 연결을 ~1분 내 감지한다 (#96). 응답 없는
+            // keepalive가 keepalive_max회 누적되면 연결을 끊고 세션 종료가 전파된다.
+            c.keepalive_interval = Some(std::time::Duration::from_secs(20));
+            c.keepalive_max = 3;
+            c
+        });
 
         // 일부 macOS 환경에서 hostname을 직접 받는 ToSocketAddrs 경로가 IPv6/IPv4 fallback을
         // 깔끔히 처리하지 못해 ENETUNREACH가 발생하는 케이스가 있었다. 명시적으로 resolve해
@@ -294,7 +301,14 @@ impl SshSession {
         let stream = channel.into_stream();
 
         let (handler, shared) = make_handler(known_hosts, host, port, Default::default());
-        let config = Arc::new(client::Config::default());
+        let config = Arc::new({
+            let mut c = client::Config::default();
+            // 절전/네트워크 단절로 죽은 연결을 ~1분 내 감지한다 (#96). 응답 없는
+            // keepalive가 keepalive_max회 누적되면 연결을 끊고 세션 종료가 전파된다.
+            c.keepalive_interval = Some(std::time::Duration::from_secs(20));
+            c.keepalive_max = 3;
+            c
+        });
         let handle = match client::connect_stream(config, stream, handler).await {
             Ok(h) => h,
             Err(e) => {
@@ -349,6 +363,7 @@ impl SshSession {
         rows: u16,
         session_id: SessionId,
         sink: DataSink,
+        closed: crate::pty::manager::ClosedSink,
         known_hosts: Arc<KnownHostsStore>,
         jump: Option<JumpSpec>,
     ) -> Result<Self, SshError> {
@@ -432,6 +447,8 @@ impl SshSession {
             // 점프 핸들도 여기서 함께 정리(세션 종료 시점). 이 태스크가 살아 있는 동안
             // jump_keepalive를 잡고 있어 ProxyJump 터널이 유지된다.
             drop(jump_keepalive);
+            // 채널/연결 종료 — 프론트에 알린다 (#96, 끊김 표시·재접속 UI).
+            (closed)(id_for_pump);
         });
 
         Ok(Self {

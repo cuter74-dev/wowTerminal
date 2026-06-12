@@ -60,6 +60,7 @@ pub struct SshManager {
     /// 다른 윈도우로 인계된 세션 — 다음 kill 1회를 무시(세션 유지)하기 위한 가드.
     detach_guard: Mutex<std::collections::HashSet<SessionId>>,
     sink: DataSink,
+    closed: crate::pty::manager::ClosedSink,
     known_hosts: Arc<KnownHostsStore>,
     history: Arc<crate::pty::manager::HistoryStore>,
 }
@@ -78,10 +79,21 @@ impl SshManager {
         known_hosts: Arc<KnownHostsStore>,
         history: Arc<crate::pty::manager::HistoryStore>,
     ) -> Self {
+        Self::with_closed(sink, known_hosts, history, Arc::new(|_| {}))
+    }
+
+    /// closed 콜백까지 받는 생성자 (#96). 채널/연결이 죽으면 세션 ID로 호출된다.
+    pub fn with_closed(
+        sink: DataSink,
+        known_hosts: Arc<KnownHostsStore>,
+        history: Arc<crate::pty::manager::HistoryStore>,
+        closed: crate::pty::manager::ClosedSink,
+    ) -> Self {
         Self {
             sessions: Mutex::new(HashMap::new()),
             detach_guard: Mutex::new(std::collections::HashSet::new()),
             sink,
+            closed,
             known_hosts,
             history,
         }
@@ -114,6 +126,7 @@ impl SshManager {
             rows,
             session_id.clone(),
             self.sink.clone(),
+            Arc::clone(&self.closed),
             Arc::clone(&self.known_hosts),
             jump,
         )
