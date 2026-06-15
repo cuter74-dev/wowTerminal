@@ -658,7 +658,12 @@ export function HostList({
           gap: 8,
         }}
       >
-        <span>wowTerminal{appVersion ? ` v${appVersion}` : ""}</span>
+        {/* 공식(ci) 빌드는 깨끗하게 'v0.x.y', 자체/게이트(local) 빌드는 '· local'을 붙여
+            한눈에 구분한다(#100 — 같은 버전의 자체 빌드를 표시). */}
+        <span>
+          wowTerminal{appVersion ? ` v${appVersion}` : ""}
+          {__BUILD_CHANNEL__ !== "ci" ? " · local" : ""}
+        </span>
         {update && (
           <button
             onClick={() => void applyUpdate()}

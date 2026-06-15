@@ -13,8 +13,13 @@ if (GLITCHTIP_DSN) {
     dsn: GLITCHTIP_DSN,
     release: `wowterminal@${__APP_VERSION__}`,
     environment: import.meta.env.MODE, // development | production
+    // 빌드 출처로 같은 버전의 공식(ci) vs 자체/게이트(local) 빌드를 구분한다 — 로컬 게이트
+    // 실행이 실 사용자 진단을 오염시키지 않도록(#100). GlitchTip에서 dist=local 필터로 분리.
+    dist: __BUILD_CHANNEL__,
     // 백엔드/프론트를 한 GlitchTip 프로젝트에서 태그로 구분한다.
-    initialScope: { tags: { component: "frontend" } },
+    initialScope: {
+      tags: { component: "frontend", build: `${__BUILD_CHANNEL__}.${__BUILD_REV__}` },
+    },
   });
 }
 

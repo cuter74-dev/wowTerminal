@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.11] — 2026-06-15
+
+### Changed
+- Build provenance marking — self-built/local binaries (e.g. the input-gate builds) now identify themselves separately from the official CI release, which previously was impossible since both reported the same version string. Official releases (built in CI from a `v*` tag) are unchanged; a local build now shows `· local` after the version in the host-panel footer and tags its GlitchTip diagnostics with `dist: local` (+ git short rev). This stops local gate runs from polluting the real-user diagnostics under the same release tag — the exact confusion hit while diagnosing #100 (#100)
+
 ## [0.14.10] — 2026-06-15
 
 ### Fixed
@@ -305,7 +310,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.10...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.11...HEAD
+[0.14.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.10...v0.14.11
 [0.14.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.9...v0.14.10
 [0.14.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.8...v0.14.9
 [0.14.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.7...v0.14.8
