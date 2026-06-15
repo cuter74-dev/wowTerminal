@@ -531,12 +531,28 @@ export function Terminal({
     let disposed = false;
 
     const encoder = new TextEncoder();
+    // [진단 #100 임시] PTY로 실제 보낸 입력 바이트 링 + 특수키 keydown 링. "백스페이스가
+    // 스페이스처럼 동작" 류 버그에서 백스페이스가 무슨 바이트(\x7f? \x20? 없음?)를 보내는지,
+    // 그 keydown이 어떤 key/keyCode/isComposing/imeActive였는지 본다. composition 머신은
+    // 로컬(미서명=229-only)에서 재현 불가라 서명 빌드로 실측한다. #100 종결 시 제거.
+    const escCtl = (s: string) =>
+      s.replace(
+        /[\x00-\x1f\x7f]/g,
+        (c) => "\\x" + c.charCodeAt(0).toString(16).padStart(2, "0"),
+      );
+    const inputRing: string[] = [];
+    const kdRing: string[] = [];
     // 쓰기를 순서대로 직렬화한다. IME 미러는 "ㄱ" 다음 "\x7f가"처럼 연속 전송하는데,
     // await 없이 invoke를 발사하면 PTY 도착 순서가 뒤바뀌어(백스페이스가 먼저 가는 등)
     // 자모가 남는다. 프로미스 체인으로 직전 쓰기 완료 후 다음을 보낸다.
     let writeChain: Promise<unknown> = Promise.resolve();
     const writeToSession = (text: string) => {
       if (!sessionId) return;
+      // [진단 #100] 보낸 바이트 기록(macOS 한정, 최근 30건).
+      if (isMacWebView) {
+        if (inputRing.length >= 30) inputRing.shift();
+        inputRing.push(escCtl(text));
+      }
       const dataB64 = bytesToBase64(encoder.encode(text));
       const sid = sessionId;
       writeChain = writeChain.then(() =>
@@ -685,6 +701,8 @@ export function Terminal({
                 rend: { ...rendDiag, cols: term.cols, rows: term.rows },
                 echo: echoRing.slice(),
                 lines: bufTail(),
+                input: inputRing.slice(), // [진단 #100] PTY로 보낸 바이트
+                kd: kdRing.slice(), // [진단 #100] 특수키 keydown
                 lang: navigator.language,
               },
             });
@@ -695,6 +713,8 @@ export function Terminal({
         imeDiag.mirrorBs = imeDiag.mirrorChars = imeDiag.bsSuppressed = 0;
         imeRing.length = 0;
         echoRing.length = 0;
+        inputRing.length = 0;
+        kdRing.length = 0;
       }, 3000);
     };
 
@@ -843,6 +863,15 @@ export function Terminal({
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // [진단 #100] 특수키(Backspace/Enter/Space/방향키 등) keydown 기록 — 백스페이스가
+      // 어떤 key/keyCode/isComposing/imeActive로 들어오는지(스페이스로 둔갑하는지) 본다.
+      if (isMacWebView && (e.key.length !== 1 || e.key === " ")) {
+        if (kdRing.length >= 30) kdRing.shift();
+        kdRing.push(
+          `${e.key}/${e.keyCode}${e.isComposing ? "/c" : ""}${imeActive ? "/A" : ""}`,
+        );
+        scheduleImeDiag();
+      }
       // 세션이 죽었으면(절전 후 SSH 단절·셸 종료) Enter로 제자리 재접속 (#96).
       // 재접속 시 onSshConnected가 다시 발화하므로 호스트 tmux 자동 attach도 복원된다.
       if (sessionDead && e.key === "Enter") {
