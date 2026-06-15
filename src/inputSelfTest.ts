@@ -261,6 +261,16 @@ async function runScenarios(): Promise<void> {
     /* 무시 */
   }
 
+  // T6 — non-breaking space 정규화 (#100 회귀): macOS 인라인 예측 텍스트가 스페이스를
+  // U+00A0(nbsp)로 커밋하면 셸 커서 계산이 어긋나 "백스페이스가 스페이스처럼" 동작했다.
+  // onData에서 nbsp→일반 스페이스로 정규화한다. 입력값에 nbsp를 넣고, 셸 파일이 일반
+  // 스페이스("st6 ok")로 찍히는지 단언(미수정이면 파일에 nbsp가 남아 불일치).
+  trace("t6-begin");
+  await typePlain("echo st6\u00a0ok > /tmp/wt-st6.txt"); // st6<nbsp>ok → 정규화 후 "st6 ok"
+  await pressKey("Enter", 13);
+  trace("t6-enter");
+  await sleep(400);
+
   // 완료 마커 (검증 스크립트의 대기 종료용).
   await typePlain("echo done > /tmp/wt-st-done.txt");
   await pressKey("Enter", 13);

@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.13] — 2026-06-15
+
+### Fixed
+- macOS: "Backspace behaving like Space" when deleting Korean — pressing Backspace left a blank and the cursor seemed to move forward instead of deleting. The 0.14.12 diagnostic proved Backspace sends the correct delete byte (`\x7f`); the real cause is that macOS inline predictive text commits the Space key as a **non-breaking space (U+00A0)** instead of a normal space (seen in the bytes sent: `라\xa0`). zsh's line editor doesn't treat U+00A0 as a normal cell, so its cursor column desyncs from the terminal's and Backspace's erase lands as a blank in the wrong place, leaving the characters on screen. Input is now normalized — a non-breaking space from the IME is sent to the shell as a regular space — on both the native and mirror paths. Covered by a new self-test scenario (typing `st6<U+00A0>ok` must reach the shell as `st6 ok`). Diagnosed from the live `input`/`kd` diagnostics, not guessed (#100)
+
 ## [0.14.12] — 2026-06-15
 
 ### Changed
@@ -315,7 +320,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.12...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.13...HEAD
+[0.14.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.12...v0.14.13
 [0.14.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.11...v0.14.12
 [0.14.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.10...v0.14.11
 [0.14.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.9...v0.14.10

@@ -718,11 +718,16 @@ export function Terminal({
       }, 3000);
     };
 
-    const onDataDisposable = term.onData((data) => {
+    const onDataDisposable = term.onData((rawData) => {
       if (!sessionId) return;
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
       // 한글 입력은 아래 textarea input 미러만 PTY로 보낸다.
       if (imeActive) return;
+      // macOS 인라인 예측 텍스트가 스페이스를 non-breaking space(U+00A0)로 커밋하는 문제(#100):
+      // 셸(zsh ZLE)은 nbsp를 일반 칸으로 취급하지 않아 커서 열 계산이 터미널과 어긋나고,
+      // 그 상태에서 Backspace를 누르면 지움이 엉뚱한 칸에 빈칸으로 떨어진다("백스페이스가
+      // 스페이스처럼 동작"). 사용자가 스페이스를 친 것이므로 일반 스페이스로 정규화한다.
+      const data = isMacWebView ? rawData.replace(/\u00a0/g, " ") : rawData;
       // (macOS 미러 한정) 단독 호환 자모(U+3130–U+318F: ㄱ, ㅏ 등)는 imeActive 설정 직전
       // 타이밍 틈에 xterm이 흘리는 조합 누수이므로 버린다. Windows/Linux는 xterm 네이티브
       // IME가 처리하므로 단독 자모도 정상 커밋일 수 있다 — 버리면 안 된다.
@@ -798,7 +803,8 @@ export function Terminal({
       imeDiag.mirrorChars += full.length - c; // [진단 #83]
       let out = "";
       for (let i = 0; i < bs; i++) out += "\x7f";
-      out += full.slice(c);
+      // non-breaking space(U+00A0) → 일반 스페이스 정규화 (#100, onData 경로와 동일 이유).
+      out += full.slice(c).replace(/\u00a0/g, " ");
       if (out) {
         writeToSession(out);
         broadcastInput(paneId ?? "", out);
