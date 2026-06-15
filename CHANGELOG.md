@@ -12,6 +12,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Changed
 - Internal (temporary diagnostic, #100): added to the macOS IME diag the last 30 byte-sequences actually sent to the PTY (escaped) and the last 30 special-key keydowns (key/keyCode/isComposing/imeActive). This pins down a report that **Backspace behaves like Space** while deleting Korean on the signed build — whether the wrong byte is sent (input logic) or the byte is correct and the WebGL renderer fails to clear the wide cell (renderer, same family as #83). It can only be measured on a signed build: the unsigned local build is a 229-only machine and never hits this composition path. Removed once #100 is resolved (#100)
 
+## [0.14.11] — 2026-06-15
+
 ### Changed
 - Build provenance marking — self-built/local binaries (e.g. the input-gate builds) now identify themselves separately from the official CI release, which previously was impossible since both reported the same version string. Official releases (built in CI from a `v*` tag) are unchanged; a local build now shows `· local` after the version in the host-panel footer and tags its GlitchTip diagnostics with `dist: local` (+ git short rev). This stops local gate runs from polluting the real-user diagnostics under the same release tag — the exact confusion hit while diagnosing #100 (#100)
 
