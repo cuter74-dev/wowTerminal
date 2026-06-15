@@ -562,6 +562,34 @@ export function Terminal({
     // 영영 꺼져, 229-only 맥에서 그 순간부터 한글이 깨진다(재시작 전까지 — #83에서 실측).
     const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
+    // 일부 macOS(특히 최신 M-시리즈 설치본)는 한글을 **표준 composition 이벤트로** 처리한다
+    // — 이런 머신에선 xterm 네이티브 IME가 조합을 완벽히 다루므로 커스텀 미러는 순수 방해다
+    // (미러가 음절 첫 229에서 잠깐 켜져 stray를 보내고, imeActive가 영어 전환 후까지 남아
+    // Backspace를 삼킨다 — 실측 진단 nCS:15/n229:19/mirror:4, "한글 깨짐 + 삭제 안 됨").
+    // compositionMachine이 true면 229는 항상 네이티브로 넘기고 미러를 절대 켜지 않는다.
+    // 판별 신호: **한글을 커밋하는 composition**(compositionupdate/end의 data에 한글).
+    // 229-only 머신(미러 필수)은 이 신호를 절대 만들지 않고(composition 자체가 없음),
+    // 악센트 길게 누르기/받아쓰기 같은 단발 composition은 라틴 문자라 오검출되지 않는다 —
+    // v0.14.3의 "단발 composition이 미러를 영영 꺼버림" 회귀를 피하는 핵심 구분점이다.
+    const CMP_KEY = "wt.ime.cmp";
+    const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힣]/;
+    let compositionMachine = false;
+    try {
+      compositionMachine = localStorage.getItem(CMP_KEY) === "1";
+    } catch {
+      /* 무시 */
+    }
+    const markCompositionMachine = (data: string | null) => {
+      if (compositionMachine || !data || !HANGUL.test(data)) return;
+      compositionMachine = true;
+      // 미러가 마침 켜져 있었다면(음절 첫 229) 즉시 꺼서 stray 전송을 멈춘다.
+      if (imeActive) resetIme();
+      try {
+        localStorage.setItem(CMP_KEY, "1");
+      } catch {
+        /* 무시 */
+      }
+    };
 
     // [진단 #83] IME 경로 카운터(구조만). 3초 입력 유휴 시 1회 전송 후 리셋.
     const imeDiag = {
@@ -788,19 +816,24 @@ export function Terminal({
         imeDiag.nCS++; // [진단 #83]
         scheduleImeDiag();
         nativeComposition = true;
-        resetIme();
+        // 조합 머신에선 textarea를 건드리지 않는다 — 네이티브 composition이 소유하므로
+        // ta.value를 비우면 조합 중인 음절이 깨진다("한글이 제대로 안 써짐"의 직접 원인).
+        if (!compositionMachine) resetIme();
       });
-      // [진단 #83] composition 경로 관찰용.
-      ta.addEventListener("compositionupdate", () => {
+      ta.addEventListener("compositionupdate", (e) => {
         imeDiag.nCU++;
         scheduleImeDiag();
+        // 조합 중 한글이 보이면 이 머신은 네이티브 composition으로 한글을 처리한다 — 미러 영구 OFF.
+        markCompositionMachine((e as CompositionEvent).data);
       });
-      ta.addEventListener("compositionend", () => {
+      ta.addEventListener("compositionend", (e) => {
         imeDiag.nCE++;
         scheduleImeDiag();
-        // 조합이 끝나면 잠깐 뒤 미러 모드로 복귀한다(직후 따라오는 229 keydown까지는
-        // 네이티브로 통과). composition을 상시 쓰는 환경은 키마다 compositionstart가
-        // 다시 켜므로 사실상 네이티브 유지 — 영구 latch의 미러 박탈만 없앤다.
+        markCompositionMachine((e as CompositionEvent).data);
+        // 조합 머신으로 확정됐으면 영구히 네이티브 유지(미러로 절대 복귀하지 않음).
+        if (compositionMachine) return;
+        // (미확정/229-only) 조합이 끝나면 잠깐 뒤 미러 모드로 복귀한다(직후 따라오는 229
+        // keydown까지는 네이티브로 통과). 영구 latch의 미러 박탈만 없앤다(v0.14.3).
         window.setTimeout(() => {
           nativeComposition = false;
         }, 80);
@@ -867,7 +900,9 @@ export function Terminal({
       if (e.keyCode === 229) {
         imeDiag.n229++; // [진단 #83]
         scheduleImeDiag();
-        if (!isMacWebView || nativeComposition) return true;
+        // 조합 머신(네이티브 IME가 한글 처리)·진행 중 composition·비-macOS는 네이티브로 넘긴다.
+        // 미러는 composition 이벤트가 전혀 없는 229-only macOS에서만 켠다.
+        if (!isMacWebView || nativeComposition || compositionMachine) return true;
         if (!imeActive) {
           // 미러 시작 시 textarea의 기존 내용(예: ⌘V 잔류 — xterm paste 핸들러는
           // preventDefault하지 않아 전송 후 기본 동작이 같은 텍스트를 textarea에

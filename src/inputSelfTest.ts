@@ -71,6 +71,46 @@ async function pressKey(key: string, keyCode: number): Promise<void> {
   await sleep(40);
 }
 
+/** Ctrl 조합 키 (Ctrl-U 줄 비우기 등). */
+async function pressCtrl(key: string, keyCode: number): Promise<void> {
+  const el = ta();
+  if (!el) return;
+  const e = new KeyboardEvent("keydown", {
+    key,
+    ctrlKey: true,
+    bubbles: true,
+    cancelable: true,
+  });
+  Object.defineProperty(e, "keyCode", { get: () => keyCode });
+  el.dispatchEvent(e);
+  await sleep(40);
+}
+
+/** 네이티브 composition 경로 구동: 사용자 맥(최신 macOS)처럼 표준 compositionstart →
+ *  compositionupdate(한글) → compositionend(한글) 이벤트를 보낸다. 미러 경로(typeMirror)와
+ *  달리 이건 xterm 네이티브 IME 경로 + 우리의 compositionMachine 판별 로직을 구동한다.
+ *  주의: 합성 composition은 xterm이 음절을 onData로 보내게 만들지는 못한다(실 IME 필요).
+ *  그래서 이 헬퍼는 "조합 머신 판별 + imeActive 미고착"만 구동하고, 셸 도달은 단언하지 않는다. */
+async function composeHangul(syllable: string): Promise<void> {
+  const el = ta();
+  if (!el) return;
+  el.dispatchEvent(new CompositionEvent("compositionstart", { data: "", bubbles: true }));
+  el.value = syllable;
+  el.dispatchEvent(
+    new CompositionEvent("compositionupdate", { data: syllable, bubbles: true }),
+  );
+  el.dispatchEvent(
+    new InputEvent("input", {
+      data: syllable,
+      inputType: "insertCompositionText",
+      bubbles: true,
+    }),
+  );
+  el.dispatchEvent(new CompositionEvent("compositionend", { data: syllable, bubbles: true }));
+  el.value = "";
+  await sleep(80);
+}
+
 /** IME 미러 경로 타이핑: keyCode 229 keydown으로 미러를 켠 뒤, textarea 값의 전이
  *  시퀀스(조합 중 값 전체)를 input 이벤트로 흘린다 — 실제 한글 조합과 동일한 형태. */
 async function typeMirror(valueSequence: string[]): Promise<void> {
@@ -178,6 +218,48 @@ async function runScenarios(): Promise<void> {
   await typeMirror([rp + "가 ", rp + "가 > /tmp/wt-st4.txt"]);
   await pressKey("Enter", 13);
   await sleep(400);
+
+  // T5 — 네이티브 composition 머신 + 영어 전환 후 삭제 (사용자 제보 회귀:
+  // "한글이 제대로 안 써지고 영어로 바꾸면 삭제가 안 됨"). 사용자 맥은 한글을 표준
+  // composition 이벤트로 처리하는데(진단 nCS:15/n229:19), 미러가 음절 첫 229에서 잠깐
+  // 켜져 stray를 보내고 imeActive가 영어 전환 후까지 남아 Backspace를 삼켰다. 수정:
+  // 한글 composition을 보면 compositionMachine으로 latch하고 미러를 영구 OFF.
+  // 검증: composition으로 한글을 흘려 latch시킨 뒤, **후속 composition 없는 229**를 하나
+  // 보내고(미러가 켜지면 imeActive가 고착됨), 영어 "st5-del"→BS×3→"xyz"로 삭제가
+  // 정상인지 본다. 미수정이면 229가 미러를 켜 imeActive 고착 → BS 삼켜져 파일이 깨진다.
+  // (selftest가 localStorage에 latch 플래그를 남기지 않도록 시작 전 값을 백업, T5 후 복원.)
+  trace("t5-begin");
+  let cmpBackup: string | null = null;
+  try {
+    cmpBackup = localStorage.getItem("wt.ime.cmp");
+  } catch {
+    /* 무시 */
+  }
+  await composeHangul("가");
+  await composeHangul("나");
+  let latched = "?";
+  try {
+    latched = localStorage.getItem("wt.ime.cmp") ?? "null";
+  } catch {
+    /* 무시 */
+  }
+  trace("t5-latched:" + latched);
+  await pressCtrl("u", 85); // 합성 composition이 남긴 stray가 있으면 줄 비우기.
+  await sleep(60);
+  await pressKey("Process", 229); // 후속 composition 없는 229 — 미러가 켜지면 안 된다.
+  await typePlain("echo st5-del");
+  for (let i = 0; i < 3; i++) await pressKey("Backspace", 8);
+  await typePlain("xyz > /tmp/wt-st5.txt");
+  await pressKey("Enter", 13);
+  trace("t5-enter");
+  await sleep(400);
+  // latch 플래그 원복 — 실제 사용자/메인테이너 머신 설정을 오염시키지 않는다.
+  try {
+    if (cmpBackup === null) localStorage.removeItem("wt.ime.cmp");
+    else localStorage.setItem("wt.ime.cmp", cmpBackup);
+  } catch {
+    /* 무시 */
+  }
 
   // 완료 마커 (검증 스크립트의 대기 종료용).
   await typePlain("echo done > /tmp/wt-st-done.txt");
