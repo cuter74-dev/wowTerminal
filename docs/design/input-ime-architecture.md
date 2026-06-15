@@ -22,6 +22,26 @@ Windows/Linux fire the standard `compositionstart/update/end` sequence and xterm
 jamo filter, and the keyCode-229 interception are all **macOS-only**; applying any of them
 to Windows/Linux breaks native IME (the root cause of the #84/#88 Hangul-stuck series).
 
+### macOS is itself two machines (#100)
+
+Critically, **macOS Macs split into two Korean behaviors**, and the app must auto-detect
+which one it's on:
+
+- **Type A — 229-only** (e.g. the maintainer's dev machine, `nCS:0`): Korean arrives as
+  keyCode-229 keydowns with **no composition events at all**. The custom mirror is required.
+- **Type B — composition-capable** (newer machines / the installed build, `nCS:15`): Korean
+  fires standard composition events. xterm's native IME handles it perfectly; the mirror is
+  pure interference and corrupts input (#100).
+
+Detection: a **composition that commits actual Hangul** (`compositionupdate/end` data
+matching `[ᄀ-ᇿ㄰-㆏가-힣]`) proves Type B. A Type-A machine never produces this, and a stray
+accent-popup/dictation commits Latin so it never trips the check (this is what avoids the
+v0.14.3 "one stray composition disables the mirror forever" regression). Once seen, the app
+latches `compositionMachine` (persisted to `localStorage["wt.ime.cmp"]`): keyCode-229 then
+always yields to native, the mirror never engages, and `compositionstart` no longer touches
+the textarea. The `nativeComposition` 80 ms window remains only for not-yet-classified /
+Type-A machines.
+
 ## The macOS mirror
 
 On macOS WKWebView (all recent versions we've seen), Korean input arrives as **keydown
@@ -97,7 +117,19 @@ setup (Spaces/multi-display), so the app can test itself. `src/inputSelfTest.ts`
 | T2 mirror composition | `/tmp/wt-st2.txt` | `안녕` |
 | T3 composition + deletion | `/tmp/wt-st3.txt` | `가나` |
 | T4 paste residue (#97) | `/tmp/wt-st4.txt` | `PB123가` (paste exactly once) |
+| T5 composition machine + EN↔KO deletion (#100) | `/tmp/wt-st5.txt` | `st5-xyz` |
 | completion marker | `/tmp/wt-st-done.txt` | — |
+
+**T5 closes the harness's original blind spot:** T1–T4 only drive the *mirror* path
+(synthetic 229 + textarea transitions) and never dispatch composition events, so they cannot
+see a Type-B machine — which is exactly why #100 shipped green. T5 dispatches the real
+composition sequence (`compositionstart`→`compositionupdate`→`input`→`compositionend` with
+Hangul), then sends a lone 229 (no following composition) + English `st5-del`→BS×3→`xyz`. On
+the broken code the lone 229 sticks `imeActive` and the Backspaces are swallowed → wrong
+file; only the fix yields `st5-xyz`. T5 backs up/restores `wt.ime.cmp` so it can't latch a
+real machine. **Caveat:** synthetic events verify the mirror + this state machine, but cannot
+fully reproduce a real macOS IME end-to-end (xterm's native composition needs a real IME to
+emit onData) — real-machine confirmation is still required after any input change.
 
 - Progress trace + 0.5 s heartbeat go to `localStorage["wt.selftest.trace"]` so a stalled
   driver can be told apart from a dead WebView.
