@@ -12,6 +12,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Fixed
 - macOS: Korean typing corrupted, and Backspace swallowed after switching English→Korean→English, on Macs that handle Korean through standard composition events (newer machines / the installed build) — the custom IME mirror, which exists for older 229-only WKWebViews, fought the native IME: the first keyCode-229 of each syllable briefly engaged the mirror before `compositionstart`, sending stray characters, and the engaged state lingered into English so a Backspace was held back waiting for a mirror event that never came. The app now detects a composition-capable Mac by a composition that commits actual Hangul (a signal a 229-only Mac never produces, and accent-popup/dictation never trip) and from then on always lets the native IME handle input, never engaging the mirror or touching the composing textarea. Diagnosed from the machine's live `wt.ime.local-diag` (`nCS:15, n229:19`), not guessed. The input self-test now also drives the real composition path and verifies deletion works after an EN↔KO switch (#100)
 
+## [0.14.9] — 2026-06-12
+
 ### Fixed
 - Reconnect (#96) follow-up, from a user screen recording (#99):
   - The "[disconnected — press Enter to reconnect]" / "[reconnecting…]" messages printed as literal `\r\n\x1b[33m…` text instead of colored lines — all 11 language strings were committed double-escaped.
