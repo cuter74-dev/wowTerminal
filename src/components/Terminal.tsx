@@ -946,6 +946,29 @@ export function Terminal({
         }
         return true;
       }
+      // Windows/Linux 복사/붙여넣기 단축키 (#101). macOS는 위 ⌘ 경로를 쓰므로 제외.
+      // Ctrl+C: 선택이 있으면 복사, 없으면 SIGINT로 통과(Windows Terminal/VS Code 방식).
+      // Ctrl+Shift+C: 항상 복사(SIGINT 충돌 없음). Ctrl+V / Ctrl+Shift+V: 붙여넣기.
+      if (!isMacWebView && e.ctrlKey && !e.altKey && (e.key === "c" || e.key === "C")) {
+        if (term.hasSelection()) {
+          e.preventDefault();
+          const sel = term.getSelection();
+          if (sel) void navigator.clipboard.writeText(sel);
+          return false; // 복사
+        }
+        // 선택 없음: Ctrl+Shift+C는 무동작(소비), Ctrl+C는 SIGINT로 통과.
+        return !e.shiftKey;
+      }
+      if (!isMacWebView && e.ctrlKey && !e.altKey && (e.key === "v" || e.key === "V")) {
+        e.preventDefault();
+        void navigator.clipboard
+          .readText()
+          .then((t) => {
+            if (t) term.paste(t); // bracketed-paste 모드를 존중해 PTY로 전달.
+          })
+          .catch(() => {});
+        return false;
+      }
       // IME 조합 키(keyCode 229). 미러는 구형 macOS WKWebView 전용이다. macOS가 아니거나
       // (Windows/Linux) 최신 WKWebView(nativeComposition)면 xterm 네이티브 IME가 처리하도록
       // 그대로 통과시킨다. 구형 macOS WKWebView(composition 이벤트 없음)만 미러로 처리한다.

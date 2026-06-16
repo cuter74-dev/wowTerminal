@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-06-16
+
+### Added
+- Windows/Linux copy/paste keyboard shortcuts — previously copy required select → right-click → context menu. Now: **Ctrl+C** copies when text is selected and otherwise passes through as SIGINT (the Windows Terminal / VS Code convention, mirroring the existing macOS ⌘C); **Ctrl+V** pastes (via `term.paste`, honoring bracketed-paste mode); **Ctrl+Shift+C** always copies the selection; **Ctrl+Shift+V** pastes. macOS keeps ⌘C/⌘V unchanged (#101)
+
 ## [0.14.14] — 2026-06-16
 
 ### Fixed
@@ -328,7 +333,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.14...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.14...v0.15.0
 [0.14.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.13...v0.14.14
 [0.14.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.12...v0.14.13
 [0.14.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.11...v0.14.12
