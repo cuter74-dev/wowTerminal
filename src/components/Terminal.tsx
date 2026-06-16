@@ -578,6 +578,9 @@ export function Terminal({
     // 영영 꺼져, 229-only 맥에서 그 순간부터 한글이 깨진다(재시작 전까지 — #83에서 실측).
     const isMacWebView = navigator.userAgent.includes("Mac");
     let nativeComposition = false;
+    // 조합이 실제 진행 중인 동안(compositionstart~compositionend)만 true. nativeComposition은
+    // composition 머신에서 영구 true로 고정되므로 "지금 조합 중"을 별도로 추적한다(#100 중복).
+    let composing = false;
     // 일부 macOS(특히 최신 M-시리즈 설치본)는 한글을 **표준 composition 이벤트로** 처리한다
     // — 이런 머신에선 xterm 네이티브 IME가 조합을 완벽히 다루므로 커스텀 미러는 순수 방해다
     // (미러가 음절 첫 229에서 잠깐 켜져 stray를 보내고, imeActive가 영어 전환 후까지 남아
@@ -600,6 +603,12 @@ export function Terminal({
       compositionMachine = true;
       // 미러가 마침 켜져 있었다면(음절 첫 229) 즉시 꺼서 stray 전송을 멈춘다.
       if (imeActive) resetIme();
+      // composition-view 숨김 해제 — 조합 중 음절이 커서에 가려 안 보이지 않게(#100).
+      try {
+        document.body.classList.add("wt-native-ime");
+      } catch {
+        /* 무시 */
+      }
       try {
         localStorage.setItem(CMP_KEY, "1");
       } catch {
@@ -723,15 +732,22 @@ export function Terminal({
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
       // 한글 입력은 아래 textarea input 미러만 PTY로 보낸다.
       if (imeActive) return;
+      // composition 머신: 조합 진행 중(Cs~Ce)의 onData는 정상 타이핑에선 발생하지 않는다
+      // (xterm은 조합 중 onData를 보류하고 compositionend에서 한 번만 보낸다). 그런데 한/영
+      // 전환 키(오른쪽 Cmd)를 조합 중에 누르면 그 음절이 조합 중 1회 + compositionend 1회로
+      // 두 번 전송돼 중복된다(#100, seq 실측: ⌨Meta/93/c → →가 → Ce:가 → →가). 조합 진행
+      // 중 전송은 버리고 compositionend 전송만 남겨 정확히 1회가 되게 한다.
+      if (compositionMachine && composing) return;
       // macOS 인라인 예측 텍스트가 스페이스를 non-breaking space(U+00A0)로 커밋하는 문제(#100):
       // 셸(zsh ZLE)은 nbsp를 일반 칸으로 취급하지 않아 커서 열 계산이 터미널과 어긋나고,
       // 그 상태에서 Backspace를 누르면 지움이 엉뚱한 칸에 빈칸으로 떨어진다("백스페이스가
       // 스페이스처럼 동작"). 사용자가 스페이스를 친 것이므로 일반 스페이스로 정규화한다.
       const data = isMacWebView ? rawData.replace(/\u00a0/g, " ") : rawData;
-      // (macOS 미러 한정) 단독 호환 자모(U+3130–U+318F: ㄱ, ㅏ 등)는 imeActive 설정 직전
-      // 타이밍 틈에 xterm이 흘리는 조합 누수이므로 버린다. Windows/Linux는 xterm 네이티브
-      // IME가 처리하므로 단독 자모도 정상 커밋일 수 있다 — 버리면 안 된다.
-      if (isMacWebView && data.length === 1) {
+      // (macOS **미러 경로 한정**) 단독 호환 자모(U+3130–U+318F: ㄱ, ㅏ 등)는 imeActive
+      // 설정 직전 타이밍 틈에 xterm이 흘리는 조합 누수이므로 버린다. 단, composition 머신
+      // (네이티브 IME)에서는 사용자가 진짜로 친 단독 자모(ㅇ, ㅏ)도 onData로 정상 커밋되므로
+      // 버리면 안 된다 — 버리면 "ㅇㅇ/ㅏㅏ 같은 단독 자모가 안 써짐"(#100). Windows/Linux도 동일.
+      if (isMacWebView && !compositionMachine && data.length === 1) {
         const cp = data.charCodeAt(0);
         if (cp >= 0x3130 && cp <= 0x318f) return;
       }
@@ -841,6 +857,7 @@ export function Terminal({
       ta.addEventListener("compositionstart", () => {
         imeDiag.nCS++; // [진단 #83]
         scheduleImeDiag();
+        composing = true;
         nativeComposition = true;
         // 조합 머신에선 textarea를 건드리지 않는다 — 네이티브 composition이 소유하므로
         // ta.value를 비우면 조합 중인 음절이 깨진다("한글이 제대로 안 써짐"의 직접 원인).
@@ -855,6 +872,7 @@ export function Terminal({
       ta.addEventListener("compositionend", (e) => {
         imeDiag.nCE++;
         scheduleImeDiag();
+        composing = false;
         markCompositionMachine((e as CompositionEvent).data);
         // 조합 머신으로 확정됐으면 영구히 네이티브 유지(미러로 절대 복귀하지 않음).
         if (compositionMachine) return;
@@ -872,10 +890,9 @@ export function Terminal({
       // [진단 #100] 특수키(Backspace/Enter/Space/방향키 등) keydown 기록 — 백스페이스가
       // 어떤 key/keyCode/isComposing/imeActive로 들어오는지(스페이스로 둔갑하는지) 본다.
       if (isMacWebView && (e.key.length !== 1 || e.key === " ")) {
+        const tag = `${e.key}/${e.keyCode}${e.isComposing ? "/c" : ""}${imeActive ? "/A" : ""}`;
         if (kdRing.length >= 30) kdRing.shift();
-        kdRing.push(
-          `${e.key}/${e.keyCode}${e.isComposing ? "/c" : ""}${imeActive ? "/A" : ""}`,
-        );
+        kdRing.push(tag);
         scheduleImeDiag();
       }
       // 세션이 죽었으면(절전 후 SSH 단절·셸 종료) Enter로 제자리 재접속 (#96).

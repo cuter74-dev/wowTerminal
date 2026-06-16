@@ -26,6 +26,15 @@ if (GLITCHTIP_DSN) {
 // 플랫폼별 CSS 분기용 클래스 (예: macOS 전용 IME 미러의 composition-view 숨김 — App.css 참고).
 if (navigator.userAgent.includes("Mac")) {
   document.body.classList.add("plat-mac");
+  // composition 머신(네이티브 IME)으로 판별된 적이 있으면 composition-view 숨김을 해제한다
+  // — 조합 중 음절이 보이도록(#100). Terminal.tsx가 latch 시에도 이 클래스를 부여한다.
+  try {
+    if (localStorage.getItem("wt.ime.cmp") === "1") {
+      document.body.classList.add("wt-native-ime");
+    }
+  } catch {
+    /* 무시 */
+  }
 }
 
 // StrictMode는 dev에서 effect를 mount→unmount→mount로 두 번 실행한다.

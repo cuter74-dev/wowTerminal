@@ -9,13 +9,14 @@ body,
   overflow: hidden;
 }
 
-/* 한글/CJK IME 이중 표시 수정 (#75) — macOS 한정.
+/* 한글/CJK IME 이중 표시 수정 (#75) — macOS **미러 경로 한정**.
    macOS의 커스텀 IME 미러는 조합 텍스트를 즉시 PTY로 보내 셸이 직접 표시하므로, xterm의
-   .composition-view 오버레이가 겹치면 "차차"처럼 이중으로 보인다. 미러가 도는 macOS에서만
-   숨긴다(plat-mac 클래스는 main.tsx에서 부여). Windows/Linux는 xterm 네이티브 IME가
-   처리하며 조합 중 글자가 이 오버레이에만 표시되므로 숨기면 안 된다(#88 — 숨겨져 있으면
-   한글 조합이 화면에 전혀 안 보인다). */
-body.plat-mac .xterm .composition-view,
-body.plat-mac .xterm .composition-view.active {
+   .composition-view 오버레이가 겹치면 "차차"처럼 이중으로 보인다. 그래서 미러가 도는 경우만
+   숨긴다(plat-mac 클래스는 main.tsx에서 부여).
+   단, **composition 머신(네이티브 IME)** 에선 미러가 없고 조합 중 음절이 이 오버레이에만
+   표시되므로 숨기면 안 된다 — 숨기면 "가나다 칠 때 조합 중인 마지막 음절이 커서에 가려 안
+   보임"(#100). 그런 머신엔 wt-native-ime 클래스를 부여해 숨김을 해제한다(Windows/Linux와 동일). */
+body.plat-mac:not(.wt-native-ime) .xterm .composition-view,
+body.plat-mac:not(.wt-native-ime) .xterm .composition-view.active {
   display: none !important;
 }

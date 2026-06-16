@@ -7,6 +7,14 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.14] — 2026-06-16
+
+### Fixed
+- macOS Korean input on composition-capable Macs — three issues found by reproducing on a signed build (the unsigned build is 229-only and never hits this path), each diagnosed from live `input`/`kd`/sequence telemetry, not guessed (#100):
+  - **Standalone jamo (ㅇ, ㅏ) wouldn't type** — only full syllables (가) appeared. The lone-compatibility-jamo drop in `onData` (a guard for the mirror path's composition leakage) was also eating legitimately-committed standalone jamo on a composition machine. It's now skipped on composition machines (native IME).
+  - **The syllable being composed was hidden by the cursor** (typing 가나다 showed only 가). The `.composition-view` overlay that shows the in-progress syllable was hidden on all macOS (it was only meant to be hidden when the custom mirror draws the text instead). It's now shown on composition machines.
+  - **Right-Cmd remapped as 한/영 duplicated the last Korean syllable** — toggling the input language *mid-composition* committed the syllable once during composition and again on `compositionend`. onData fired while composition was still in progress is now dropped (xterm normally suppresses those anyway), so each syllable is sent exactly once.
+
 ## [0.14.13] — 2026-06-15
 
 ### Fixed
@@ -320,7 +328,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.13...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.14...HEAD
+[0.14.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.13...v0.14.14
 [0.14.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.12...v0.14.13
 [0.14.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.11...v0.14.12
 [0.14.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.10...v0.14.11
