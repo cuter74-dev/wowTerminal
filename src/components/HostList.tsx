@@ -46,7 +46,7 @@ const STR: LangDict<{
     sortByHost: "By address",
     noResults: (query) => `No results for "${query}"`,
     ungrouped: "(Ungrouped)",
-    rowHint: "Click: select / ▶: connect / Double-click: new tab",
+    rowHint: "Click: select / ▶: connect / Double-click or Enter: new tab / ↑↓: navigate",
     edit: "Edit (S-015)",
     delete: "Delete (S-016)",
     duplicate: "Duplicate",
@@ -70,7 +70,7 @@ const STR: LangDict<{
     sortByHost: "주소순",
     noResults: (query) => `"${query}" 검색 결과 없음`,
     ungrouped: "(미분류)",
-    rowHint: "클릭: 선택 / ▶: 연결 / 더블클릭: 새 탭",
+    rowHint: "클릭: 선택 / ▶: 연결 / 더블클릭·Enter: 새 탭 / ↑↓: 이동",
     edit: "편집 (S-015)",
     delete: "삭제 (S-016)",
     duplicate: "복제",
@@ -482,6 +482,67 @@ export function HostList({
     [grouped],
   );
 
+  // 방향키 탐색용: 화면에 보이는 순서(그룹 순 → 미분류)로 평탄화한 호스트 배열.
+  const flatList = useMemo(() => {
+    const flat: SshHost[] = [];
+    for (const g of groups) {
+      const list = grouped.get(g.id);
+      if (list) flat.push(...list);
+    }
+    const ungrouped = grouped.get(null);
+    if (ungrouped) flat.push(...ungrouped);
+    return flat;
+  }, [groups, grouped]);
+
+  // 키보드로 리스트를 탐색하려면 스크롤 컨테이너가 포커스를 가져야 한다(전역으로 방향키를
+  // 잡으면 터미널 입력과 충돌하므로 컨테이너 스코프로 한정).
+  const listRef = useRef<HTMLDivElement>(null);
+
+  // 선택을 dir(±1/처음/끝)만큼 옮기고, 선택 행을 보이도록 스크롤한다.
+  const moveSelection = (dir: 1 | -1 | "first" | "last") => {
+    if (flatList.length === 0) return;
+    const cur = flatList.findIndex((h) => h.id === selectedId);
+    let next: number;
+    if (dir === "first") next = 0;
+    else if (dir === "last") next = flatList.length - 1;
+    else if (cur < 0) next = dir === 1 ? 0 : flatList.length - 1;
+    else next = Math.min(flatList.length - 1, Math.max(0, cur + dir));
+    const id = flatList[next].id;
+    setSelectedId(id);
+    requestAnimationFrame(() => {
+      listRef.current
+        ?.querySelector(`[data-host-id="${id}"]`)
+        ?.scrollIntoView({ block: "nearest" });
+    });
+  };
+
+  // 행 클릭 = 선택 + 컨테이너 포커스(이후 방향키가 바로 먹도록).
+  const selectRow = (id: string) => {
+    setSelectedId(id);
+    listRef.current?.focus();
+  };
+
+  // 리스트(또는 검색창)에서의 방향키/Enter/Home/End 처리.
+  const handleListKey = (e: React.KeyboardEvent) => {
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      moveSelection(1);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      moveSelection(-1);
+    } else if (e.key === "Home") {
+      e.preventDefault();
+      moveSelection("first");
+    } else if (e.key === "End") {
+      e.preventDefault();
+      moveSelection("last");
+    } else if (e.key === "Enter" && selectedId) {
+      // 더블클릭과 동일하게 새 탭으로 연결(현재 패널을 덮지 않아 안전).
+      e.preventDefault();
+      onOpenInNewTab(selectedId);
+    }
+  };
+
   return (
     <div
       style={{
@@ -554,6 +615,14 @@ export function HostList({
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder={t.searchPlaceholder}
+          onKeyDown={(e) => {
+            // 검색창에서 ↓ → 리스트로 진입(첫 항목 선택).
+            if (e.key === "ArrowDown") {
+              e.preventDefault();
+              listRef.current?.focus();
+              moveSelection(1);
+            }
+          }}
           style={{
             flex: 1,
             background: "#1c1c20",
@@ -583,7 +652,12 @@ export function HostList({
         </select>
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto" }}>
+      <div
+        ref={listRef}
+        tabIndex={0}
+        onKeyDown={handleListKey}
+        style={{ flex: 1, overflowY: "auto", outline: "none" }}
+      >
         {hosts.length === 0 && <EmptyState onAdd={() => setEditing("new")} />}
         {hosts.length > 0 && totalShown === 0 && (
           <div
@@ -612,7 +686,7 @@ export function HostList({
                 query={query}
                 tagColor={tagColor}
                 onConnect={onSelect}
-                onSelectRow={setSelectedId}
+                onSelectRow={selectRow}
                 onOpenInNewTab={onOpenInNewTab}
                 onEdit={setEditing}
                 onDelete={setDeleting}
@@ -633,7 +707,7 @@ export function HostList({
               query={query}
               tagColor={tagColor}
               onConnect={onSelect}
-              onSelectRow={setSelectedId}
+              onSelectRow={selectRow}
               onOpenInNewTab={onOpenInNewTab}
               onEdit={setEditing}
               onDelete={setDeleting}
@@ -904,6 +978,7 @@ function GroupSection({
         return (
           <div
             key={h.id}
+            data-host-id={h.id}
             onClick={() => onSelectRow(h.id)}
             onDoubleClick={() => onOpenInNewTab(h.id)}
             onContextMenu={(e) => {

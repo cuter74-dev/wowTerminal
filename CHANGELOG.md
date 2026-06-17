@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- Host list keyboard navigation — **↑/↓** move the selection through the visible (filtered + grouped) hosts in on-screen order and scroll the row into view, **Home/End** jump to first/last, **Enter** opens the selected host in a new tab (same as double-click), and pressing **↓ in the search box** drops focus into the list. Mouse selection is unchanged; clicking a row also focuses the list so the arrow keys work right away. Scoped to the list (not a global handler), so it never interferes with terminal input. (#105)
+
 ## [0.15.0] — 2026-06-17
 
 ### Added
