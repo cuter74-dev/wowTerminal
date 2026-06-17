@@ -1016,22 +1016,33 @@ export function Terminal({
         setHistorySearch(true);
         return false; // PTY로 보내지 않음 — 앱이 처리
       }
-      if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        // Tab은 항상 브라우저 기본 포커스 이동을 막는다(포커스가 AI 패널 등으로 넘어가는 것 방지).
-        e.preventDefault();
-        if (!e.shiftKey && suggestionRef.current) {
-          // 인라인 제안 수락(셸 Tab 완성 대신).
-          const rest = suggestionRef.current.slice(lineBufRef.current.length);
-          if (rest) {
-            writeToSession(rest);
-            lineBufRef.current = suggestionRef.current;
-            suggestionRef.current = null;
-            setSuggestion(null);
-          }
+      // 인라인 히스토리 제안 수락은 →(오른쪽 화살표)/End — fish·zsh-autosuggestions 방식 (#102).
+      // 제안은 커서가 줄 끝일 때만 존재한다(화살표 이동은 onData에서 라인 추적을 리셋하며 제안을
+      // 비운다). 그래서 제안이 있다 == 줄 끝 → 수락; 없으면 평소대로 커서 이동/줄 끝 이동으로 통과.
+      // 수정자 없는 단독 →/End만(Ctrl+→ 단어 점프, Shift+→ 선택 등은 통과).
+      if (
+        (e.key === "ArrowRight" || e.key === "End") &&
+        !e.ctrlKey &&
+        !e.altKey &&
+        !e.metaKey &&
+        !e.shiftKey &&
+        suggestionRef.current
+      ) {
+        const rest = suggestionRef.current.slice(lineBufRef.current.length);
+        if (rest) {
+          e.preventDefault();
+          writeToSession(rest);
+          lineBufRef.current = suggestionRef.current;
+          suggestionRef.current = null;
+          setSuggestion(null);
           return false;
         }
-        // 제안 없음 → 셸로 Tab 전달(Shift+Tab은 역탭 \e[Z).
-        writeToSession(e.shiftKey ? "\x1b[Z" : "\t");
+      }
+      if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        // Tab은 항상 셸 완성으로 통과(파일/디렉터리/명령) — 인라인 제안 수락은 →/End가 담당(#102).
+        // 브라우저 기본 포커스 이동만 막는다(포커스가 AI 패널 등으로 넘어가는 것 방지).
+        e.preventDefault();
+        writeToSession(e.shiftKey ? "\x1b[Z" : "\t"); // Shift+Tab은 역탭 \e[Z.
         return false;
       }
       return true;
@@ -1426,7 +1437,7 @@ export function Terminal({
             pointerEvents: "none",
           }}
         >
-          Tab → {suggestion}
+          → {suggestion}
         </div>
       )}
       {historySearch && (

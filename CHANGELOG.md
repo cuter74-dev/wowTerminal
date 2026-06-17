@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.14.16] — 2026-06-17
+
+### Changed
+- Inline history autosuggestion is now accepted with **→ (Right Arrow) / End** instead of Tab — Tab was clashing with the shell's own file/dir/command completion (when a suggestion showed, Tab accepted it instead of completing). Now **Tab always goes to the shell** for completion, and →/End accept the suggestion (only at end of line, where the suggestion exists; arrow movement / Ctrl+→ / Shift+→ are unaffected). This is the fish / zsh-autosuggestions / Warp convention. The on-screen hint now reads `→ {suggestion}` (#102)
+
 ## [0.14.15] — 2026-06-16
 
 ### Changed
@@ -333,7 +338,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.15...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.16...HEAD
+[0.14.16]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.15...v0.14.16
 [0.14.15]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.14...v0.14.15
 [0.14.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.13...v0.14.14
 [0.14.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.12...v0.14.13
