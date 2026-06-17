@@ -190,4 +190,10 @@ impl SshManager {
         let session = { self.sessions.lock().await.get(id).cloned()? };
         session.tmux_sessions().await
     }
+
+    /// 원격 시스템 요약(OS/셸/유저/배포판) — AI 컨텍스트 주입용 (#103). 실패면 None.
+    pub async fn probe_system(&self, id: &str) -> Option<String> {
+        let session = { self.sessions.lock().await.get(id).cloned()? };
+        session.probe_system().await
+    }
 }

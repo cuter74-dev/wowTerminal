@@ -195,6 +195,10 @@ pub struct SshSession {
 /// exec(이 스크립트)에서 자신의 조상 체인을 따라 연결 sshd를 찾고, 그 sshd를 조상으로 가지면서
 /// tty를 가진(=대화형 셸) 프로세스의 `/proc/<pid>/cwd`를 읽는다. exec 자신은 tty가 없어 제외된다.
 /// Linux(/proc)에서만 동작하며, 그 외(macOS/BSD·hidepid 등)에서는 아무것도 출력하지 않는다(홈 폴백).
+/// 원격 시스템 요약 한 줄(들)을 뽑는 읽기 전용 프로브 (#103). uname + 셸/유저 + 배포판명.
+/// uname 없는 환경(드묾)이어도 셸/유저는 나오고, /etc/os-release 없으면 distro만 빠진다.
+const SYSTEM_PROBE_SCRIPT: &str = r#"uname -srm 2>/dev/null; printf 'shell=%s user=%s' "${SHELL:-?}" "$(id -un 2>/dev/null || whoami 2>/dev/null || echo '?')"; if [ -r /etc/os-release ]; then . /etc/os-release 2>/dev/null; [ -n "$PRETTY_NAME" ] && printf ' distro=%s' "$PRETTY_NAME"; fi; printf '\n'"#;
+
 const REMOTE_CWD_SCRIPT: &str = r#"sh -c 'ppidof(){ s=$(cat /proc/$1/stat 2>/dev/null)||return 1; r=${s##*\) }; set -- $r; printf %s "$2"; }; ttyof(){ s=$(cat /proc/$1/stat 2>/dev/null)||return 1; r=${s##*\) }; set -- $r; printf %s "$5"; }; self=$$; p=$self; ch=; while [ "$p" -gt 1 ] 2>/dev/null; do ch="$ch $p"; np=$(ppidof $p)||break; [ "$np" = "$p" ] && break; p=$np; done; conn=; prev=; for q in $ch; do [ "$(cat /proc/$q/comm 2>/dev/null)" = sshd ] || continue; pq=$(ppidof $q); [ "$(cat /proc/$pq/comm 2>/dev/null)" != sshd ] && { conn=$prev; break; }; prev=$q; done; [ -n "$conn" ] || exit 0; for d in /proc/[0-9]*; do pid=${d#/proc/}; [ "$pid" = "$self" ] && continue; t=$(ttyof $pid 2>/dev/null)||continue; [ -n "$t" ] && [ "$t" != 0 ] || continue; a=$pid; ok=0; while [ "$a" -gt 1 ] 2>/dev/null; do [ "$a" = "$conn" ] && { ok=1; break; }; na=$(ppidof $a)||break; [ "$na" = "$a" ] && break; a=$na; done; [ "$ok" = 1 ] || continue; cwd=$(readlink /proc/$pid/cwd 2>/dev/null) && { printf "%s\n" "$cwd"; exit 0; }; done'"#;
 
 impl SshSession {
@@ -481,6 +485,19 @@ impl SshSession {
             None
         } else {
             Some(list)
+        }
+    }
+
+    /// 원격 시스템 요약(OS/커널/arch, 셸, 사용자, 배포판명)을 조회한다 (#103).
+    /// AI 어시스턴트가 "어떤 시스템에 연결됐는지" 알도록 컨텍스트에 주입하는 용도 —
+    /// 별도 exec 채널이라 대화형 화면에 흔적이 없고, 읽기 전용 고정 명령만 실행한다.
+    pub async fn probe_system(&self) -> Option<String> {
+        let text = self.exec_capture(SYSTEM_PROBE_SCRIPT).await?;
+        let t = text.trim();
+        if t.is_empty() {
+            None
+        } else {
+            Some(t.to_string())
         }
     }
 

@@ -135,3 +135,33 @@ pub async fn local_tmux_sessions() -> Option<Vec<crate::ssh::types::TmuxSessionI
         None
     }
 }
+
+/// 로컬 머신 시스템 요약(OS/arch/셸/유저) — AI 어시스턴트 컨텍스트용 (#103).
+/// 앱과 같은 머신이라 서브프로세스 없이 std로 충분하다(unix는 uname으로 커널 버전까지 보강).
+#[tauri::command]
+pub async fn local_system_info() -> Option<String> {
+    let user = std::env::var("USER")
+        .or_else(|_| std::env::var("USERNAME"))
+        .unwrap_or_else(|_| "?".into());
+
+    #[cfg(target_family = "unix")]
+    {
+        // uname -srm 으로 OS/커널/머신을 받아오고(없으면 OS 상수로 폴백), 셸을 덧붙인다.
+        let shell = std::env::var("SHELL").unwrap_or_else(|_| "?".into());
+        let uname = tokio::process::Command::new("uname")
+            .arg("-srm")
+            .output()
+            .await
+            .ok()
+            .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
+            .filter(|s| !s.is_empty())
+            .unwrap_or_else(|| std::env::consts::OS.to_string());
+        Some(format!("{uname} shell={shell} user={user}"))
+    }
+    #[cfg(target_family = "windows")]
+    {
+        let arch = std::env::consts::ARCH;
+        let shell = std::env::var("ComSpec").unwrap_or_else(|_| "cmd.exe".into());
+        Some(format!("Windows {arch} shell={shell} user={user}"))
+    }
+}

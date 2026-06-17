@@ -300,6 +300,16 @@ pub async fn ssh_tmux_sessions(
     Ok(state.manager.tmux_sessions(&session_id).await)
 }
 
+/// 원격 시스템 요약(OS/셸/유저/배포판) — AI 어시스턴트에 "어떤 시스템인지" 알려주는 컨텍스트용 (#103).
+/// 별도 exec 채널이라 대화형 화면에 흔적 없음. 조회 실패/타임아웃이면 null.
+#[tauri::command]
+pub async fn ssh_probe_system(
+    session_id: String,
+    state: State<'_, SshState>,
+) -> Result<Option<String>, String> {
+    Ok(state.manager.probe_system(&session_id).await)
+}
+
 #[tauri::command]
 pub async fn ssh_resize(
     session_id: String,

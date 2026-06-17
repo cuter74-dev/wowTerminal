@@ -1993,6 +1993,7 @@ function App() {
                         aiSessionByTab.current[tab.id] = sid;
                       }}
                       initialSessionId={attachAiByTab[tab.id]}
+                      getSessionId={(pid) => sessionByLeaf.current[pid]}
                     />
                   </div>
                 );

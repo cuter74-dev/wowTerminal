@@ -640,6 +640,8 @@ interface Props {
   onActiveSession?: (sessionId: string | null) => void;
   /** 세션 인계: 있으면 mount 시 이 대화를 localStorage에서 복원 (분리된 새 창). */
   initialSessionId?: string;
+  /** 포커스된 패널의 백엔드 세션 id 조회 (#103: ssh_probe_system 호출용). */
+  getSessionId?: (paneId: string) => string | undefined;
 }
 
 function extractCodeBlocks(text: string): string[] {
@@ -670,6 +672,7 @@ export function AIPanel({
   contextLabel,
   onActiveSession,
   initialSessionId,
+  getSessionId,
 }: Props) {
   const t = useT(STR);
   const [backends, setBackends] = useState<BackendInfo[]>([]);
@@ -683,6 +686,35 @@ export function AIPanel({
   const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  // 세션별 시스템 요약 캐시 (#103). OS/셸/유저는 세션 내내 안정적이라 한 번만 조회한다.
+  const sysInfoCache = useRef<Map<string, string>>(new Map());
+
+  // 포커스된 세션의 시스템 요약을 조용히 조회(SSH=별도 채널, 로컬=std). 실패하면 null.
+  // 대화형 터미널에 흔적을 남기지 않으며, LLM이 명령을 고르는 게 아니라 고정 정보만 채운다.
+  async function probeSystemInfo(): Promise<string | null> {
+    if (!focusedSource) return null;
+    try {
+      if (focusedSource.kind === "ssh") {
+        const sid = focusedPaneId ? getSessionId?.(focusedPaneId) : undefined;
+        if (!sid) return null;
+        const cached = sysInfoCache.current.get(sid);
+        if (cached) return cached;
+        const info = await invoke<string | null>("ssh_probe_system", {
+          sessionId: sid,
+        });
+        if (info) sysInfoCache.current.set(sid, info);
+        return info ?? null;
+      }
+      // 로컬: 같은 머신이라 세션 id 불필요. "local" 키로 한 번만 캐시.
+      const cached = sysInfoCache.current.get("local");
+      if (cached) return cached;
+      const info = await invoke<string | null>("local_system_info");
+      if (info) sysInfoCache.current.set("local", info);
+      return info ?? null;
+    } catch {
+      return null;
+    }
+  }
 
   function persistSession(sid: string, msgs: ChatMessage[]) {
     setSessions((prev) => {
@@ -794,6 +826,21 @@ export function AIPanel({
 
     const reqMessages: ChatMessage[] = [];
     if (includeContext || forceContext) {
+      // 어떤 시스템에 연결됐는지(OS/셸/유저)와 현재 경로를 사실 정보로 먼저 주입한다 (#103).
+      // 영어 한 줄 — 답변 언어는 아래 ctxAssistantSys(로컬라이즈됨)가 결정하므로 영향 없음.
+      const sysParts: string[] = [];
+      const sysInfo = await probeSystemInfo();
+      if (sysInfo) sysParts.push(`system: ${sysInfo}`);
+      const cwd = getTerminal(focusedPaneId)?.getCwd();
+      if (cwd) sysParts.push(`cwd: ${cwd}`);
+      if (sysParts.length) {
+        reqMessages.push({
+          role: "system",
+          content:
+            `Current session — ${sysParts.join("; ")}. ` +
+            "Tailor any suggested commands to this system (OS, shell, paths).",
+        });
+      }
       const ctx = getTerminal(focusedPaneId)?.getRecentText(100);
       if (ctx) {
         const where = focusedSource
