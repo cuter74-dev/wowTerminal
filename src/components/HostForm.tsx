@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Group, SshAuthMethod, SshHost, SshKeyEntry, Tag } from "../types";
 import { LangDict, useT } from "../i18n";
@@ -328,6 +328,10 @@ const STR: LangDict<{
 
 export function HostForm({ initial, onCancel, onSaved }: Props) {
   const t = useT(STR);
+  // 오버레이 클릭=닫기지만, 입력칸에서 텍스트를 드래그하다 오버레이 위에서 손을 떼면
+  // click이 오버레이에서 발생해 폼이 닫히는 버그를 막는다 — mousedown이 오버레이에서
+  // 시작했을 때만 닫는다(드래그 선택은 입력칸에서 시작하므로 무시).
+  const downOnOverlay = useRef(false);
   const [name, setName] = useState(initial?.name ?? "");
   const [host, setHost] = useState(initial?.host ?? "");
   // 포트는 편집 중 빈 값을 허용하려고 문자열로 보관(저장 시 숫자로 변환).
@@ -455,7 +459,12 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
         alignItems: "center",
         zIndex: 100,
       }}
-      onClick={onCancel}
+      onMouseDown={(e) => {
+        downOnOverlay.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && downOnOverlay.current) onCancel();
+      }}
     >
       <div
         onClick={(e) => e.stopPropagation()}

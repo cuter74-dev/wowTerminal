@@ -10,6 +10,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Added
 - The AI assistant now knows **which system is open**. When you ask with context attached, the focused session's OS / shell / user (and current directory) are probed silently and prepended to the request, so suggestions match the connected machine instead of guessing. On SSH this reuses the existing separate-channel exec (no trace in the interactive terminal); on a local tab it reads the host directly. The probe is a fixed read-only set (`uname`, `$SHELL`, `whoami`, distro name) — the model does not choose commands; system info is cached per session, cwd is read fresh. The system line is sent **independently of the "include active pane output" toggle** (knowing which machine is open shouldn't require attaching scrollback), and the attached-output line count is **configurable in Settings → General → AI context lines** (default 100, 1–2000). (Phase 1 of 2; phase 2 = an approval-gated tool-use loop.) (#103)
 
+### Fixed
+- Modal dialogs no longer close when you drag-select text in an input and release the mouse outside the panel. The overlay's click-to-close now fires only when the press *started* on the backdrop (tracked via mousedown), so text selection that ends outside the dialog no longer dismisses it — clicking the backdrop still closes it as before. Applied to the host registration form and Settings. (#104)
+
 ## [0.14.16] — 2026-06-17
 
 ### Changed

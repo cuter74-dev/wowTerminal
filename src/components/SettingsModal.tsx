@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { getVersion } from "@tauri-apps/api/app";
@@ -689,6 +689,13 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
   const t = useT(STR);
   const [tab, setTab] = useState<TabId>("general");
   const [appVersion, setAppVersion] = useState("");
+  // 입력칸에서 드래그 선택 후 오버레이 위에서 손을 떼면 닫히는 버그 방지(아래 onMouseDown/onClick).
+  const downOnOverlay = useRef(false);
+  // AI 컨텍스트 줄 수 입력 — 타이핑 중 빈 값/중간값을 허용하고, blur 때만 1~2000으로 보정한다.
+  const [aiLinesStr, setAiLinesStr] = useState(String(settings.general.aiContextLines));
+  useEffect(() => {
+    setAiLinesStr(String(settings.general.aiContextLines));
+  }, [settings.general.aiContextLines]);
   useEffect(() => {
     getVersion()
       .then(setAppVersion)
@@ -738,7 +745,15 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
   }
 
   return (
-    <div onClick={onClose} style={overlayStyle}>
+    <div
+      onMouseDown={(e) => {
+        downOnOverlay.current = e.target === e.currentTarget;
+      }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget && downOnOverlay.current) onClose();
+      }}
+      style={overlayStyle}
+    >
       <div onClick={(e) => e.stopPropagation()} style={modalStyle} role="dialog" aria-modal="true">
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <strong style={{ fontSize: 15 }}>⚙ {t.settings}</strong>
@@ -807,12 +822,22 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   min={1}
                   max={2000}
                   step={50}
-                  value={settings.general.aiContextLines}
+                  value={aiLinesStr}
                   onChange={(e) => {
-                    const v = parseInt(e.target.value || "100", 10);
-                    patchGeneral({
-                      aiContextLines: Math.max(1, Math.min(2000, v)),
-                    });
+                    // 타이핑 중엔 그대로 두고(빈 값/중간값 허용), 유효 범위일 때만 즉시 반영.
+                    setAiLinesStr(e.target.value);
+                    const v = parseInt(e.target.value, 10);
+                    if (Number.isFinite(v) && v >= 1 && v <= 2000) {
+                      patchGeneral({ aiContextLines: v });
+                    }
+                  }}
+                  onBlur={() => {
+                    // 포커스를 떠날 때만 비었거나 범위를 벗어난 값을 보정한다.
+                    let v = parseInt(aiLinesStr, 10);
+                    if (!Number.isFinite(v)) v = 100;
+                    v = Math.max(1, Math.min(2000, v));
+                    setAiLinesStr(String(v));
+                    patchGeneral({ aiContextLines: v });
                   }}
                   style={inputStyle}
                 />
