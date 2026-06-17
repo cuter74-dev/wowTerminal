@@ -15,7 +15,7 @@ import {
   formatBinding,
 } from "../settings";
 import { LangDict, useT } from "../i18n";
-import { Group, SshHost, Tag } from "../types";
+import { BackendInfo, Group, SshHost, Tag } from "../types";
 import { Snippet, loadSnippets, saveSnippets } from "../snippets";
 
 interface Props {
@@ -74,7 +74,7 @@ const STR: LangDict<{
     exportDone: string;
     exportFileDone: (path: string) => string;
     exportFail: (e: string) => string;
-    importDone: (h: number, g: number, t: number) => string;
+    importDone: (h: number, g: number, t: number, b: number) => string;
     importFail: (e: string) => string;
   }
 > = {
@@ -114,13 +114,13 @@ const STR: LangDict<{
     chooseDir: "Choose…",
     applyNote: "Applied to all terminals immediately.",
     readonlyNote: "v1 is read-only. Custom key bindings later.",
-    export: "Export (hosts/groups/tags)",
+    export: "Export (hosts/groups/tags/LLM)",
     copy: "Copy",
     import: "Import",
     backupPlaceholder:
       "Exported JSON appears here. To import, paste JSON and click [Import].",
     secretsNote:
-      "Secrets (passwords/keys) stay in the Keychain and are not included in the export. But host addresses and usernames ARE included — avoid cloud-synced locations.",
+      "Secrets (SSH passwords/keys, LLM API keys) stay in the Keychain and are not included in the export. LLM backends are exported without their API key — re-enter it after importing. Host addresses and usernames ARE included — avoid cloud-synced locations.",
     exportDone:
       "Export complete — copy the JSON below to keep it. (Secrets are not included)",
     exportFail: (e) => `Export failed: ${e}`,
@@ -130,7 +130,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config not found or empty.",
     sshConfigImported: (n) => `Imported ${n} hosts from ~/.ssh/config.`,
     exportFileDone: (p) => `Saved to ${p}`,
-    importDone: (h, g, t) => `Import complete: hosts ${h} / groups ${g} / tags ${t}`,
+    importDone: (h, g, t, b) => `Import complete: hosts ${h} / groups ${g} / tags ${t} / LLM ${b}`,
     importFail: (e) => `Import failed: ${e}`,
   },
   ko: {
@@ -169,13 +169,13 @@ const STR: LangDict<{
     chooseDir: "선택…",
     applyNote: "변경 즉시 모든 터미널에 적용됩니다.",
     readonlyNote: "v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.",
-    export: "내보내기 (호스트/그룹/태그)",
+    export: "내보내기 (호스트/그룹/태그/LLM)",
     copy: "복사",
     import: "가져오기",
     backupPlaceholder:
       "내보낸 JSON이 여기 표시됩니다. 가져오려면 JSON을 붙여넣고 [가져오기].",
     secretsNote:
-      "시크릿(비밀번호/키)은 Keychain에 남고 export에 포함되지 않습니다. 단, 호스트 주소·계정명은 포함되니 클라우드 동기화 위치는 피하세요.",
+      "시크릿(SSH 비밀번호/키, LLM API 키)은 Keychain에 남고 export에 포함되지 않습니다. LLM 백엔드는 API 키 없이 내보내지므로 가져온 뒤 키를 다시 입력하세요. 단, 호스트 주소·계정명은 포함되니 클라우드 동기화 위치는 피하세요.",
     exportDone:
       "내보내기 완료 — 아래 JSON을 복사해 보관하세요. (시크릿은 포함되지 않습니다)",
     exportFail: (e) => `내보내기 실패: ${e}`,
@@ -185,7 +185,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config가 없거나 비어 있습니다.",
     sshConfigImported: (n) => `~/.ssh/config에서 ${n}개 호스트를 가져왔습니다.`,
     exportFileDone: (p) => `저장됨: ${p}`,
-    importDone: (h, g, t) => `가져오기 완료: 호스트 ${h} / 그룹 ${g} / 태그 ${t}`,
+    importDone: (h, g, t, b) => `가져오기 완료: 호스트 ${h} / 그룹 ${g} / 태그 ${t} / LLM ${b}`,
     importFail: (e) => `가져오기 실패: ${e}`,
   },
   es: {
@@ -240,7 +240,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config no encontrado o vacío.",
     sshConfigImported: (n) => `Se importaron ${n} hosts de ~/.ssh/config.`,
     exportFileDone: (p) => `Guardado en ${p}`,
-    importDone: (h, g, t) => `Importación completa: hosts ${h} / grupos ${g} / etiquetas ${t}`,
+    importDone: (h, g, t, b) => `Importación completa: hosts ${h} / grupos ${g} / etiquetas ${t} / LLM ${b}`,
     importFail: (e) => `Importación fallida: ${e}`,
   },
   zh: {
@@ -295,7 +295,7 @@ const STR: LangDict<{
     sshConfigEmpty: "未找到 ~/.ssh/config 或为空。",
     sshConfigImported: (n) => `已从 ~/.ssh/config 导入 ${n} 个主机。`,
     exportFileDone: (p) => `已保存到 ${p}`,
-    importDone: (h, g, t) => `导入完成: 主机 ${h} / 分组 ${g} / 标签 ${t}`,
+    importDone: (h, g, t, b) => `导入完成: 主机 ${h} / 分组 ${g} / 标签 ${t} / LLM ${b}`,
     importFail: (e) => `导入失败: ${e}`,
   },
   ja: {
@@ -350,7 +350,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config が見つからないか空です。",
     sshConfigImported: (n) => `~/.ssh/config から ${n} 件のホストを取り込みました。`,
     exportFileDone: (p) => `保存しました: ${p}`,
-    importDone: (h, g, t) => `インポート完了: ホスト ${h} / グループ ${g} / タグ ${t}`,
+    importDone: (h, g, t, b) => `インポート完了: ホスト ${h} / グループ ${g} / タグ ${t} / LLM ${b}`,
     importFail: (e) => `インポート失敗: ${e}`,
   },
   ru: {
@@ -405,7 +405,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config не найден или пуст.",
     sshConfigImported: (n) => `Импортировано хостов из ~/.ssh/config: ${n}.`,
     exportFileDone: (p) => `Сохранено: ${p}`,
-    importDone: (h, g, t) => `Импорт завершён: хосты ${h} / группы ${g} / теги ${t}`,
+    importDone: (h, g, t, b) => `Импорт завершён: хосты ${h} / группы ${g} / теги ${t} / LLM ${b}`,
     importFail: (e) => `Ошибка импорта: ${e}`,
   },
   fr: {
@@ -460,7 +460,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config introuvable ou vide.",
     sshConfigImported: (n) => `${n} hôtes importés depuis ~/.ssh/config.`,
     exportFileDone: (p) => `Enregistré : ${p}`,
-    importDone: (h, g, t) => `Importation terminée : hôtes ${h} / groupes ${g} / étiquettes ${t}`,
+    importDone: (h, g, t, b) => `Importation terminée : hôtes ${h} / groupes ${g} / étiquettes ${t} / LLM ${b}`,
     importFail: (e) => `Échec de l'importation : ${e}`,
   },
   de: {
@@ -515,7 +515,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config nicht gefunden oder leer.",
     sshConfigImported: (n) => `${n} Hosts aus ~/.ssh/config importiert.`,
     exportFileDone: (p) => `Gespeichert: ${p}`,
-    importDone: (h, g, t) => `Import abgeschlossen: Hosts ${h} / Gruppen ${g} / Tags ${t}`,
+    importDone: (h, g, t, b) => `Import abgeschlossen: Hosts ${h} / Gruppen ${g} / Tags ${t} / LLM ${b}`,
     importFail: (e) => `Import fehlgeschlagen: ${e}`,
   },
   vi: {
@@ -570,7 +570,7 @@ const STR: LangDict<{
     sshConfigEmpty: "Không tìm thấy ~/.ssh/config hoặc trống.",
     sshConfigImported: (n) => `Đã nhập ${n} máy chủ từ ~/.ssh/config.`,
     exportFileDone: (p) => `Đã lưu: ${p}`,
-    importDone: (h, g, t) => `Nhập hoàn tất: máy chủ ${h} / nhóm ${g} / thẻ ${t}`,
+    importDone: (h, g, t, b) => `Nhập hoàn tất: máy chủ ${h} / nhóm ${g} / thẻ ${t} / LLM ${b}`,
     importFail: (e) => `Nhập thất bại: ${e}`,
   },
   id: {
@@ -625,7 +625,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config tidak ditemukan atau kosong.",
     sshConfigImported: (n) => `Mengimpor ${n} host dari ~/.ssh/config.`,
     exportFileDone: (p) => `Disimpan ke ${p}`,
-    importDone: (h, g, t) => `Impor selesai: host ${h} / grup ${g} / tag ${t}`,
+    importDone: (h, g, t, b) => `Impor selesai: host ${h} / grup ${g} / tag ${t} / LLM ${b}`,
     importFail: (e) => `Impor gagal: ${e}`,
   },
   hi: {
@@ -680,7 +680,7 @@ const STR: LangDict<{
     sshConfigEmpty: "~/.ssh/config नहीं मिला या खाली है।",
     sshConfigImported: (n) => `~/.ssh/config से ${n} होस्ट आयात किए।`,
     exportFileDone: (p) => `सहेजा गया: ${p}`,
-    importDone: (h, g, t) => `आयात पूर्ण: होस्ट ${h} / समूह ${g} / टैग ${t}`,
+    importDone: (h, g, t, b) => `आयात पूर्ण: होस्ट ${h} / समूह ${g} / टैग ${t} / LLM ${b}`,
     importFail: (e) => `आयात विफल: ${e}`,
   },
 };
@@ -1261,12 +1261,14 @@ function BackupTab() {
   const [msg, setMsg] = useState<string | null>(null);
 
   async function buildExportJson(): Promise<string> {
-    const [hosts, groups, tags] = await Promise.all([
+    const [hosts, groups, tags, backends] = await Promise.all([
       invoke<SshHost[]>("ssh_list_hosts"),
       invoke<Group[]>("ssh_list_groups"),
       invoke<Tag[]>("ssh_list_tags"),
+      // LLM 백엔드 설정(API 키 제외 — ai_list_backend_configs는 키를 반환하지 않음).
+      invoke<BackendInfo[]>("ai_list_backend_configs"),
     ]);
-    return JSON.stringify({ version: 1, hosts, groups, tags }, null, 2);
+    return JSON.stringify({ version: 1, hosts, groups, tags, backends }, null, 2);
   }
 
   async function applyImportJson(json: string): Promise<string> {
@@ -1274,10 +1276,23 @@ function BackupTab() {
     const groups: Group[] = parsed.groups ?? [];
     const tags: Tag[] = parsed.tags ?? [];
     const hosts: SshHost[] = parsed.hosts ?? [];
+    const backends: BackendInfo[] = parsed.backends ?? [];
     for (const g of groups) await invoke("ssh_save_group", { group: g });
     for (const t2 of tags) await invoke("ssh_save_tag", { tag: t2 });
     for (const h of hosts) await invoke("ssh_save_host", { host: h });
-    return t.importDone(hosts.length, groups.length, tags.length);
+    // 백엔드는 메타데이터만 복원하고 API 키는 비운다(apiKey: null = 키체인 미변경).
+    // 사용자가 가져온 뒤 키를 다시 입력해야 인증이 필요한 백엔드가 동작한다.
+    for (const b of backends)
+      await invoke("ai_save_backend", {
+        args: {
+          id: b.id,
+          displayName: b.displayName,
+          apiBase: b.apiBase,
+          defaultModel: b.defaultModel,
+          apiKey: null,
+        },
+      });
+    return t.importDone(hosts.length, groups.length, tags.length, backends.length);
   }
 
   // ~/.ssh/config 가져오기: Host 블록을 파싱해 호스트로 등록(auth는 ssh-agent 기본, 편집 가능).
