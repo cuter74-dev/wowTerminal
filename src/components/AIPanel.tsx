@@ -89,6 +89,7 @@ const STR: LangDict<{
     inputPlaceholder: string;
     setupFirst: string;
     includeContext: string;
+    ctxLinesUnit: string;
     send: string;
     localShell: string;
     noActiveTab: string;
@@ -133,6 +134,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter to send, Shift+Enter for newline",
     setupFirst: "Please set up a backend first",
     includeContext: "Include active pane output as context",
+    ctxLinesUnit: "lines",
     send: "Send",
     localShell: "Local shell",
     noActiveTab: "No active tab",
@@ -179,6 +181,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter로 전송, Shift+Enter 줄바꿈",
     setupFirst: "백엔드를 먼저 설정해주세요",
     includeContext: "활성 패널 출력을 컨텍스트로 포함",
+    ctxLinesUnit: "줄",
     send: "전송",
     localShell: "로컬 셸",
     noActiveTab: "활성 탭 없음",
@@ -225,6 +228,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter para enviar, Shift+Enter para nueva línea",
     setupFirst: "Configura un backend primero",
     includeContext: "Incluir la salida del panel activo como contexto",
+    ctxLinesUnit: "líneas",
     send: "Enviar",
     localShell: "Shell local",
     noActiveTab: "Sin pestaña activa",
@@ -271,6 +275,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter 发送，Shift+Enter 换行",
     setupFirst: "请先设置一个后端",
     includeContext: "将活动面板的输出作为上下文包含",
+    ctxLinesUnit: "行",
     send: "发送",
     localShell: "本地 shell",
     noActiveTab: "无活动标签页",
@@ -317,6 +322,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter で送信、Shift+Enter で改行",
     setupFirst: "先にバックエンドを設定してください",
     includeContext: "アクティブなペインの出力をコンテキストとして含める",
+    ctxLinesUnit: "行",
     send: "送信",
     localShell: "ローカルシェル",
     noActiveTab: "アクティブなタブなし",
@@ -363,6 +369,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter — отправить, Shift+Enter — новая строка",
     setupFirst: "Сначала настройте бэкенд",
     includeContext: "Включить вывод активной панели как контекст",
+    ctxLinesUnit: "строк",
     send: "Отправить",
     localShell: "Локальная оболочка",
     noActiveTab: "Нет активной вкладки",
@@ -409,6 +416,7 @@ const STR: LangDict<{
     inputPlaceholder: "Entrée pour envoyer, Maj+Entrée pour un saut de ligne",
     setupFirst: "Veuillez d'abord configurer un backend",
     includeContext: "Inclure la sortie du volet actif comme contexte",
+    ctxLinesUnit: "lignes",
     send: "Envoyer",
     localShell: "Shell local",
     noActiveTab: "Aucun onglet actif",
@@ -455,6 +463,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter zum Senden, Shift+Enter für Zeilenumbruch",
     setupFirst: "Bitte zuerst ein Backend einrichten",
     includeContext: "Ausgabe des aktiven Bereichs als Kontext einbeziehen",
+    ctxLinesUnit: "Zeilen",
     send: "Senden",
     localShell: "Lokale Shell",
     noActiveTab: "Kein aktiver Tab",
@@ -501,6 +510,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter để gửi, Shift+Enter để xuống dòng",
     setupFirst: "Vui lòng thiết lập backend trước",
     includeContext: "Bao gồm đầu ra của khung đang hoạt động làm ngữ cảnh",
+    ctxLinesUnit: "dòng",
     send: "Gửi",
     localShell: "Shell cục bộ",
     noActiveTab: "Không có tab đang hoạt động",
@@ -547,6 +557,7 @@ const STR: LangDict<{
     inputPlaceholder: "Enter untuk kirim, Shift+Enter untuk baris baru",
     setupFirst: "Silakan siapkan backend terlebih dahulu",
     includeContext: "Sertakan keluaran panel aktif sebagai konteks",
+    ctxLinesUnit: "baris",
     send: "Kirim",
     localShell: "Shell lokal",
     noActiveTab: "Tidak ada tab aktif",
@@ -593,6 +604,7 @@ const STR: LangDict<{
     inputPlaceholder: "भेजने के लिए Enter, नई पंक्ति के लिए Shift+Enter",
     setupFirst: "कृपया पहले एक बैकएंड सेट करें",
     includeContext: "सक्रिय पैनल के आउटपुट को संदर्भ के रूप में शामिल करें",
+    ctxLinesUnit: "लाइनें",
     send: "भेजें",
     localShell: "लोकल शेल",
     noActiveTab: "कोई सक्रिय टैब नहीं",
@@ -683,6 +695,18 @@ export function AIPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [includeContext, setIncludeContext] = useState(true);
+  // 컨텍스트로 첨부할 활성 패널 출력 줄 수 (#103). 기본 100, 옵션에서 변경·영속.
+  const [ctxLines, setCtxLines] = useState<number>(() => {
+    const v = parseInt(localStorage.getItem("wt.ai.ctxLines") ?? "", 10);
+    return Number.isFinite(v) && v > 0 ? Math.min(v, 2000) : 100;
+  });
+  useEffect(() => {
+    try {
+      localStorage.setItem("wt.ai.ctxLines", String(ctxLines));
+    } catch {
+      /* 무시 */
+    }
+  }, [ctxLines]);
   const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -825,13 +849,14 @@ export function AIPanel({
     setBusy(true);
 
     const reqMessages: ChatMessage[] = [];
-    if (includeContext || forceContext) {
-      // 어떤 시스템에 연결됐는지(OS/셸/유저)와 현재 경로를 사실 정보로 먼저 주입한다 (#103).
-      // 영어 한 줄 — 답변 언어는 아래 ctxAssistantSys(로컬라이즈됨)가 결정하므로 영향 없음.
+    // 어떤 시스템에 연결됐는지(OS/셸/유저)와 현재 경로는 출력-첨부 토글과 무관하게 항상 주입한다 (#103).
+    // "LLM이 어떤 시스템인지 안다"가 목적이므로 토글에 묶지 않는다 — 토글은 아래 100줄 출력만 제어.
+    // 영어 한 줄 — 답변 언어는 ctxAssistantSys(로컬라이즈됨)가 결정하므로 영향 없음.
+    {
       const sysParts: string[] = [];
       const sysInfo = await probeSystemInfo();
       if (sysInfo) sysParts.push(`system: ${sysInfo}`);
-      const cwd = getTerminal(focusedPaneId)?.getCwd();
+      const cwd = focusedPaneId ? getTerminal(focusedPaneId)?.getCwd() : null;
       if (cwd) sysParts.push(`cwd: ${cwd}`);
       if (sysParts.length) {
         reqMessages.push({
@@ -841,7 +866,9 @@ export function AIPanel({
             "Tailor any suggested commands to this system (OS, shell, paths).",
         });
       }
-      const ctx = getTerminal(focusedPaneId)?.getRecentText(100);
+    }
+    if (includeContext || forceContext) {
+      const ctx = getTerminal(focusedPaneId)?.getRecentText(ctxLines);
       if (ctx) {
         const where = focusedSource
           ? focusedSource.kind === "ssh"
@@ -1157,6 +1184,37 @@ export function AIPanel({
           onChange={(e) => setIncludeContext(e.target.checked)}
         />
         <span>{t.includeContext}</span>
+        {includeContext && (
+          <span
+            style={{ display: "inline-flex", alignItems: "center", gap: 4 }}
+            onClick={(e) => e.preventDefault()}
+          >
+            <input
+              type="number"
+              min={1}
+              max={2000}
+              step={50}
+              value={ctxLines}
+              onChange={(e) => {
+                const v = parseInt(e.target.value, 10);
+                if (Number.isFinite(v)) {
+                  setCtxLines(Math.max(1, Math.min(2000, v)));
+                }
+              }}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: 56,
+                background: "#1a1a20",
+                color: "#cdd",
+                border: "1px solid #2a2a30",
+                borderRadius: 4,
+                padding: "1px 4px",
+                fontSize: 11,
+              }}
+            />
+            <span>{t.ctxLinesUnit}</span>
+          </span>
+        )}
       </label>
 
       <div
