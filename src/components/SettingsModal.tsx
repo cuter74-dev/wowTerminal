@@ -41,6 +41,8 @@ const STR: LangDict<{
     tabBackup: string;
     language: string;
     uiFontLabel: string;
+    aiContextLines: string;
+    aiContextLinesHint: string;
     restoreTabs: string;
     aboutDesc: string;
     checkUpdate: string;
@@ -91,6 +93,9 @@ const STR: LangDict<{
     tabBackup: "Import/Export",
     language: "Language",
     uiFontLabel: "UI font",
+    aiContextLines: "AI context lines",
+    aiContextLinesHint:
+      "How many lines of the active pane's output to attach as context when asking the AI (1–2000).",
     restoreTabs: "Restore last tabs on startup (later)",
     aboutDesc: "A context-aware AI terminal — LLM × SSH × SFTP.",
     checkUpdate: "Check for updates",
@@ -143,6 +148,9 @@ const STR: LangDict<{
     tabBackup: "가져오기/내보내기",
     language: "언어",
     uiFontLabel: "UI 글꼴",
+    aiContextLines: "AI 컨텍스트 줄 수",
+    aiContextLinesHint:
+      "AI에 질문할 때 활성 패널 출력을 몇 줄까지 컨텍스트로 첨부할지 (1~2000).",
     restoreTabs: "앱 시작 시 마지막 탭 복원 (후속)",
     aboutDesc: "컨텍스트를 아는 AI 터미널 — LLM × SSH × SFTP.",
     checkUpdate: "업데이트 확인",
@@ -195,6 +203,9 @@ const STR: LangDict<{
     tabBackup: "Importar/Exportar",
     language: "Idioma",
     uiFontLabel: "Fuente de interfaz",
+    aiContextLines: "Líneas de contexto IA",
+    aiContextLinesHint:
+      "Cuántas líneas de la salida del panel activo adjuntar como contexto al preguntar a la IA (1–2000).",
     restoreTabs: "Restaurar las últimas pestañas al iniciar (más adelante)",
     aboutDesc: "Un terminal de IA con reconocimiento de contexto — LLM × SSH × SFTP.",
     checkUpdate: "Buscar actualizaciones",
@@ -247,6 +258,9 @@ const STR: LangDict<{
     tabBackup: "导入/导出",
     language: "语言",
     uiFontLabel: "界面字体",
+    aiContextLines: "AI 上下文行数",
+    aiContextLinesHint:
+      "向 AI 提问时，将活动面板输出的多少行作为上下文附加（1–2000）。",
     restoreTabs: "启动时恢复上次的标签页（稍后）",
     aboutDesc: "一个具有上下文感知的 AI 终端 — LLM × SSH × SFTP.",
     checkUpdate: "检查更新",
@@ -299,6 +313,9 @@ const STR: LangDict<{
     tabBackup: "インポート/エクスポート",
     language: "言語",
     uiFontLabel: "UI フォント",
+    aiContextLines: "AI コンテキスト行数",
+    aiContextLinesHint:
+      "AI に質問する際、アクティブペインの出力を何行までコンテキストとして添付するか（1–2000）。",
     restoreTabs: "起動時に前回のタブを復元（後日）",
     aboutDesc: "コンテキストを理解する AI ターミナル — LLM × SSH × SFTP.",
     checkUpdate: "更新を確認",
@@ -351,6 +368,9 @@ const STR: LangDict<{
     tabBackup: "Импорт/Экспорт",
     language: "Язык",
     uiFontLabel: "Шрифт интерфейса",
+    aiContextLines: "Строки контекста ИИ",
+    aiContextLinesHint:
+      "Сколько строк вывода активной панели прикреплять как контекст при запросе к ИИ (1–2000).",
     restoreTabs: "Восстанавливать последние вкладки при запуске (позже)",
     aboutDesc: "Контекстно-зависимый ИИ-терминал — LLM × SSH × SFTP.",
     checkUpdate: "Проверить обновления",
@@ -403,6 +423,9 @@ const STR: LangDict<{
     tabBackup: "Importer/Exporter",
     language: "Langue",
     uiFontLabel: "Police de l'interface",
+    aiContextLines: "Lignes de contexte IA",
+    aiContextLinesHint:
+      "Nombre de lignes de la sortie du volet actif à joindre comme contexte lors d'une question à l'IA (1–2000).",
     restoreTabs: "Restaurer les derniers onglets au démarrage (plus tard)",
     aboutDesc: "Un terminal IA sensible au contexte — LLM × SSH × SFTP.",
     checkUpdate: "Vérifier les mises à jour",
@@ -455,6 +478,9 @@ const STR: LangDict<{
     tabBackup: "Importieren/Exportieren",
     language: "Sprache",
     uiFontLabel: "UI-Schriftart",
+    aiContextLines: "KI-Kontextzeilen",
+    aiContextLinesHint:
+      "Wie viele Zeilen der Ausgabe des aktiven Bereichs als Kontext bei KI-Anfragen angehängt werden (1–2000).",
     restoreTabs: "Letzte Tabs beim Start wiederherstellen (später)",
     aboutDesc: "Ein kontextbewusstes KI-Terminal — LLM × SSH × SFTP.",
     checkUpdate: "Nach Updates suchen",
@@ -507,6 +533,9 @@ const STR: LangDict<{
     tabBackup: "Nhập/Xuất",
     language: "Ngôn ngữ",
     uiFontLabel: "Phông chữ giao diện",
+    aiContextLines: "Số dòng ngữ cảnh AI",
+    aiContextLinesHint:
+      "Số dòng đầu ra của khung đang hoạt động được đính kèm làm ngữ cảnh khi hỏi AI (1–2000).",
     restoreTabs: "Khôi phục các tab gần nhất khi khởi động (sau này)",
     aboutDesc: "Một terminal AI nhận biết ngữ cảnh — LLM × SSH × SFTP.",
     checkUpdate: "Kiểm tra cập nhật",
@@ -559,6 +588,9 @@ const STR: LangDict<{
     tabBackup: "Impor/Ekspor",
     language: "Bahasa",
     uiFontLabel: "Font UI",
+    aiContextLines: "Baris konteks AI",
+    aiContextLinesHint:
+      "Berapa baris keluaran panel aktif yang dilampirkan sebagai konteks saat bertanya ke AI (1–2000).",
     restoreTabs: "Pulihkan tab terakhir saat memulai (nanti)",
     aboutDesc: "Terminal AI yang sadar konteks — LLM × SSH × SFTP.",
     checkUpdate: "Periksa pembaruan",
@@ -611,6 +643,9 @@ const STR: LangDict<{
     tabBackup: "आयात/निर्यात",
     language: "भाषा",
     uiFontLabel: "UI फ़ॉन्ट",
+    aiContextLines: "AI संदर्भ पंक्तियाँ",
+    aiContextLinesHint:
+      "AI से पूछते समय सक्रिय पैनल के आउटपुट की कितनी पंक्तियाँ संदर्भ के रूप में संलग्न करें (1–2000)।",
     restoreTabs: "शुरू होने पर अंतिम टैब पुनर्स्थापित करें (बाद में)",
     aboutDesc: "एक संदर्भ-जागरूक AI टर्मिनल — LLM × SSH × SFTP.",
     checkUpdate: "अपडेट जाँचें",
@@ -766,6 +801,25 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   onChange={(e) => patchGeneral({ restoreTabs: e.target.checked })}
                 />
               </Row>
+              <Row label={t.aiContextLines}>
+                <input
+                  type="number"
+                  min={1}
+                  max={2000}
+                  step={50}
+                  value={settings.general.aiContextLines}
+                  onChange={(e) => {
+                    const v = parseInt(e.target.value || "100", 10);
+                    patchGeneral({
+                      aiContextLines: Math.max(1, Math.min(2000, v)),
+                    });
+                  }}
+                  style={inputStyle}
+                />
+              </Row>
+              <div style={{ color: "#789", fontSize: 11, marginTop: -4 }}>
+                {t.aiContextLinesHint}
+              </div>
 
               {/* About (S-068) */}
               <div

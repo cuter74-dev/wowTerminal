@@ -60,6 +60,8 @@ export interface GeneralSettings {
   language: Lang;
   /** UI(호스트 목록·AI 패널 등) 글꼴 — 터미널 폰트와 별개. CSS font-family 스택. */
   uiFont: string;
+  /** AI 컨텍스트로 첨부할 활성 패널 출력 줄 수 (#103). 기본 100. */
+  aiContextLines: number;
 }
 
 /** UI 글꼴 프리셋. 시스템에 있을 법한 폰트 + 한글 폴백(Apple SD Gothic Neo 등). */
@@ -244,7 +246,12 @@ export const TERMINAL_THEME_LIST: { key: TerminalSettings["theme"]; label: strin
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
-  general: { restoreTabs: false, language: "en", uiFont: UI_FONTS[0].value },
+  general: {
+    restoreTabs: false,
+    language: "en",
+    uiFont: UI_FONTS[0].value,
+    aiContextLines: 100,
+  },
   terminal: {
     fontSize: 14,
     fontFamily: "Menlo, Consolas, 'Courier New', monospace",

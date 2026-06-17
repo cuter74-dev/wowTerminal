@@ -1994,6 +1994,7 @@ function App() {
                       }}
                       initialSessionId={attachAiByTab[tab.id]}
                       getSessionId={(pid) => sessionByLeaf.current[pid]}
+                      contextLines={settings.general.aiContextLines}
                     />
                   </div>
                 );
