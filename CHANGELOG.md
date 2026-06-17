@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-06-17
+
 ### Added
 - The AI assistant now knows **which system is open**. When you ask with context attached, the focused session's OS / shell / user (and current directory) are probed silently and prepended to the request, so suggestions match the connected machine instead of guessing. On SSH this reuses the existing separate-channel exec (no trace in the interactive terminal); on a local tab it reads the host directly. The probe is a fixed read-only set (`uname`, `$SHELL`, `whoami`, distro name) — the model does not choose commands; system info is cached per session, cwd is read fresh. The system line is sent **independently of the "include active pane output" toggle** (knowing which machine is open shouldn't require attaching scrollback), and the attached-output line count is **configurable in Settings → General → AI context lines** (default 100, 1–2000). (Phase 1 of 2; phase 2 = an approval-gated tool-use loop.) (#103)
 
@@ -344,7 +346,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.16...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.15.0...HEAD
+[0.15.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.16...v0.15.0
 [0.14.16]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.15...v0.14.16
 [0.14.15]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.14...v0.14.15
 [0.14.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.13...v0.14.14
