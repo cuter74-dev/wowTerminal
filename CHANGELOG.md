@@ -8,6 +8,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Added
+- Inline autosuggestion now includes a small built-in **seed list** of useful commands, so they're suggested even before you've typed them (history still takes priority). First seed: `claude --dangerously-skip-permissions`. Accept with →/End as usual. (#107)
 - Import/Export now includes **LLM backend configurations** (Settings → Import/Export), alongside SSH hosts/groups/tags. Backends are exported without their API key (keys stay in the keychain); after importing, re-enter the API key for any authenticated backend. The result message and secrets note reflect this. (#106)
 - Host list keyboard navigation — **↑/↓** move the selection through the visible (filtered + grouped) hosts in on-screen order and scroll the row into view, **Home/End** jump to first/last, **Enter** opens the selected host in a new tab (same as double-click), and pressing **↓ in the search box** drops focus into the list. Mouse selection is unchanged; clicking a row also focuses the list so the arrow keys work right away. Scoped to the list (not a global handler), so it never interferes with terminal input. (#105)
 

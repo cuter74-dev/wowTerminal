@@ -5,6 +5,12 @@
 const KEY = "wowterminal-cmd-history";
 const CAP = 500;
 
+// 기본 제안 시드 — 히스토리에 없어도 인라인 자동완성으로 제안할 자주 쓰는 명령들.
+// 히스토리 매칭이 우선이고, 없을 때만 폴백으로 제안한다(→/End로 수락).
+const SEED_COMMANDS: string[] = [
+  "claude --dangerously-skip-permissions",
+];
+
 let cache: string[] | null = null;
 
 function load(): string[] {
@@ -44,6 +50,10 @@ export function suggest(prefix: string): string | null {
   const list = load();
   for (let i = list.length - 1; i >= 0; i--) {
     if (list[i].startsWith(prefix) && list[i] !== prefix) return list[i];
+  }
+  // 히스토리에 없으면 시드에서 제안.
+  for (const s of SEED_COMMANDS) {
+    if (s.startsWith(prefix) && s !== prefix) return s;
   }
   return null;
 }
