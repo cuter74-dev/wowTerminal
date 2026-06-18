@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-06-18
+
 ### Added
 - Inline autosuggestion now includes a small built-in **seed list** of useful commands, so they're suggested even before you've typed them (history still takes priority). First seed: `claude --dangerously-skip-permissions`. Accept with →/End as usual. (#107)
 - Import/Export now includes **LLM backend configurations** (Settings → Import/Export), alongside SSH hosts/groups/tags. Backends are exported without their API key (keys stay in the keychain); after importing, re-enter the API key for any authenticated backend. The result message and secrets note reflect this. (#106)
@@ -351,7 +353,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.15.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.0...HEAD
+[0.16.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.16...v0.15.0
 [0.14.16]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.15...v0.14.16
 [0.14.15]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.14...v0.14.15
