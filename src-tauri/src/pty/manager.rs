@@ -156,6 +156,15 @@ impl PtyManager {
 
         let prog = program.map(|s| s.to_string()).unwrap_or_else(default_shell);
         let mut cmd = CommandBuilder::new(&prog);
+        // 터미널 에뮬레이터는 TERM을 직접 설정해야 한다. portable-pty는 부모 환경만 상속하고
+        // TERM을 넣지 않는데(get_base_env), macOS에서 Finder/Dock로 앱을 띄우면 부모 GUI
+        // 프로세스에 TERM이 없어 셸이 TERM 없이 시작된다. TERM이 없으면 zsh ZLE가 커서 왼쪽
+        // 이동(terminfo cub1)을 못 한다고 보고 백스페이스를 `\b`가 아니라 공백 재그리기로
+        // 처리한다 → "백스페이스가 스페이스처럼 동작" + 한글 미러의 `\x7f` 되감기도 공백이 돼
+        // 자모가 쌓인다(#83/#88/#100/제보 다수의 근본 원인). 실측: TERM이 없으면 zsh가 백스페이스에
+        // "  "만 출력, 어떤 유효 TERM이든 `\b`(지우기)를 출력. xterm.js는 xterm 계열을 에뮬레이트.
+        cmd.env("TERM", "xterm-256color");
+        cmd.env("COLORTERM", "truecolor");
         // zsh는 개행 없이 끝난 줄에 부분 줄 표시(%/PROMPT_SP)를 붙인다. 로그인 메시지가 없는
         // PTY 첫 프롬프트에서 거슬리게 나오므로 promptsp 옵션을 꺼서 시작한다.
         let shell_name = std::path::Path::new(&prog)
