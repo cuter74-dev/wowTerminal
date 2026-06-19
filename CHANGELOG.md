@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- Windows: the terminal cursor was drawn **above the text** at fractional display scaling (e.g. 150%). The xterm WebGL renderer rounds cell height to integer device pixels, so at a fractional `devicePixelRatio` the cursor and glyph layers misalign. WebGL is now used only at integer DPR; at fractional DPR the app falls back to the DOM renderer (cursor stays aligned with the text). Mac/Linux and Windows at 100%/200% are unaffected. (#108)
+
 ## [0.16.0] — 2026-06-18
 
 ### Added

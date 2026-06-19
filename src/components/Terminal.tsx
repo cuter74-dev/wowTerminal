@@ -429,17 +429,25 @@ export function Terminal({
     // [진단 #83] 렌더러 상태 — M5 잔상은 입력 경로 결백으로 판명(0.14.7 실측: `df -h`가
     // onData 6자뿐, 미러 미개입). 남은 용의자(렌더러 vs 에코/파싱)를 가리기 위해 수집.
     const rendDiag = { webgl: false, ctxLost: 0 };
-    try {
-      const webgl = new WebglAddon();
-      webgl.onContextLoss(() => {
-        rendDiag.ctxLost++;
-        rendDiag.webgl = false;
-        webgl.dispose();
-      });
-      term.loadAddon(webgl);
-      rendDiag.webgl = true;
-    } catch {
-      // WebGL 미지원 환경 — 기본 DOM 렌더러 유지.
+    // 윈도우 디스플레이 배율 125%/150%/175%처럼 devicePixelRatio가 소수면 WebGL 렌더러가
+    // 셀 높이를 정수 픽셀로 반올림하며 커서 레이어와 글자 레이어가 세로로 어긋나, 커서가
+    // 글자 위/아래에 그려진다(150%에서 제보). 소수 DPR에선 GPU 가속을 포기하고 기본 DOM
+    // 렌더러(CSS 기반 → 커서가 글자와 정렬)로 둔다. 정수 DPR(맥 Retina=2·일반=1, 윈도우
+    // 100%/200%)에선 WebGL 유지. (정수가 아니면 isInteger=false → DOM.)
+    const dprIntegral = Number.isInteger(window.devicePixelRatio || 1);
+    if (dprIntegral) {
+      try {
+        const webgl = new WebglAddon();
+        webgl.onContextLoss(() => {
+          rendDiag.ctxLost++;
+          rendDiag.webgl = false;
+          webgl.dispose();
+        });
+        term.loadAddon(webgl);
+        rendDiag.webgl = true;
+      } catch {
+        // WebGL 미지원 환경 — 기본 DOM 렌더러 유지.
+      }
     }
     // 컨테이너에 실제 크기가 있을 때만 fit(0 크기면 cols/rows가 최소로 줄어 spawn 크기가 깨짐).
     if (
