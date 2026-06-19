@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.16.2] — 2026-06-19
+
 ### Fixed
 - **Local shell: Backspace acted like Space, and Korean input piled up jamo** — the long-standing local-shell input bug (root cause of the #83/#88/#100 series, reported by several Mac users). The local PTY was started **without a `TERM`** variable: `portable-pty` doesn't set one, and when the app is launched from Finder/Dock the GUI process has no `TERM` to inherit. With `TERM` unset, zsh can't move the cursor left and redraws Backspace as spaces (so the Korean mirror's erase/rewind also turned into spaces). The local PTY now sets `TERM=xterm-256color` and `COLORTERM=truecolor` (SSH already sent a proper terminal type). This is why it always worked for the maintainer — their launch inherited a `TERM` — but broke for users who open the app from Finder. (#109)
 
@@ -361,7 +363,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.1...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.2...HEAD
+[0.16.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.1...v0.16.2
 [0.16.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.16...v0.15.0
