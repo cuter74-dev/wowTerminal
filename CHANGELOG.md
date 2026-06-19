@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.16.1] — 2026-06-19
+
 ### Fixed
 - Windows: the terminal cursor was drawn **above the text** at fractional display scaling (e.g. 150%). The xterm WebGL renderer rounds cell height to integer device pixels, so at a fractional `devicePixelRatio` the cursor and glyph layers misalign. WebGL is now used only at integer DPR; at fractional DPR the app falls back to the DOM renderer (cursor stays aligned with the text). Mac/Linux and Windows at 100%/200% are unaffected. (#108)
 
@@ -356,7 +358,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.1...HEAD
+[0.16.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.15.0...v0.16.0
 [0.15.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.16...v0.15.0
 [0.14.16]: https://github.com/cuter74-dev/wowTerminal/compare/v0.14.15...v0.14.16
