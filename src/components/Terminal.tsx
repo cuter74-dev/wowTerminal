@@ -534,6 +534,11 @@ export function Terminal({
         term.write(
           "\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1004l\x1b[?1005l\x1b[?1006l\x1b[?1015l",
         );
+      } else {
+        // 대체 화면(vim/Claude Code 등) 진입 시 잔여 인라인 제안을 즉시 비운다 (#110).
+        lineBufRef.current = "";
+        suggestionRef.current = null;
+        setSuggestion(null);
       }
     });
     let disposed = false;
@@ -764,6 +769,17 @@ export function Terminal({
       imeDiag.onDataChars += data.length; // [진단 #83]
       scheduleImeDiag();
 
+      // 대체 화면 TUI(vim/Claude Code/less 등)에서는 줄 추적·인라인 제안을 끈다 — 키 입력이
+      // 셸 명령줄이 아니라 그 앱으로 가므로 제안이 무의미하고, →/End로 수락되면 앱의 키 동작을
+      // 가로챈다. 일반 화면일 때만 추적/제안한다.
+      if (term.buffer.active.type === "alternate") {
+        lineBufRef.current = "";
+        if (suggestionRef.current) {
+          suggestionRef.current = null;
+          setSuggestion(null);
+        }
+        return;
+      }
       // 입력 라인 추적 (단순): 타이핑/백스페이스/엔터만 정확. 화살표 등은 라인 리셋.
       for (const ch of data) {
         if (ch === "\r" || ch === "\n") {
@@ -1034,7 +1050,9 @@ export function Terminal({
         !e.altKey &&
         !e.metaKey &&
         !e.shiftKey &&
-        suggestionRef.current
+        suggestionRef.current &&
+        // 대체 화면 TUI(vim/Claude Code 등)에선 →/End를 가로채지 않고 앱으로 통과시킨다.
+        term.buffer.active.type !== "alternate"
       ) {
         const rest = suggestionRef.current.slice(lineBufRef.current.length);
         if (rest) {
