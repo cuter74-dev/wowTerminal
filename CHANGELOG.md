@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.16.3] — 2026-06-21
+
+### Fixed
+- Inline history autosuggestion no longer activates inside full-screen TUI apps (vim, Claude Code, less, …). Those use the alternate screen buffer, where line tracking and the **→ / End** accept now pause — so those keys reach the app instead of accepting a stale suggestion. Back at the shell prompt, →/End still accept the suggestion as before. (#110)
+
 ## [0.16.2] — 2026-06-19
 
 ### Fixed
@@ -363,7 +368,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.2...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.3...HEAD
+[0.16.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.1...v0.16.2
 [0.16.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.0...v0.16.1
 [0.16.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.15.0...v0.16.0
