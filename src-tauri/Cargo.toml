@@ -43,6 +43,8 @@ tauri-plugin-dialog = "2.7.1"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
 tauri-plugin-notification = "2.3.3"
+# reqwest/russh가 쓰는 rustls 0.23의 기본 CryptoProvider를 명시 설치하기 위한 직접 의존.
+rustls = { version = "0.23", features = ["ring"] }
 # 에러·크래시 추적(GlitchTip = Sentry 호환). default-features 끄고 rustls 사용
 # (프로젝트 전역이 rustls라 native-tls/openssl 의존을 피한다).
 sentry = { version = "0.34", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls"] }

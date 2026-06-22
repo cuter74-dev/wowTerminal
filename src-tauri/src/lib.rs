@@ -60,6 +60,11 @@ fn init_error_tracking() -> Option<sentry::ClientInitGuard> {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    // rustls(0.23) 프로세스 기본 CryptoProvider를 명시 설치한다. ring·aws-lc-rs가 트리에
+    // 공존하면 reqwest/russh가 기본 provider를 자동 결정 못 해 패닉한다 — iOS 시작 시
+    // sentry의 reqwest에서 SIGABRT로 실측(#114). 데스크탑은 우연히 안 걸렸으나 전 플랫폼 안전.
+    let _ = rustls::crypto::ring::default_provider().install_default();
+
     // 가드는 run()이 반환할 때까지(=앱 종료까지) 살아있어야 panic/에러가 전송된다.
     let _sentry_guard = init_error_tracking();
 
