@@ -7,6 +7,14 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.17.1] — 2026-06-22
+
+### Fixed
+- Install the rustls crypto provider explicitly at startup, preventing a possible TLS-init panic when more than one provider (ring / aws-lc-rs) is present in the dependency tree. (#114)
+
+### Internal
+- Groundwork for iPad (iOS) and Android builds via Tauri 2 mobile — local-shell features are compiled out on mobile (SSH/SFTP/AI client); desktop is unaffected. (#114, #115)
+
 ## [0.17.0] — 2026-06-22
 
 ### Added
@@ -373,7 +381,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.1...HEAD
+[0.17.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.3...v0.17.0
 [0.16.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.1...v0.16.2
