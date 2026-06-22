@@ -29,6 +29,7 @@ import { FileBrowser } from "./components/FileBrowser";
 import { SettingsModal } from "./components/SettingsModal";
 import { SplashScreen } from "./components/SplashScreen";
 import { LangDict, LangProvider, useT } from "./i18n";
+import { isMobile } from "./platform";
 import { OnboardingFlow } from "./components/OnboardingFlow";
 import {
   AppSettings,
@@ -102,6 +103,8 @@ function newId(): string {
 const STR: LangDict<{
     localShell: string;
     localShellN: (n: number) => string;
+    pickHostTitle: string;
+    pickHostHint: string;
     dup: (label: string) => string;
     keychainSaveFail: (e: string) => string;
     detachWindowFail: (e: string) => string;
@@ -118,6 +121,8 @@ const STR: LangDict<{
   en: {
     localShell: "Local shell",
     localShellN: (n) => `Local shell ${n}`,
+    pickHostTitle: "Pick a host to connect",
+    pickHostHint: "Tap a host in the list on the left to open an SSH session.",
     dup: (label) => `${label} (copy)`,
     keychainSaveFail: (e) => `Keychain save failed: ${e}`,
     detachWindowFail: (e) => `Failed to open new window: ${e}`,
@@ -133,6 +138,8 @@ const STR: LangDict<{
   ko: {
     localShell: "로컬 셸",
     localShellN: (n) => `로컬 셸 ${n}`,
+    pickHostTitle: "접속할 호스트를 선택하세요",
+    pickHostHint: "왼쪽 목록에서 호스트를 탭하면 SSH 세션이 열립니다.",
     dup: (label) => `${label} (복제)`,
     keychainSaveFail: (e) => `Keychain 저장 실패: ${e}`,
     detachWindowFail: (e) => `새 창 생성 실패: ${e}`,
@@ -148,6 +155,8 @@ const STR: LangDict<{
   es: {
     localShell: "Shell local",
     localShellN: (n) => `Shell local ${n}`,
+    pickHostTitle: "Pick a host to connect",
+    pickHostHint: "Tap a host in the list on the left to open an SSH session.",
     dup: (label) => `${label} (copia)`,
     keychainSaveFail: (e) => `Error al guardar en Keychain: ${e}`,
     detachWindowFail: (e) => `No se pudo abrir la nueva ventana: ${e}`,
@@ -163,6 +172,8 @@ const STR: LangDict<{
   zh: {
     localShell: "本地终端",
     localShellN: (n) => `本地终端 ${n}`,
+    pickHostTitle: "选择要连接的主机",
+    pickHostHint: "点按左侧列表中的主机以打开 SSH 会话。",
     dup: (label) => `${label}（副本）`,
     keychainSaveFail: (e) => `Keychain 保存失败：${e}`,
     detachWindowFail: (e) => `无法打开新窗口：${e}`,
@@ -178,6 +189,8 @@ const STR: LangDict<{
   ja: {
     localShell: "ローカルシェル",
     localShellN: (n) => `ローカルシェル ${n}`,
+    pickHostTitle: "接続するホストを選択",
+    pickHostHint: "左のリストでホストをタップすると SSH セッションが開きます。",
     dup: (label) => `${label}（コピー）`,
     keychainSaveFail: (e) => `Keychain への保存に失敗しました: ${e}`,
     detachWindowFail: (e) => `新しいウィンドウを開けませんでした: ${e}`,
@@ -193,6 +206,8 @@ const STR: LangDict<{
   ru: {
     localShell: "Локальная оболочка",
     localShellN: (n) => `Локальная оболочка ${n}`,
+    pickHostTitle: "Выберите хост для подключения",
+    pickHostHint: "Нажмите хост в списке слева, чтобы открыть SSH-сессию.",
     dup: (label) => `${label} (копия)`,
     keychainSaveFail: (e) => `Не удалось сохранить в Keychain: ${e}`,
     detachWindowFail: (e) => `Не удалось открыть новое окно: ${e}`,
@@ -208,6 +223,8 @@ const STR: LangDict<{
   fr: {
     localShell: "Shell local",
     localShellN: (n) => `Shell local ${n}`,
+    pickHostTitle: "Pick a host to connect",
+    pickHostHint: "Tap a host in the list on the left to open an SSH session.",
     dup: (label) => `${label} (copie)`,
     keychainSaveFail: (e) => `Échec de l'enregistrement dans Keychain : ${e}`,
     detachWindowFail: (e) => `Impossible d'ouvrir la nouvelle fenêtre : ${e}`,
@@ -223,6 +240,8 @@ const STR: LangDict<{
   de: {
     localShell: "Lokale Shell",
     localShellN: (n) => `Lokale Shell ${n}`,
+    pickHostTitle: "Pick a host to connect",
+    pickHostHint: "Tap a host in the list on the left to open an SSH session.",
     dup: (label) => `${label} (Kopie)`,
     keychainSaveFail: (e) => `Speichern im Keychain fehlgeschlagen: ${e}`,
     detachWindowFail: (e) => `Neues Fenster konnte nicht geöffnet werden: ${e}`,
@@ -238,6 +257,8 @@ const STR: LangDict<{
   vi: {
     localShell: "Shell cục bộ",
     localShellN: (n) => `Shell cục bộ ${n}`,
+    pickHostTitle: "Pick a host to connect",
+    pickHostHint: "Tap a host in the list on the left to open an SSH session.",
     dup: (label) => `${label} (bản sao)`,
     keychainSaveFail: (e) => `Lưu vào Keychain thất bại: ${e}`,
     detachWindowFail: (e) => `Không thể mở cửa sổ mới: ${e}`,
@@ -253,6 +274,8 @@ const STR: LangDict<{
   id: {
     localShell: "Shell lokal",
     localShellN: (n) => `Shell lokal ${n}`,
+    pickHostTitle: "Pick a host to connect",
+    pickHostHint: "Tap a host in the list on the left to open an SSH session.",
     dup: (label) => `${label} (salinan)`,
     keychainSaveFail: (e) => `Gagal menyimpan ke Keychain: ${e}`,
     detachWindowFail: (e) => `Gagal membuka jendela baru: ${e}`,
@@ -268,6 +291,8 @@ const STR: LangDict<{
   hi: {
     localShell: "लोकल शेल",
     localShellN: (n) => `लोकल शेल ${n}`,
+    pickHostTitle: "कनेक्ट करने के लिए होस्ट चुनें",
+    pickHostHint: "SSH सत्र खोलने के लिए बाईं सूची में किसी होस्ट पर टैप करें।",
     dup: (label) => `${label} (प्रतिलिपि)`,
     keychainSaveFail: (e) => `Keychain में सहेजना विफल: ${e}`,
     detachWindowFail: (e) => `नई विंडो खोलने में विफल: ${e}`,
@@ -463,13 +488,17 @@ function App() {
     setBroadcastEnabled(broadcast);
   }, [broadcast]);
   // detached 윈도우는 백엔드 registry에서 source를 받기 전까지 빈 상태로 시작 — 메인은 즉시 로컬셸.
+  // 모바일(iOS/Android)은 로컬 셸이 없으므로 기본 로컬 탭을 만들지 않고 빈 상태로 시작한다
+  // — 호스트를 탭하면 SSH 탭이 열린다(#114). 데스크탑은 종전대로 로컬 셸 1개로 시작.
   const [tabs, setTabs] = useState<Tab[]>(() =>
     IS_DETACHED_WINDOW
       ? []
-      : RESTORED_SESSION?.tabs ?? [makeLocalTab(tr.localShellN(1))],
+      : isMobile
+        ? []
+        : RESTORED_SESSION?.tabs ?? [makeLocalTab(tr.localShellN(1))],
   );
   const [activeTabId, setActiveTabId] = useState<string | null>(() =>
-    IS_DETACHED_WINDOW ? null : RESTORED_SESSION?.activeId ?? tabs[0].id,
+    IS_DETACHED_WINDOW ? null : RESTORED_SESSION?.activeId ?? tabs[0]?.id ?? null,
   );
   const [bootstrapped, setBootstrapped] = useState<boolean>(!IS_DETACHED_WINDOW);
   // 백그라운드 탭에서 오래 걸린 명령이 끝나면 알림 + 탭 배지 (#55, OSC 133 D).
@@ -1258,6 +1287,8 @@ function App() {
   }
 
   function newLocalTab() {
+    // 모바일은 로컬 셸이 없다 — 새 탭은 호스트 목록에서 SSH 호스트를 탭해 연다(#114).
+    if (isMobile) return;
     const n = ++localSeq.current;
     const tab = makeLocalTab(tr.localShellN(n));
     setTabs((prev) => [...prev, tab]);
@@ -1276,6 +1307,11 @@ function App() {
       if (idx < 0) return prev;
       const next = prev.filter((t) => t.id !== id);
       if (next.length === 0) {
+        // 모바일은 빈 상태(호스트 목록 화면)로 둔다 — 로컬 셸 폴백 없음(#114).
+        if (isMobile) {
+          setActiveTabId(null);
+          return [];
+        }
         const n = ++localSeq.current;
         const fresh = makeLocalTab(tr.localShellN(n));
         setActiveTabId(fresh.id);
@@ -1897,6 +1933,29 @@ function App() {
             position: "relative",
           }}
         >
+          {tabs.length === 0 && (
+            <div
+              style={{
+                flex: 1,
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 10,
+                color: "#7a8290",
+                textAlign: "center",
+                padding: 24,
+              }}
+            >
+              <div style={{ fontSize: 40 }}>🖥️</div>
+              <div style={{ fontSize: 15, color: "#cdd3da" }}>
+                {tr.pickHostTitle}
+              </div>
+              <div style={{ fontSize: 12, lineHeight: 1.6 }}>
+                {tr.pickHostHint}
+              </div>
+            </div>
+          )}
           {tabs.map((tab) => (
             <div
               key={tab.id}

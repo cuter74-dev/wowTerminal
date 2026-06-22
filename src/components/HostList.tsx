@@ -9,6 +9,7 @@ import { DeleteHostModal } from "./DeleteHostModal";
 import { GroupTagManager } from "./GroupTagManager";
 import { SshKeyManager } from "./SshKeyManager";
 import { LangDict, useT } from "../i18n";
+import { isMobile } from "../platform";
 
 const STR: LangDict<{
     switchToLocal: string;
@@ -559,17 +560,20 @@ export function HostList({
         userSelect: "none", // 호스트 목록은 UI 영역이라 드래그 텍스트 선택 비활성.
       }}
     >
-      <button
-        onClick={onSelectLocal}
-        style={{
-          ...rowStyle,
-          background: isLocalActive ? "#094771" : "transparent",
-          color: isLocalActive ? "#fff" : "#cccccc",
-        }}
-        title={t.switchToLocal}
-      >
-        ⌨ Local shell
-      </button>
+      {/* 로컬 셸은 데스크탑 전용 — iOS/Android에는 로컬 셸이 없다(#114). */}
+      {!isMobile && (
+        <button
+          onClick={onSelectLocal}
+          style={{
+            ...rowStyle,
+            background: isLocalActive ? "#094771" : "transparent",
+            color: isLocalActive ? "#fff" : "#cccccc",
+          }}
+          title={t.switchToLocal}
+        >
+          ⌨ Local shell
+        </button>
+      )}
 
       <div
         style={{

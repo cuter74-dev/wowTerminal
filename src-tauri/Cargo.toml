@@ -48,6 +48,7 @@ rustls = { version = "0.23", features = ["ring"] }
 # 에러·크래시 추적(GlitchTip = Sentry 호환). default-features 끄고 rustls 사용
 # (프로젝트 전역이 rustls라 native-tls/openssl 의존을 피한다).
 sentry = { version = "0.34", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls"] }
+tauri-plugin-os = "2.3.2"
 
 [dev-dependencies]
 wiremock = "0.6"
