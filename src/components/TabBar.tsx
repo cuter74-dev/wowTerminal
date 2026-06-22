@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Tab } from "../types";
 import { LangDict, useT } from "../i18n";
+import { isMobile } from "../platform";
 
 const STR: LangDict<{
     closeTab: string;
@@ -195,21 +196,24 @@ export function TabBar({
           </div>
         );
       })}
-      <button
-        onClick={onNew}
-        style={{
-          background: "transparent",
-          border: "none",
-          color: "#ccc",
-          cursor: "pointer",
-          fontSize: 18,
-          padding: "0 14px",
-          lineHeight: 1,
-        }}
-        title={tr.newTab}
-      >
-        +
-      </button>
+      {/* 새 로컬 셸 탭은 데스크탑 전용 — 모바일은 로컬 셸이 없어 호스트 탭으로 연다(#114). */}
+      {!isMobile && (
+        <button
+          onClick={onNew}
+          style={{
+            background: "transparent",
+            border: "none",
+            color: "#ccc",
+            cursor: "pointer",
+            fontSize: 18,
+            padding: "0 14px",
+            lineHeight: 1,
+          }}
+          title={tr.newTab}
+        >
+          +
+        </button>
+      )}
     </div>
   );
 }

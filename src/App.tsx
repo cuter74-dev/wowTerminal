@@ -2058,6 +2058,19 @@ function App() {
                   </div>
                 );
               })}
+              {/* 탭이 없을 때(모바일 빈 상태)도 AI 패널을 1개 띄워, LLM 백엔드 추가/대화가
+                  가능하도록 한다 — 종전엔 tabs.map이 비어 우측 컬럼이 빈칸이었다(#114). */}
+              {tabs.length === 0 && (
+                <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+                  <AIPanel
+                    activeTab={null}
+                    focusedSource={null}
+                    focusedPaneId={null}
+                    paneCount={0}
+                    contextLines={settings.general.aiContextLines}
+                  />
+                </div>
+              )}
             </div>
           </>
         )}
