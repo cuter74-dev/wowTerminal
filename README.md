@@ -1,10 +1,33 @@
+<div align="center">
+
+<img src="logo.png" alt="wowTerminal" width="116" />
+
 # wowTerminal
 
-> A context-aware AI terminal — LLM × SSH × SFTP.
+### Make Your Terminal Smarter & Safer — LLM × SSH × SFTP
 
-wowTerminal is a cross-platform desktop terminal that brings an AI assistant, an SSH host
-manager, and an SFTP file browser into one window. The assistant can read your current
-terminal output as context, suggest commands, and send them straight to the active pane.
+English | [한국어](https://gitlab.oopnwow.com/cuter74/wowterminal/-/blob/main/README.md)
+
+[![Release](https://img.shields.io/github/v/release/cuter74-dev/wowTerminal?color=4a9eff&label=release)](https://github.com/cuter74-dev/wowTerminal/releases/latest)
+[![License](https://img.shields.io/github/license/cuter74-dev/wowTerminal?color=blue)](LICENSE)
+[![Stars](https://img.shields.io/github/stars/cuter74-dev/wowTerminal?color=f5c518)](https://github.com/cuter74-dev/wowTerminal/stargazers)
+[![Downloads](https://img.shields.io/github/downloads/cuter74-dev/wowTerminal/total?color=2ea44f&label=downloads)](https://github.com/cuter74-dev/wowTerminal/releases)
+[![Platforms](https://img.shields.io/badge/platform-macOS%20%7C%20Windows%20%7C%20Linux-lightgrey)](https://github.com/cuter74-dev/wowTerminal/releases/latest)
+
+![Tauri](https://img.shields.io/badge/Tauri-2-24C8DB?logo=tauri&logoColor=white)
+![Rust](https://img.shields.io/badge/Rust-000000?logo=rust&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black)
+![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
+![xterm.js](https://img.shields.io/badge/xterm.js-2D2D2D?logo=gnometerminal&logoColor=white)
+
+A context-aware AI terminal — a chat assistant that reads your terminal,<br/>
+an SSH host manager, and a dual-pane SFTP file browser, in one fast desktop app.
+
+[✨ Features](#features) • [🚀 Getting started](#getting-started) • [⌨️ Shortcuts](docs/guide/shortcuts.md) • [🔐 SSH](docs/guide/ssh.md) • [📁 SFTP](docs/guide/sftp.md) • [🤖 AI](docs/guide/ai.md)
+
+<sub>Love this project? A ⭐ on the repo keeps it going.</sub>
+
+</div>
 
 ---
 
