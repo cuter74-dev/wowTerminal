@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-06-22
+
 ### Added
 - Terminal deletion shortcuts: **Option/Alt + Delete** deletes the previous word (sends ESC+DEL → readline `backward-kill-word`), and **Cmd + Delete** clears the whole line (sends Ctrl-U). (#112)
 
@@ -371,7 +373,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.3...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.0...HEAD
+[0.17.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.3...v0.17.0
 [0.16.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.2...v0.16.3
 [0.16.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.1...v0.16.2
 [0.16.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.0...v0.16.1
