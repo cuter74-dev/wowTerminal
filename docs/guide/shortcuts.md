@@ -22,10 +22,28 @@
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl + R` | Search command history |
-| `Tab` | Accept the inline autocomplete suggestion |
+| `Ctrl/⌘ + R` | Search command history |
+| `→` / `End` | Accept the inline autocomplete suggestion (when one is shown at the end of the line) |
+| `Tab` | Shell completion (file / directory / command) |
+
+The inline suggestion comes from your command history (plus a few built-in seeds, e.g.
+`claude --dangerously-skip-permissions`). It's the fish / zsh-autosuggestions / Warp
+convention: `Tab` always goes to the shell, `→`/`End` accept the suggestion. Inside
+full-screen apps (vim, `less`, Claude Code, …) the suggestion is disabled, so `→`/`End`
+behave natively.
 
 In history search, type to filter, use `↑`/`↓` to move, `Enter` to pick, `Esc` to cancel.
+
+## Host list
+
+| Shortcut | Action |
+|---|---|
+| `↑` / `↓` | Move the selection through the visible hosts |
+| `Home` / `End` | First / last host |
+| `Enter` | Open the selected host in a new tab |
+| `↓` (in the search box) | Drop focus into the list |
+
+Mouse still works the same — click to select, `▶` or double-click to open.
 
 ## Mouse
 

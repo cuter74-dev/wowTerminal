@@ -139,10 +139,34 @@ emit onData) — real-machine confirmation is still required after any input cha
 flag → launch the release binary → assert the `/tmp/wt-st*` files → restore the snapshot
 and relaunch. T1–T4 have gated v0.14.6, v0.14.7 and v0.14.8.
 
+**The harness verifies *executed content*, not the *display*.** Each scenario checks the
+file the shell wrote, i.e. zsh's internal line buffer — which is correct even when the
+on-screen redraw is wrong. So it is blind to display-only bugs: the TERM bug below (#109)
+left every `/tmp/wt-st*` file correct while Backspace visibly rendered as spaces. For
+display behavior, read the PTY output bytes (the `echo` diagnostic) — `\b \b` means a real
+erase, bare spaces mean a broken redraw.
+
+## Root cause of the local-shell "Backspace = Space" / Korean-jamo-pileup bug (#109, v0.16.2)
+
+The long-running local-shell input corruption (the symptom behind much of #83/#88/#100 and
+several Mac reports) was **not an IME/mirror problem at all** — it was a missing `TERM`.
+`portable-pty` never sets `TERM` (its `get_base_env` only inherits the parent env + SHELL),
+and a macOS app launched from **Finder/Dock has no `TERM`** in its GUI/launchd session to
+inherit (confirmed: `launchctl getenv TERM` is empty). With `TERM` unset, zsh's line editor
+can't do cursor-left (no terminfo `cub1`) and redraws Backspace as **spaces** instead of
+`\b \b` — so plain Backspace looks like Space, and the IME mirror's per-syllable `\x7f`
+rewinds also turn into spaces, piling up jamo (`아  안ㄴ  녀…`). Reproduced in a bare PTY
+running the app's exact shell (`zsh -l +o promptsp`): `TERM` unset → backspace emits `'  '`;
+any valid `TERM` (even `dumb`) → `\b`. **Fix:** the local PTY now sets
+`TERM=xterm-256color` + `COLORTERM=truecolor` (`pty/manager.rs`). SSH was never affected —
+its pty-req already sends `xterm-256color`, which is why every report was a *local* shell.
+This also explains why the maintainer could never reproduce it: launching the app from a
+terminal context inherits a `TERM`, masking the bug. (The earlier "ci vs local build"
+correlation was a red herring — the real variable was the launch environment's `TERM`.)
+
 ## Open investigation
 
-- **#83 (newest-Mac `ddf` artifacts):** input path proven clean as of v0.14.7; the
-  remaining split (echo/parsing vs renderer) is what the v0.14.8 diag decides.
-- **Hangul deletion gaps (one reported Mac):** suspicion is the textarea's own composition
-  feeding stray jamo + spaces; the transition `ring` exists to confirm. Waiting for data
-  from a 0.14.4+ build.
+- **#83 newest-Mac `ddf` artifacts:** the local-shell portion is explained by the TERM bug
+  above (Backspace/redraw emitting spaces). If artifacts recur on a build ≥ v0.16.2 (with
+  `TERM` guaranteed), capture a fresh `echo`/`lines` sample — a clean buffer would point at
+  the renderer, a dirty one at echo/parsing.

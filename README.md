@@ -12,11 +12,13 @@ terminal output as context, suggest commands, and send them straight to the acti
 
 - **AI assistant (multi-backend)**
   - Works with any OpenAI-compatible endpoint — OpenAI, Ollama, vLLM, TGI, self-hosted gateways.
-  - Sends the focused pane's recent output as context, so suggestions fit what you're doing.
+  - Knows the connected system (OS / shell / user / cwd) and can attach the focused pane's
+    recent output, so suggestions fit the machine and what you're doing.
   - Extracts commands from responses into cards with a one-click **Send to terminal** button.
   - Per-tab conversations, saved chat history, and session restore.
 - **SSH manager**
-  - Host profiles (name / host / port / user / auth), groups, tags, search and sort.
+  - Host profiles (name / host / port / user / auth), groups, tags, search and sort, with
+    keyboard navigation (`↑`/`↓` to select, `Enter` to open).
   - SSH key manager: generate or import keys.
   - TOFU host-key verification with `known_hosts` — first-contact confirmation and
     mismatch warnings to guard against man-in-the-middle attacks.
@@ -34,13 +36,15 @@ terminal output as context, suggest commands, and send them straight to the acti
     (local or remote, with attach/switch/create), and tab titles that follow the session.
   - Dead-session detection — if the connection drops (e.g. after sleep), the tab says so
     and **Enter reconnects in place** (back into tmux when auto-attach is set).
-  - Command history search (`Ctrl/⌘ + R`), inline autocomplete (`Tab`), and a configurable
-    default start directory for new terminals.
+  - Command history search (`Ctrl/⌘ + R`), inline autocomplete from history (accept with
+    `→`/`End`; `Tab` stays shell completion), and a configurable default start directory for
+    new terminals.
 - **UI**
   - Collapsible left host panel and right AI panel, with draggable widths.
   - 11 UI languages (auto-detected from your OS locale, switchable in Settings).
   - Dark / light themes, configurable font and scrollback.
-  - Import/export of hosts, groups, and tags (secrets stay in the keychain).
+  - Import/export of hosts, groups, tags, and LLM backends (secrets and API keys stay in
+    the keychain — re-enter keys after importing).
 
 ## Tech stack
 

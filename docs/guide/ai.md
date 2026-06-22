@@ -24,6 +24,10 @@ Examples:
 
 You can add several backends and switch between them. Each backend needs a unique id.
 
+Backends are included in **Settings → Import/Export** (without their API key — keys stay in
+the keychain). After importing on another machine, re-enter the API key for any
+authenticated backend.
+
 ## Chatting
 
 Type a message and press **Enter** to send (**Shift+Enter** for a newline). Responses
@@ -31,9 +35,17 @@ stream into the conversation.
 
 ### Context
 
-When **Include active pane output as context** is on, the assistant receives the recent
-output of the focused terminal pane along with your message. This lets it answer about what
-you're actually seeing — errors, command output, file listings — instead of guessing.
+The assistant always knows **which system is open** — the focused session's OS, shell,
+user, and current directory are probed silently (no trace in your terminal) and attached to
+every question, so suggestions match the connected machine (local or a specific SSH host)
+instead of guessing. On SSH this runs over a separate channel; the probe is a fixed
+read-only set and the model never runs commands on its own.
+
+When **Include active pane output as context** is on, the assistant *additionally* receives
+the recent output of the focused pane, so it can answer about what you're seeing — errors,
+command output, file listings. How many lines are attached is set in
+**Settings → General → AI context lines** (default 100). The system line above is sent
+regardless of this toggle.
 
 ### Running suggested commands
 
