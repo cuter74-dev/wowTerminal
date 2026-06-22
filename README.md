@@ -6,8 +6,6 @@
 
 ### Make Your Terminal Smarter & Safer — LLM × SSH × SFTP
 
-English | [한국어](https://gitlab.oopnwow.com/cuter74/wowterminal/-/blob/main/README.md)
-
 [![Release](https://img.shields.io/github/v/release/cuter74-dev/wowTerminal?color=4a9eff&label=release)](https://github.com/cuter74-dev/wowTerminal/releases/latest)
 [![License](https://img.shields.io/github/license/cuter74-dev/wowTerminal?color=blue)](LICENSE)
 [![Stars](https://img.shields.io/github/stars/cuter74-dev/wowTerminal?color=f5c518)](https://github.com/cuter74-dev/wowTerminal/stargazers)
