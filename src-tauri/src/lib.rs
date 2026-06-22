@@ -8,7 +8,11 @@ use std::sync::Arc;
 
 use ai::registry::AiRegistry;
 use pty::commands::PtyState;
-use secrets::{EncryptedFileStore, SecretStore};
+use secrets::SecretStore;
+#[cfg(desktop)]
+use secrets::EncryptedFileStore;
+#[cfg(mobile)]
+use secrets::KeyringStore;
 use tauri::Manager;
 use windows::DetachedRegistry;
 
@@ -17,9 +21,11 @@ fn greet(name: &str) -> String {
     format!("Hello, {}! Welcome to wowTerminal.", name)
 }
 
-/// 머신 고유 ID에서 secret 파일 암호화용 패스프레이즈를 파생한다.
+/// 머신 고유 ID에서 secret 파일 암호화용 패스프레이즈를 파생한다(데스크탑 전용).
 /// 입력 없이 무프롬프트로 동작하지만, OS 키링과 달리 같은 머신·같은 사용자면 복호화 가능
 /// (개인 개발/사용 용도의 trade-off). 머신 ID 조회 실패 시 고정 폴백.
+/// 모바일(iOS/Android)은 OS 키체인(KeyringStore)을 쓰므로 이 경로를 타지 않는다.
+#[cfg(desktop)]
 fn machine_passphrase() -> String {
     let id = machine_uid::get().unwrap_or_else(|_| "wowterminal-fallback-machine".to_string());
     format!("wowterminal-secret-v1:{id}")
@@ -68,8 +74,12 @@ pub fn run() {
         .setup(|app| {
             // 기본 메뉴(App/Edit/Window 등)를 설정한다. Edit 메뉴의 Copy/Paste/Cut/Select All이
             // 있어야 macOS 등에서 cmd+C/V/X/A 키가 입력창·터미널로 전달된다(없으면 동작 안 함).
-            let menu = tauri::menu::Menu::default(app.handle())?;
-            app.set_menu(menu)?;
+            // 네이티브 메뉴바는 데스크탑 전용 — iOS/Android에는 없다.
+            #[cfg(desktop)]
+            {
+                let menu = tauri::menu::Menu::default(app.handle())?;
+                app.set_menu(menu)?;
+            }
 
             // 세션 출력 ring buffer (pty/ssh 공유) — 탭 분리 시 스크롤백 복원용.
             let history = Arc::new(pty::manager::HistoryStore::new(512 * 1024));
@@ -83,9 +93,11 @@ pub fn run() {
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
             let _ = std::fs::create_dir_all(&config_dir);
 
-            // secret 저장: OS 키링 대신 머신 키 기반 암호화 파일(EncryptedFileStore).
-            // unsigned 빌드에서 macOS Keychain이 매 실행 권한을 묻는 문제를 피한다.
-            // ssh/ai가 같은 store를 공유(키는 각자 id로 네임스페이스).
+            // secret 저장 (ssh/ai가 같은 store 공유, 키는 각자 id로 네임스페이스).
+            // 데스크탑: OS 키링 대신 머신 키 기반 암호화 파일(EncryptedFileStore) — unsigned
+            // 빌드에서 macOS Keychain이 매 실행 권한을 묻는 문제를 피한다.
+            // 모바일(iOS/Android): OS 키체인(KeyringStore) — 샌드박스라 파일 머신키가 부적합.
+            #[cfg(desktop)]
             let secret_store: Arc<dyn SecretStore> = Arc::new(
                 EncryptedFileStore::open_or_create(
                     config_dir.join("secrets.enc"),
@@ -93,6 +105,8 @@ pub fn run() {
                 )
                 .expect("open encrypted secret store"),
             );
+            #[cfg(mobile)]
+            let secret_store: Arc<dyn SecretStore> = Arc::new(KeyringStore::new("wowterminal"));
 
             // AI backends.toml 로드 후 registry에 등록.
             let mut ai_state = ai::commands::build_state(config_dir.join("backends.toml"));

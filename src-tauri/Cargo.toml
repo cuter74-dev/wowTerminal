@@ -42,7 +42,6 @@ ssh-key = { version = "=0.7.0-rc.10", features = ["ed25519", "rsa", "encryption"
 tauri-plugin-dialog = "2.7.1"
 tauri-plugin-updater = "2.10.1"
 tauri-plugin-process = "2.3.1"
-machine-uid = "0.6.0"
 tauri-plugin-notification = "2.3.3"
 # 에러·크래시 추적(GlitchTip = Sentry 호환). default-features 끄고 rustls 사용
 # (프로젝트 전역이 rustls라 native-tls/openssl 의존을 피한다).
@@ -52,3 +51,8 @@ sentry = { version = "0.34", default-features = false, features = ["backtrace", 
 wiremock = "0.6"
 tokio = { version = "1", features = ["full", "macros", "test-util"] }
 
+
+# 데스크탑 전용 — machine-uid는 iOS/Android를 지원하지 않는다(머신키 암호화 시크릿 저장소용).
+# 모바일은 OS 키체인(KeyringStore)을 쓰므로 머신키가 필요 없다.
+[target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
+machine-uid = "0.6.0"
