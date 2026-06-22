@@ -970,6 +970,20 @@ export function Terminal({
         }
         return true;
       }
+      // 단어 단위 삭제 — Option+Delete(⌥⌫) / Alt+Backspace. readline의 backward-kill-word를
+      // 부르는 ESC+DEL(`\e\x7f`)을 보낸다(zsh/bash 기본 바인딩). 전 플랫폼 공통(Alt). (#112)
+      if (e.altKey && !e.metaKey && !e.ctrlKey && e.key === "Backspace") {
+        e.preventDefault();
+        writeToSession("\x1b\x7f");
+        return false;
+      }
+      // 줄 전체 삭제 — Cmd+Delete(⌘⌫). 줄 시작까지 지우는 Ctrl-U(`\x15`)를 보낸다
+      // (zsh kill-whole-line / bash unix-line-discard). (#112)
+      if (e.metaKey && !e.ctrlKey && !e.altKey && e.key === "Backspace") {
+        e.preventDefault();
+        writeToSession("\x15");
+        return false;
+      }
       // Windows/Linux 복사/붙여넣기 단축키 (#101). macOS는 위 ⌘ 경로를 쓰므로 제외.
       // Ctrl+C: 선택이 있으면 복사, 없으면 SIGINT로 통과(Windows Terminal/VS Code 방식).
       // Ctrl+Shift+C: 항상 복사(SIGINT 충돌 없음). Ctrl+V / Ctrl+Shift+V: 붙여넣기.

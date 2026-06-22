@@ -25,6 +25,8 @@
 | `Ctrl/⌘ + R` | Search command history |
 | `→` / `End` | Accept the inline autocomplete suggestion (when one is shown at the end of the line) |
 | `Tab` | Shell completion (file / directory / command) |
+| `Option/Alt + Delete` | Delete the previous word |
+| `⌘ + Delete` | Delete the whole line |
 
 The inline suggestion comes from your command history (plus a few built-in seeds, e.g.
 `claude --dangerously-skip-permissions`). It's the fish / zsh-autosuggestions / Warp

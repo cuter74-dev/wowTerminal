@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- Terminal deletion shortcuts: **Option/Alt + Delete** deletes the previous word (sends ESC+DEL → readline `backward-kill-word`), and **Cmd + Delete** clears the whole line (sends Ctrl-U). (#112)
+
 ## [0.16.3] — 2026-06-21
 
 ### Fixed
