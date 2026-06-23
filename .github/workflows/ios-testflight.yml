@@ -65,6 +65,8 @@ jobs:
       - name: Generate iOS project with manual signing
         run: |
           npx tauri ios init
+          # tauri ios init writes the default Tauri icon; regenerate from the app master.
+          npx tauri icon src-tauri/icons/app-icon.png
           python3 - "$PROFILE_NAME" <<'PY'
           import sys
           name = sys.argv[1]
