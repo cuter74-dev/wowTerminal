@@ -13,7 +13,37 @@ env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
 
 jobs:
+  # 드래프트 릴리스를 단 한 번 생성하고 그 id를 매트릭스 잡에 넘긴다.
+  # 종전엔 4개 매트릭스 잡이 각자 tagName+releaseDraft로 tauri-action을 호출해, 동시에 시작되면
+  # 같은 태그에 드래프트 릴리스가 2개 만들어지고 에셋이 쪼개지는 레이스가 났다(v0.18.1에서 실측).
+  create-release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-22.04
+    outputs:
+      release_id: ${{ steps.create.outputs.id }}
+    steps:
+      - name: Create or reuse the draft release
+        id: create
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -e
+          id=$(gh api "repos/$REPO/releases" --paginate --jq ".[] | select(.tag_name==\"$TAG\") | .id" | head -1)
+          if [ -z "$id" ]; then
+            id=$(gh api -X POST "repos/$REPO/releases" \
+              -f tag_name="$TAG" \
+              -f name="wowTerminal $TAG" \
+              -F draft=true -F prerelease=false \
+              -f body=$'Download the installer for your platform from the assets below.\n\n- macOS: signed with Developer ID and notarized — opens normally.\n- Windows: unsigned, SmartScreen may warn → More info → Run anyway.' \
+              --jq .id)
+          fi
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
   publish-tauri:
+    needs: create-release
     permissions:
       contents: write
     strategy:
@@ -81,15 +111,8 @@ jobs:
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "wowTerminal ${{ github.ref_name }}"
-          releaseBody: |
-            Download the installer for your platform from the assets below.
-
-            - macOS: signed with Developer ID and notarized — opens normally.
-            - Windows: unsigned, SmartScreen may warn → More info → Run anyway.
-          releaseDraft: true
-          prerelease: false
+          # 공유 드래프트에 업로드 — 매트릭스 잡이 각자 릴리스를 만들지 않게 한다(레이스 방지).
+          releaseId: ${{ needs.create-release.outputs.release_id }}
           # macOS는 dmg를 메인 빌드에서 제외하고 app만 빌드한다. createUpdaterArtifacts=true라
           # app 번들과 함께 업데이터 .app.tar.gz(+.sig)·latest.json이 항상 생성·업로드된다.
           # dmg는 아래 best-effort 스텝에서 따로 만든다(GitHub 러너의 bundle_dmg.sh flaky 방지).
