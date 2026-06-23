@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.18.1] — 2026-06-23
+
 ### Changed
 - App bundle identifier is now `com.oopnwow.wowterminal` (was `com.wowterminal.app`) — a proper reverse-DNS identifier under the project's own domain, shared by desktop, iPad (iOS) and Android. App data/settings are stored under the `wowterminal` path (not the bundle ID), so macOS settings carry over; on Windows the next update may install alongside the old entry rather than upgrading in place (one-time). (#114)
 
@@ -395,7 +397,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.1...HEAD
+[0.18.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.3...v0.17.0
