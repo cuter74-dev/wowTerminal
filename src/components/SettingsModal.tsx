@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { save, open } from "@tauri-apps/plugin-dialog";
+import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
+import { isMobile } from "../platform";
 import { getVersion } from "@tauri-apps/api/app";
 import {
   AppSettings,
@@ -1354,7 +1356,9 @@ function BackupTab() {
         filters: [{ name: "JSON", extensions: ["json"] }],
       });
       if (!path) return; // 취소
-      await invoke("local_write_text", { path, content: json });
+      // 모바일은 plugin-fs로 써야 피커가 준 위치(보안 스코프)에 저장된다.
+      if (isMobile) await writeTextFile(path, json);
+      else await invoke("local_write_text", { path, content: json });
       setMsg(t.exportFileDone(path));
     } catch (e) {
       setMsg(t.exportFail(String(e)));
@@ -1372,7 +1376,11 @@ function BackupTab() {
       });
       const path = Array.isArray(sel) ? sel[0] : sel;
       if (!path) return; // 취소
-      const json = await invoke<string>("local_read_text", { path });
+      // 모바일(iOS/Android)은 피커가 주는 보안 스코프 URL을 std::fs로 못 열어("no such file")
+      // → plugin-fs readTextFile로 읽는다. 데스크탑은 기존 커스텀 명령(스코프 제약 회피).
+      const json = isMobile
+        ? await readTextFile(path)
+        : await invoke<string>("local_read_text", { path });
       setText(json);
       setMsg(await applyImportJson(json));
     } catch (e) {

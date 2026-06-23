@@ -17,6 +17,9 @@
     "dialog:allow-confirm",
     "dialog:allow-ask",
     "dialog:allow-message",
+    "fs:default",
+    "fs:allow-read-text-file",
+    "fs:allow-write-text-file",
     "notification:default",
     "updater:default",
     "process:default"
