@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-06-23
+
 ### Added
 - Mobile (iPad/Android) touch UI: an on-screen key bar above the keyboard (Esc · Tab · arrows · ⌃C/D/Z/R/L · Home/End/PgUp/PgDn · shell symbols, plus a sticky **Ctrl** modifier that turns the next typed letter into a control sequence), and a top toolbar that opens the host list and AI panel as slide-over sheets instead of cramped fixed columns. Desktop layout is unchanged. (#114)
 
@@ -384,7 +386,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.1...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.0...HEAD
+[0.18.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.0...v0.17.1
 [0.17.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.3...v0.17.0
 [0.16.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.16.2...v0.16.3
