@@ -30,6 +30,8 @@ import { SettingsModal } from "./components/SettingsModal";
 import { SplashScreen } from "./components/SplashScreen";
 import { LangDict, LangProvider, useT } from "./i18n";
 import { isMobile } from "./platform";
+import { MobileKeyBar } from "./components/MobileKeyBar";
+import { MobileSheet } from "./components/MobileSheet";
 import { OnboardingFlow } from "./components/OnboardingFlow";
 import {
   AppSettings,
@@ -336,6 +338,27 @@ const dividerToggleStyle: CSSProperties = {
   zIndex: 5,
 };
 
+// 모바일 툴바의 호스트/AI 토글 버튼 (#114).
+const mobileTabBtn: CSSProperties = {
+  flex: 1,
+  height: 36,
+  border: "1px solid #2f2f38",
+  borderRadius: 8,
+  background: "#202028",
+  color: "#cdd3da",
+  fontSize: 14,
+  cursor: "pointer",
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  touchAction: "manipulation",
+};
+
+const mobileTabBtnOn: CSSProperties = {
+  background: "#0a5380",
+  borderColor: "#4a9eff",
+  color: "#fff",
+};
+
 const collapsedHandleStyle: CSSProperties = {
   flexShrink: 0,
   width: 14,
@@ -560,6 +583,11 @@ function App() {
   // 좌/우 패널 토글 + 너비 리사이즈 (#21). 상태는 settings.layout에 영속화.
   const layout = settings.layout;
   const layoutRowRef = useRef<HTMLDivElement>(null);
+  // 모바일 슬라이드오버 시트 — 한 번에 하나만. 첫 실행 시 호스트 목록을 띄워 바로 접속 유도.
+  // 데스크탑의 layout.showHostPanel/showAiPanel(고정 컬럼)과는 분리해서 관리한다(#114).
+  const [mobilePanel, setMobilePanel] = useState<"host" | "ai" | null>(
+    isMobile ? "host" : null,
+  );
   // 함수형 업데이트로 최신 settings 기준 토글(단축키 핸들러의 stale 클로저에도 안전).
   function toggleHostPanel() {
     setSettings((prev) => {
@@ -1807,12 +1835,92 @@ function App() {
     );
   }
 
+  // 호스트 목록 — 데스크탑은 좌측 고정 컬럼, 모바일은 슬라이드오버 시트에서 공유한다(#114).
+  const hostListEl = (
+    <HostList
+      activeHostId={activeHostId}
+      isLocalActive={!!isLocalActive}
+      onSelect={(id) => {
+        // 모바일: 활성 탭이 없거나 빈 상태면 새 SSH 탭으로 연다(로컬 셸 폴백 없음). 시트는 닫는다.
+        if (isMobile) {
+          if (activeTab && focusedLeaf) selectHostForActive(id);
+          else newSshTab(id);
+          setMobilePanel(null);
+        } else {
+          selectHostForActive(id);
+        }
+      }}
+      onOpenInNewTab={(id) => {
+        void reloadHosts();
+        newSshTab(id);
+        if (isMobile) setMobilePanel(null);
+      }}
+      onSelectLocal={selectLocalForActive}
+      activeSessionCountForHost={activeSessionCountForHost}
+      onHostDeleted={(id) => {
+        detachHostFromAllTabs(id);
+        void reloadHosts();
+      }}
+    />
+  );
+
+  // AI 패널 묶음 — 탭별 mount(display 토글) + 빈 상태 폴백. 데스크탑 우측 컬럼/모바일 시트 공유.
+  const aiPanelsEl = (
+    <>
+      {tabs.map((tab) => {
+        const fLeaf = findLeaf(tab.root, tab.focusedPaneId);
+        const fSource = fLeaf && fLeaf.kind === "leaf" ? fLeaf.source : null;
+        return (
+          <div
+            key={tab.id}
+            style={{
+              display: tab.id === activeTabId ? "flex" : "none",
+              flex: 1,
+              minHeight: 0,
+            }}
+          >
+            <AIPanel
+              activeTab={tab}
+              focusedSource={fSource}
+              focusedPaneId={tab.focusedPaneId}
+              paneCount={collectLeaves(tab.root).length}
+              contextLabel={
+                fSource && fSource.kind === "ssh"
+                  ? labelForHost(fSource.hostId)
+                  : undefined
+              }
+              onActiveSession={(sid) => {
+                aiSessionByTab.current[tab.id] = sid;
+              }}
+              initialSessionId={attachAiByTab[tab.id]}
+              getSessionId={(pid) => sessionByLeaf.current[pid]}
+              contextLines={settings.general.aiContextLines}
+            />
+          </div>
+        );
+      })}
+      {/* 탭이 없을 때(모바일 빈 상태)도 AI 패널을 1개 띄워, LLM 백엔드 추가/대화가
+          가능하도록 한다 — 종전엔 tabs.map이 비어 우측 컬럼이 빈칸이었다(#114). */}
+      {tabs.length === 0 && (
+        <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
+          <AIPanel
+            activeTab={null}
+            focusedSource={null}
+            focusedPaneId={null}
+            paneCount={0}
+            contextLines={settings.general.aiContextLines}
+          />
+        </div>
+      )}
+    </>
+  );
+
   return (
     <LangProvider lang={lang}>
     <main
       style={{
         width: "100vw",
-        height: "100vh",
+        height: "100dvh",
         display: "flex",
         flexDirection: "column",
         background: "#1e1e1e",
@@ -1877,11 +1985,45 @@ function App() {
         }}
       />
 
+      {/* 모바일 툴바 — 호스트/AI 시트 토글. 물리 키보드·마우스 없이 패널을 여닫는다(#114). */}
+      {isMobile && (
+        <div
+          style={{
+            display: "flex",
+            gap: 8,
+            padding: "6px 10px",
+            background: "#17171b",
+            borderBottom: "1px solid #2a2a30",
+            flexShrink: 0,
+          }}
+        >
+          <button
+            onClick={() =>
+              setMobilePanel((p) => (p === "host" ? null : "host"))
+            }
+            style={{ ...mobileTabBtn, ...(mobilePanel === "host" ? mobileTabBtnOn : null) }}
+          >
+            ☰ Hosts
+          </button>
+          <button
+            onClick={() => setMobilePanel((p) => (p === "ai" ? null : "ai"))}
+            style={{ ...mobileTabBtn, ...(mobilePanel === "ai" ? mobileTabBtnOn : null) }}
+          >
+            ✨ AI
+          </button>
+        </div>
+      )}
+
       <div
         ref={layoutRowRef}
-        style={{ flex: 1, display: "flex", minHeight: 0 }}
+        style={{
+          flex: 1,
+          display: "flex",
+          minHeight: 0,
+          position: "relative",
+        }}
       >
-        {layout.showHostPanel && (
+        {!isMobile && layout.showHostPanel && (
           <>
             <div
               style={{
@@ -1891,21 +2033,7 @@ function App() {
                 display: "flex",
               }}
             >
-              <HostList
-                activeHostId={activeHostId}
-                isLocalActive={!!isLocalActive}
-                onSelect={selectHostForActive}
-                onOpenInNewTab={(id) => {
-                  void reloadHosts();
-                  newSshTab(id);
-                }}
-                onSelectLocal={selectLocalForActive}
-                activeSessionCountForHost={activeSessionCountForHost}
-                onHostDeleted={(id) => {
-                  detachHostFromAllTabs(id);
-                  void reloadHosts();
-                }}
-              />
+              {hostListEl}
             </div>
             <PanelEdge
               side="host"
@@ -1915,7 +2043,7 @@ function App() {
             />
           </>
         )}
-        {!layout.showHostPanel && (
+        {!isMobile && !layout.showHostPanel && (
           <PanelEdge
             side="host"
             collapsed
@@ -1997,10 +2125,18 @@ function App() {
               />
             </div>
           ))}
+          {/* 모바일 온스크린 키바 — 터미널 탭이 활성일 때 하단에(물리 키보드 대체, #114). */}
+          {isMobile && activeTab && (
+            <MobileKeyBar
+              onSend={(d) =>
+                getTerminal(activeTab.focusedPaneId)?.sendInput(d)
+              }
+            />
+          )}
         </div>
 
-        {/* 우측 AI 패널 — 탭별로 mount(display 토글)하고 고정폭 컨테이너로 감싼다. */}
-        {!layout.showAiPanel && (
+        {/* 우측 AI 패널 — 데스크탑은 탭별 mount(display 토글) 고정폭 컬럼. */}
+        {!isMobile && !layout.showAiPanel && (
           <PanelEdge
             side="ai"
             collapsed
@@ -2008,7 +2144,7 @@ function App() {
             onResizeStart={() => {}}
           />
         )}
-        {layout.showAiPanel && (
+        {!isMobile && layout.showAiPanel && (
           <>
             <PanelEdge
               side="ai"
@@ -2025,54 +2161,29 @@ function App() {
                 flexDirection: "column",
               }}
             >
-              {tabs.map((tab) => {
-                const fLeaf = findLeaf(tab.root, tab.focusedPaneId);
-                const fSource =
-                  fLeaf && fLeaf.kind === "leaf" ? fLeaf.source : null;
-                return (
-                  <div
-                    key={tab.id}
-                    style={{
-                      display: tab.id === activeTabId ? "flex" : "none",
-                      flex: 1,
-                      minHeight: 0,
-                    }}
-                  >
-                    <AIPanel
-                      activeTab={tab}
-                      focusedSource={fSource}
-                      focusedPaneId={tab.focusedPaneId}
-                      paneCount={collectLeaves(tab.root).length}
-                      contextLabel={
-                        fSource && fSource.kind === "ssh"
-                          ? labelForHost(fSource.hostId)
-                          : undefined
-                      }
-                      onActiveSession={(sid) => {
-                        aiSessionByTab.current[tab.id] = sid;
-                      }}
-                      initialSessionId={attachAiByTab[tab.id]}
-                      getSessionId={(pid) => sessionByLeaf.current[pid]}
-                      contextLines={settings.general.aiContextLines}
-                    />
-                  </div>
-                );
-              })}
-              {/* 탭이 없을 때(모바일 빈 상태)도 AI 패널을 1개 띄워, LLM 백엔드 추가/대화가
-                  가능하도록 한다 — 종전엔 tabs.map이 비어 우측 컬럼이 빈칸이었다(#114). */}
-              {tabs.length === 0 && (
-                <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
-                  <AIPanel
-                    activeTab={null}
-                    focusedSource={null}
-                    focusedPaneId={null}
-                    paneCount={0}
-                    contextLines={settings.general.aiContextLines}
-                  />
-                </div>
-              )}
+              {aiPanelsEl}
             </div>
           </>
+        )}
+
+        {/* 모바일 슬라이드오버 시트 — 호스트 목록(좌)·AI(우). backdrop 탭으로 닫힘(#114). */}
+        {isMobile && mobilePanel === "host" && (
+          <MobileSheet
+            side="left"
+            width={layout.hostPanelWidth}
+            onClose={() => setMobilePanel(null)}
+          >
+            {hostListEl}
+          </MobileSheet>
+        )}
+        {isMobile && mobilePanel === "ai" && (
+          <MobileSheet
+            side="right"
+            width={layout.aiPanelWidth}
+            onClose={() => setMobilePanel(null)}
+          >
+            {aiPanelsEl}
+          </MobileSheet>
         )}
       </div>
 

@@ -20,6 +20,7 @@ import * as Sentry from "@sentry/react";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
+import { mobileCtrl, ctrlSeq } from "../mobileInput";
 import { LangDict, useT } from "../i18n";
 
 // [진단 #83 — M5 영문 잔상] writingsuggestions=false로도 안 잡혀 재계측. 구조 카운터만
@@ -911,6 +912,17 @@ export function Terminal({
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // 모바일 온스크린 키바의 Ctrl 스티키 (#114): 켜져 있으면 다음 글자 1개를 Ctrl 조합으로
+      // 보내고 끈다. 소프트 키보드로 친 영문자가 ⌃C/⌃D 등으로 전송된다.
+      if (mobileCtrl.get() && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        const seq = ctrlSeq(e.key);
+        if (seq) {
+          e.preventDefault();
+          mobileCtrl.clear();
+          sendToSessionRef.current?.(seq);
+          return false;
+        }
+      }
       // [진단 #100] 특수키(Backspace/Enter/Space/방향키 등) keydown 기록 — 백스페이스가
       // 어떤 key/keyCode/isComposing/imeActive로 들어오는지(스페이스로 둔갑하는지) 본다.
       if (isMacWebView && (e.key.length !== 1 || e.key === " ")) {

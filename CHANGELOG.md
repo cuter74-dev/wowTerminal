@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- Mobile (iPad/Android) touch UI: an on-screen key bar above the keyboard (Esc · Tab · arrows · ⌃C/D/Z/R/L · Home/End/PgUp/PgDn · shell symbols, plus a sticky **Ctrl** modifier that turns the next typed letter into a control sequence), and a top toolbar that opens the host list and AI panel as slide-over sheets instead of cramped fixed columns. Desktop layout is unchanged. (#114)
+
 ## [0.17.1] — 2026-06-22
 
 ### Fixed
