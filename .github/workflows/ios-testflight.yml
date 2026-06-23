@@ -1,31 +1,11 @@
-# Build the iOS app and upload it to TestFlight.
-#
-# Manual trigger (workflow_dispatch) so pushing a desktop release tag doesn't also
-# ship to TestFlight unless you ask for it. Reproduces the manual pipeline that was
-# validated locally: API-key auth + a manually-created distribution cert and App
-# Store provisioning profile (no Xcode account login, which is why automatic signing
-# fails on CI).
-#
-# Required repository secrets (Settings → Secrets and variables → Actions):
-#   ASC_API_KEY_ID                 App Store Connect API key id (e.g. J7MCW5VBM3)
-#   ASC_API_ISSUER_ID              issuer id (UUID)
-#   ASC_API_KEY_P8_BASE64          base64 of AuthKey_<id>.p8
-#   IOS_DIST_CERT_P12_BASE64       base64 of the Apple Distribution .p12
-#   IOS_DIST_CERT_PASSWORD         the .p12 export password
-#   IOS_PROVISIONING_PROFILE_BASE64  base64 of the App Store .mobileprovision
-#   APPLE_TEAM_ID                  924883CCSU
-#
-# The bundle id is com.oopnwow.wowterminal and the profile must be named
-# "wowTerminal App Store" (see PROFILE_NAME below). Regenerate the cert/profile with
-# the App Store Connect API if they expire.
-
+# Build the iOS app and upload it to TestFlight. Setup is in internal maintainer docs.
 name: iOS TestFlight
 
 on:
   workflow_dispatch:
     inputs:
       build_number:
-        description: "Build number to append to the app version (must increase each upload)"
+        description: "Build number (must increase each upload)"
         required: true
         default: "1"
 
@@ -73,7 +53,6 @@ jobs:
           echo "$IOS_DIST_CERT_P12_BASE64" | base64 -d > "$RUNNER_TEMP/dist.p12"
           security import "$RUNNER_TEMP/dist.p12" -k "$KEYCHAIN" -P "$IOS_DIST_CERT_PASSWORD" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
-          # Make the temp keychain visible to xcodebuild alongside the login keychain.
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
 
       - name: Install provisioning profile
@@ -86,9 +65,6 @@ jobs:
       - name: Generate iOS project with manual signing
         run: |
           npx tauri ios init
-          # Tauri derives gen/apple from tauri.conf.json with automatic signing, which
-          # fails on CI (no Xcode account). Switch the app build settings to manual
-          # signing with our distribution cert + profile, then regenerate the project.
           python3 - "$PROFILE_NAME" <<'PY'
           import sys
           name = sys.argv[1]
@@ -108,15 +84,13 @@ jobs:
           PY
           ( cd src-tauri/gen/apple && xcodegen generate )
 
-      - name: Build & archive (Tauri runs frontend + Rust + xcodebuild archive)
+      - name: Build & archive
         run: |
-          # Tauri's auto-generated ExportOptions is wrong for manual App Store signing,
-          # so its export step fails — we archive here and export ourselves next.
           npx tauri ios build --target aarch64 --export-method app-store-connect --ci \
             --build-number "${{ inputs.build_number }}" || true
           test -d src-tauri/gen/apple/build/wowterminal_iOS.xcarchive
 
-      - name: Export App Store IPA
+      - name: Export IPA
         env:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |

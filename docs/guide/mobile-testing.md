@@ -70,52 +70,9 @@ Report the device model + iOS/Android version with any issue.
 
 ## 3. Distribution
 
-The desktop release (`.github/workflows/release.yml`) is unchanged. Mobile distribution
-is a separate pipeline; both need credentials that only the account owner can issue.
-Add them as **GitHub Actions secrets** (Settings → Secrets and variables → Actions; the
-`gh` CLI PAT lacks the scope — use the web UI).
+Mobile distribution (TestFlight and Google Play internal testing) — the signing
+pipeline, the required secrets, and the step-by-step App Store Connect / Play Console
+setup — is **kept in internal maintainer docs**, not in this public repository.
 
-### 3a. iOS → TestFlight
-
-Bundle ID: `com.oopnwow.wowterminal` (register it in App Store Connect → Apps before the
-first upload). Required, from the Apple Developer account `924883CCSU`:
-
-| Secret | What it is |
-|---|---|
-| `ASC_API_KEY_ID` | App Store Connect API key ID (Users and Access → Integrations → App Store Connect API → generate a key with *App Manager* role). |
-| `ASC_API_ISSUER_ID` | The issuer ID shown above the keys list. |
-| `ASC_API_KEY_P8_BASE64` | The downloaded `AuthKey_XXXX.p8`, base64-encoded. |
-| `IOS_DIST_CERT_P12_BASE64` | **Apple Distribution** certificate + private key as a chain-included `.p12`, base64. (Distinct from the Developer ID cert used for macOS — see [release-signing.md](release-signing.md).) |
-| `IOS_DIST_CERT_PASSWORD` | The `.p12` export password. |
-| `IOS_PROVISIONING_PROFILE_BASE64` | An **App Store** provisioning profile for the bundle ID, base64. |
-
-Automatic signing fails on CI (it needs an Xcode-logged-in account), so the pipeline
-uses **manual signing** with a distribution certificate and an App Store provisioning
-profile created via the App Store Connect API (named `wowTerminal App Store`). Tauri's
-auto-generated `ExportOptions.plist` is wrong for this case, so the workflow archives
-with Tauri and then exports with its own options before `xcrun altool --upload-app`.
-
-The workflow is [`.github/workflows/ios-testflight.yml`](../../.github/workflows/ios-testflight.yml)
-(manual `workflow_dispatch` — bump the build number each run). Add the secrets, then run
-it once to validate. The App Store Connect **app record** must already exist (create it
-once in the web UI — the API can't), and each build's **export-compliance / encryption**
-answer must be set in App Store Connect before it reaches testers.
-
-### 3b. Android → Google Play (internal testing)
-
-Required:
-
-| Secret | What it is |
-|---|---|
-| `ANDROID_KEYSTORE_BASE64` | An upload keystore (`keytool -genkey -v -keystore upload.jks -keyalg RSA -keysize 2048 -validity 10000 -alias upload`), base64. |
-| `ANDROID_KEYSTORE_PASSWORD` / `ANDROID_KEY_ALIAS` / `ANDROID_KEY_PASSWORD` | Keystore + key credentials. |
-| `PLAY_SERVICE_ACCOUNT_JSON` | A Google Play Console service-account JSON with *release to internal testing* permission. |
-
-Pipeline shape: `tauri android build --aab` signed with the keystore, then upload to the
-**internal** track with `fastlane supply` (or the Gradle Play Publisher) using the
-service-account JSON. The first AAB must be uploaded to Play Console manually to create
-the app entry before automated uploads work.
-
-> Store **registration and review** (App Store Connect / Play Console app creation,
-> screenshots, privacy answers, review submission) is account-owner-only and can't be
-> automated here.
+Store **registration and review** (app creation, screenshots, privacy answers, review
+submission) is account-owner-only and can't be automated.
