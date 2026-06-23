@@ -13,6 +13,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Fixed
 - iPad (iOS) and Android app icons now use the wowTerminal icon instead of the default Tauri logo. (#114)
 - Import/export on mobile failed with "no such file or directory" (e.g. picking a file from iCloud). The picked file is a security-scoped URL that the desktop file path read couldn't open; mobile now reads/writes it via the filesystem plugin, which handles the scope. (#114)
+- Imported hosts/groups/tags/LLM backends now appear immediately — previously the import only took effect after restarting the app (desktop and mobile). (#114)
+- Mobile: long-pressing the host list no longer selects the text (host info and group names); the row action buttons (incl. delete) are larger and easier to tap; and the list no longer rubber-band-bounces when dragged. (#114)
 
 ## [0.18.0] — 2026-06-23
 

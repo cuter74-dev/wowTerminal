@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { invoke, Channel } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import {
   BackendInfo,
   ChatMessage,
@@ -784,6 +785,15 @@ export function AIPanel({
         if (s.backendId) setCurrentId(s.backendId);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 가져오기 후 LLM 백엔드 목록 즉시 갱신 — SettingsModal이 발행하는 이벤트(#114).
+  useEffect(() => {
+    const un = listen("wt://data-imported", () => void reload());
+    return () => {
+      void un.then((f) => f());
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
 import { isMobile } from "../platform";
@@ -1294,6 +1295,9 @@ function BackupTab() {
           apiKey: null,
         },
       });
+    // 가져온 데이터를 백엔드(파일)에 저장했으니, UI(호스트 목록·AI 패널·탭 라벨)가 즉시
+    // 반영되도록 전역 이벤트를 발행한다 — 종전엔 재시작해야 보였다. App/HostList/AIPanel이 듣는다.
+    await emit("wt://data-imported");
     return t.importDone(hosts.length, groups.length, tags.length, backends.length);
   }
 
@@ -1320,6 +1324,7 @@ function BackupTab() {
         };
         await invoke("ssh_save_host", { host });
       }
+      await emit("wt://data-imported");
       setMsg(t.sshConfigImported(parsed.length));
     } catch (e) {
       setMsg(t.importFail(String(e)));

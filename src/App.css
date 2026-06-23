@@ -7,6 +7,13 @@ body,
   height: 100%;
   background: #1e1e1e;
   overflow: hidden;
+  /* iOS 고무줄(오버스크롤) 바운스 방지 — 모바일에서 리스트/화면을 드래그하면 전체가 출렁이던 문제(#114). */
+  overscroll-behavior: none;
+}
+
+/* 내부 스크롤 영역도 자체 바운스를 막는다(짧은 목록을 드래그해도 출렁이지 않게). */
+* {
+  overscroll-behavior: none;
 }
 
 /* 한글/CJK IME 이중 표시 수정 (#75) — macOS **미러 경로 한정**.

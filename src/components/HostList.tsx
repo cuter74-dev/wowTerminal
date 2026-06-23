@@ -1,15 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { Group, SshHost, Tag } from "../types";
+import { isMobile } from "../platform";
 import { HostForm } from "./HostForm";
 import { DeleteHostModal } from "./DeleteHostModal";
 import { GroupTagManager } from "./GroupTagManager";
 import { SshKeyManager } from "./SshKeyManager";
 import { LangDict, useT } from "../i18n";
-import { isMobile } from "../platform";
 
 const STR: LangDict<{
     switchToLocal: string;
@@ -389,6 +390,14 @@ export function HostList({
     void reload();
   }, [reload]);
 
+  // 가져오기(설정 → 가져오기) 후 즉시 목록 갱신 — SettingsModal이 발행하는 이벤트(#114).
+  useEffect(() => {
+    const un = listen("wt://data-imported", () => void reload());
+    return () => {
+      void un.then((f) => f());
+    };
+  }, [reload]);
+
   async function performDelete(id: string) {
     try {
       await invoke("ssh_delete_host", { id });
@@ -557,7 +566,11 @@ export function HostList({
         fontSize: 13,
         boxSizing: "border-box",
         overflow: "hidden",
-        userSelect: "none", // 호스트 목록은 UI 영역이라 드래그 텍스트 선택 비활성.
+        // 호스트 목록 전체는 UI 영역 — 드래그/롱프레스 텍스트 선택 비활성(그룹 이름·헤더 포함).
+        // iOS는 user-select만으론 부족해 -webkit-user-select·-webkit-touch-callout도 필요(#114).
+        userSelect: "none",
+        WebkitUserSelect: "none",
+        WebkitTouchCallout: "none",
       }}
     >
       {/* 로컬 셸은 데스크탑 전용 — iOS/Android에는 로컬 셸이 없다(#114). */}
@@ -1036,7 +1049,7 @@ function GroupSection({
                 </div>
               )}
             </div>
-            <div style={{ display: "flex", gap: 4 }}>
+            <div style={{ display: "flex", gap: 4, flexShrink: 0 }}>
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -1161,6 +1174,10 @@ const rowStyle: React.CSSProperties = {
   color: "#cccccc",
   cursor: "pointer",
   fontSize: 13,
+  // 모바일에서 행을 꾹 눌러도 글자가 선택되거나 iOS 콜아웃이 뜨지 않게 한다(#114).
+  userSelect: "none",
+  WebkitUserSelect: "none",
+  WebkitTouchCallout: "none",
 };
 
 const iconBtnStyle: React.CSSProperties = {
@@ -1170,6 +1187,19 @@ const iconBtnStyle: React.CSSProperties = {
   cursor: "pointer",
   fontSize: 14,
   padding: "0 4px",
+  // 모바일은 손가락으로 누를 수 있게 터치 타깃을 키운다(#114).
+  ...(isMobile
+    ? {
+        fontSize: 18,
+        minWidth: 34,
+        height: 34,
+        padding: 0,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        WebkitTouchCallout: "none",
+      }
+    : null),
 };
 
 const addBtnStyle: React.CSSProperties = {

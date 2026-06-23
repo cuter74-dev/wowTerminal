@@ -653,6 +653,13 @@ function App() {
   useEffect(() => {
     void reloadHosts();
   }, [reloadHosts]);
+  // 가져오기(설정) 후 호스트 상태(탭 라벨 등) 즉시 갱신 — SettingsModal이 발행하는 이벤트(#114).
+  useEffect(() => {
+    const un = listen("wt://data-imported", () => void reloadHosts());
+    return () => {
+      void un.then((f) => f());
+    };
+  }, [reloadHosts]);
 
   // detached 윈도우 부트스트랩: 백엔드 registry에서 source를 받아 첫 탭 구성.
   // StrictMode(dev)는 effect를 두 번 실행하는데, detached_init은 registry에서 항목을
