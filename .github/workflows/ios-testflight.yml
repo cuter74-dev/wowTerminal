@@ -1,0 +1,149 @@
+# Build the iOS app and upload it to TestFlight.
+#
+# Manual trigger (workflow_dispatch) so pushing a desktop release tag doesn't also
+# ship to TestFlight unless you ask for it. Reproduces the manual pipeline that was
+# validated locally: API-key auth + a manually-created distribution cert and App
+# Store provisioning profile (no Xcode account login, which is why automatic signing
+# fails on CI).
+#
+# Required repository secrets (Settings → Secrets and variables → Actions):
+#   ASC_API_KEY_ID                 App Store Connect API key id (e.g. J7MCW5VBM3)
+#   ASC_API_ISSUER_ID              issuer id (UUID)
+#   ASC_API_KEY_P8_BASE64          base64 of AuthKey_<id>.p8
+#   IOS_DIST_CERT_P12_BASE64       base64 of the Apple Distribution .p12
+#   IOS_DIST_CERT_PASSWORD         the .p12 export password
+#   IOS_PROVISIONING_PROFILE_BASE64  base64 of the App Store .mobileprovision
+#   APPLE_TEAM_ID                  924883CCSU
+#
+# The bundle id is com.oopnwow.wowterminal and the profile must be named
+# "wowTerminal App Store" (see PROFILE_NAME below). Regenerate the cert/profile with
+# the App Store Connect API if they expire.
+
+name: iOS TestFlight
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_number:
+        description: "Build number to append to the app version (must increase each upload)"
+        required: true
+        default: "1"
+
+env:
+  PROFILE_NAME: "wowTerminal App Store"
+  BUNDLE_ID: "com.oopnwow.wowterminal"
+
+jobs:
+  testflight:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install Rust + iOS target
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-apple-ios
+
+      - name: Install frontend deps
+        run: npm ci
+
+      - name: App Store Connect API key
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_KEY_P8_BASE64: ${{ secrets.ASC_API_KEY_P8_BASE64 }}
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$ASC_API_KEY_P8_BASE64" | base64 -d > ~/.appstoreconnect/private_keys/AuthKey_${ASC_API_KEY_ID}.p8
+
+      - name: Import signing certificate
+        env:
+          IOS_DIST_CERT_P12_BASE64: ${{ secrets.IOS_DIST_CERT_P12_BASE64 }}
+          IOS_DIST_CERT_PASSWORD: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+        run: |
+          KEYCHAIN="$RUNNER_TEMP/app-signing.keychain-db"
+          KEYCHAIN_PW="$(openssl rand -hex 16)"
+          security create-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PW" "$KEYCHAIN"
+          echo "$IOS_DIST_CERT_P12_BASE64" | base64 -d > "$RUNNER_TEMP/dist.p12"
+          security import "$RUNNER_TEMP/dist.p12" -k "$KEYCHAIN" -P "$IOS_DIST_CERT_PASSWORD" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PW" "$KEYCHAIN" >/dev/null
+          # Make the temp keychain visible to xcodebuild alongside the login keychain.
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | tr -d '"')
+
+      - name: Install provisioning profile
+        env:
+          IOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.IOS_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+          echo "$IOS_PROVISIONING_PROFILE_BASE64" | base64 -d > ~/Library/MobileDevice/Provisioning\ Profiles/wowterminal_appstore.mobileprovision
+
+      - name: Generate iOS project with manual signing
+        run: |
+          npx tauri ios init
+          # Tauri derives gen/apple from tauri.conf.json with automatic signing, which
+          # fails on CI (no Xcode account). Switch the app build settings to manual
+          # signing with our distribution cert + profile, then regenerate the project.
+          python3 - "$PROFILE_NAME" <<'PY'
+          import sys
+          name = sys.argv[1]
+          p = "src-tauri/gen/apple/project.yml"
+          lines = open(p).read().splitlines()
+          out = []
+          for ln in lines:
+              out.append(ln)
+              if ln.strip().startswith("DEVELOPMENT_TEAM:"):
+                  indent = ln[: len(ln) - len(ln.lstrip())]
+                  out += [
+                      f'{indent}CODE_SIGN_STYLE: Manual',
+                      f'{indent}CODE_SIGN_IDENTITY: "Apple Distribution"',
+                      f'{indent}PROVISIONING_PROFILE_SPECIFIER: "{name}"',
+                  ]
+          open(p, "w").write("\n".join(out) + "\n")
+          PY
+          ( cd src-tauri/gen/apple && xcodegen generate )
+
+      - name: Build & archive (Tauri runs frontend + Rust + xcodebuild archive)
+        run: |
+          # Tauri's auto-generated ExportOptions is wrong for manual App Store signing,
+          # so its export step fails — we archive here and export ourselves next.
+          npx tauri ios build --target aarch64 --export-method app-store-connect --ci \
+            --build-number "${{ inputs.build_number }}" || true
+          test -d src-tauri/gen/apple/build/wowterminal_iOS.xcarchive
+
+      - name: Export App Store IPA
+        env:
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          cat > "$RUNNER_TEMP/ExportOptions.plist" <<PLIST
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0"><dict>
+            <key>method</key><string>app-store-connect</string>
+            <key>teamID</key><string>${APPLE_TEAM_ID}</string>
+            <key>signingStyle</key><string>manual</string>
+            <key>signingCertificate</key><string>Apple Distribution</string>
+            <key>provisioningProfiles</key><dict>
+              <key>${BUNDLE_ID}</key><string>${PROFILE_NAME}</string>
+            </dict>
+            <key>uploadSymbols</key><true/>
+            <key>destination</key><string>export</string>
+          </dict></plist>
+          PLIST
+          xcodebuild -exportArchive \
+            -archivePath src-tauri/gen/apple/build/wowterminal_iOS.xcarchive \
+            -exportOptionsPlist "$RUNNER_TEMP/ExportOptions.plist" \
+            -exportPath "$RUNNER_TEMP/ios-export"
+
+      - name: Upload to TestFlight
+        env:
+          ASC_API_KEY_ID: ${{ secrets.ASC_API_KEY_ID }}
+          ASC_API_ISSUER_ID: ${{ secrets.ASC_API_ISSUER_ID }}
+        run: |
+          xcrun altool --upload-app -f "$RUNNER_TEMP/ios-export/wowTerminal.ipa" -t ios \
+            --apiKey "$ASC_API_KEY_ID" --apiIssuer "$ASC_API_ISSUER_ID"

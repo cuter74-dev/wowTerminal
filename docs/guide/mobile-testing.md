@@ -89,9 +89,17 @@ first upload). Required, from the Apple Developer account `924883CCSU`:
 | `IOS_DIST_CERT_PASSWORD` | The `.p12` export password. |
 | `IOS_PROVISIONING_PROFILE_BASE64` | An **App Store** provisioning profile for the bundle ID, base64. |
 
-Pipeline shape (to be added once the secrets exist): `tauri ios build --export-method
-app-store-connect` to produce a signed `.ipa`, then upload with
-`xcrun altool --upload-app` (or `fastlane pilot upload`) authenticated by the ASC API key.
+Automatic signing fails on CI (it needs an Xcode-logged-in account), so the pipeline
+uses **manual signing** with a distribution certificate and an App Store provisioning
+profile created via the App Store Connect API (named `wowTerminal App Store`). Tauri's
+auto-generated `ExportOptions.plist` is wrong for this case, so the workflow archives
+with Tauri and then exports with its own options before `xcrun altool --upload-app`.
+
+The workflow is [`.github/workflows/ios-testflight.yml`](../../.github/workflows/ios-testflight.yml)
+(manual `workflow_dispatch` — bump the build number each run). Add the secrets, then run
+it once to validate. The App Store Connect **app record** must already exist (create it
+once in the web UI — the API can't), and each build's **export-compliance / encryption**
+answer must be set in App Store Connect before it reaches testers.
 
 ### 3b. Android → Google Play (internal testing)
 
