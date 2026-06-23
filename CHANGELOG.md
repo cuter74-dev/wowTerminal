@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Changed
+- App bundle identifier is now `com.oopnwow.wowterminal` (was `com.wowterminal.app`) — a proper reverse-DNS identifier under the project's own domain, shared by desktop, iPad (iOS) and Android. App data/settings are stored under the `wowterminal` path (not the bundle ID), so macOS settings carry over; on Windows the next update may install alongside the old entry rather than upgrading in place (one-time). (#114)
+
 ## [0.18.0] — 2026-06-23
 
 ### Added

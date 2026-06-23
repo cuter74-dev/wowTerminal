@@ -77,7 +77,7 @@ Add them as **GitHub Actions secrets** (Settings → Secrets and variables → A
 
 ### 3a. iOS → TestFlight
 
-Bundle ID: `com.wowterminal.app` (register it in App Store Connect → Apps before the
+Bundle ID: `com.oopnwow.wowterminal` (register it in App Store Connect → Apps before the
 first upload). Required, from the Apple Developer account `924883CCSU`:
 
 | Secret | What it is |
