@@ -81,6 +81,7 @@ jobs:
                       f'{indent}CODE_SIGN_STYLE: Manual',
                       f'{indent}CODE_SIGN_IDENTITY: "Apple Distribution"',
                       f'{indent}PROVISIONING_PROFILE_SPECIFIER: "{name}"',
+                      f'{indent}TARGETED_DEVICE_FAMILY: "2"',  # iPad only
                   ]
           open(p, "w").write("\n".join(out) + "\n")
           PY
