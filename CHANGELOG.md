@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-06-24
+
 ### Added
 - More actions are now rebindable in **Settings → Shortcuts**: the command palette (previously a fixed ⌘K), open settings, open dashboard, tmux session picker, port forwarding, toggle input broadcast, and open file browser. (#116)
 - Settings are now fully keyboard-navigable: the dialog traps Tab focus and shows a visible focus ring, **↓** moves from the tab strip into the controls (and to the next control), **↑** moves back up (and out to the tabs), **←/→** switch tabs, and **Tab** cycles every control — so all settings can be changed without a mouse. (#117)
@@ -401,7 +403,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.1...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.0...HEAD
+[0.19.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.1...v0.18.0
 [0.17.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.0...v0.17.1
