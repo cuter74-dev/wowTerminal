@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.19.1] — 2026-06-24
+
 ### Fixed
 - **Security**: passwords typed at prompts (sudo, ssh, `passwd`, ssh-key passphrase) no longer leak into the command history or inline autocomplete. The terminal now detects password prompts from the output and excludes that input line from history and suggestions. (#118)
 
@@ -406,7 +408,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.1...HEAD
+[0.19.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.0...v0.18.1
 [0.18.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.17.1...v0.18.0
