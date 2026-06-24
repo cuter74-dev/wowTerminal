@@ -27,6 +27,18 @@ import { LangDict, useT } from "../i18n";
 // (타이핑 내용 없음) 입력 유휴 시 GlitchTip 전송. macOS 한정, 세션당 최대 4회. 해결 후 제거.
 let imeDiagSends = 0;
 
+// 비밀번호 프롬프트 감지 (#118) — 명령 히스토리/자동완성에 비밀번호가 새지 않게 한다.
+// 출력의 마지막 줄이 "...password:", "[sudo] password for user:", "Enter passphrase ...:",
+// "...암호:" 등이면 다음 입력 라인은 비밀번호로 보고 기록/제안에서 제외한다.
+const PWD_PROMPT_RE = /(password|passphrase|암호|비밀번호|mot de passe|contraseña|passwort)[^\n]{0,80}:\s*$/i;
+// 출력에서 ANSI 이스케이프/제어문자를 걷어내 프롬프트 텍스트만 본다(색상 코드 등 무시).
+function stripAnsi(s: string): string {
+  return s
+    .replace(/\x1b\][^\x07\x1b]*(\x07|\x1b\\)/g, "") // OSC
+    .replace(/\x1b[[\]()#;?]*[0-9;]*[A-Za-z]/g, "") // CSI/기타 이스케이프
+    .replace(/[\x00-\x08\x0b\x0c\x0e-\x1f]/g, ""); // 기타 제어문자(개행 \n\r은 유지)
+}
+
 const STR: LangDict<{
     sessionHandover: string;
     hostKeyMismatch: (host: string, port: number) => string;
@@ -349,6 +361,11 @@ export function Terminal({
 
   // 명령 히스토리 / 인라인 자동완성 (S-051/053)
   const lineBufRef = useRef("");
+  // 비밀번호 프롬프트 감지 (#118): sudo/ssh 등의 비밀번호·passphrase 입력은 에코가 꺼져
+  // 화면엔 안 보이지만, 입력 추적은 키 기준이라 그대로 히스토리/자동완성에 들어가 누출된다.
+  // 출력 끝이 비밀번호 프롬프트면 이 플래그를 켜고, 그 라인은 기록/제안에서 제외한다.
+  const passwordModeRef = useRef(false);
+  const outTailRef = useRef("");
   const suggestionRef = useRef<string | null>(null);
   const [suggestion, setSuggestion] = useState<string | null>(null);
   const [historySearch, setHistorySearch] = useState(false);
@@ -774,6 +791,17 @@ export function Terminal({
       // 셸 명령줄이 아니라 그 앱으로 가므로 제안이 무의미하고, →/End로 수락되면 앱의 키 동작을
       // 가로챈다. 일반 화면일 때만 추적/제안한다.
       if (term.buffer.active.type === "alternate") {
+        lineBufRef.current = "";
+        if (suggestionRef.current) {
+          suggestionRef.current = null;
+          setSuggestion(null);
+        }
+        return;
+      }
+      // 비밀번호 프롬프트 입력 라인은 히스토리/제안에서 제외(#118) — 에코가 꺼져 화면엔 안
+      // 보이지만 키 입력 추적엔 잡히므로 여기서 막는다. Enter로 비밀번호 모드를 해제한다.
+      if (passwordModeRef.current) {
+        if (data.includes("\r") || data.includes("\n")) passwordModeRef.current = false;
         lineBufRef.current = "";
         if (suggestionRef.current) {
           suggestionRef.current = null;
@@ -1297,6 +1325,16 @@ export function Terminal({
           term.write(bytes);
           echoPush(bytes);
           loggerRef.current?.append(bytes);
+          // 비밀번호 프롬프트 감지(#118): 출력 꼬리를 유지하며 마지막 줄이 비밀번호 프롬프트면
+          // 다음 입력 라인을 비밀번호로 보고 히스토리/제안에서 제외한다.
+          try {
+            const txt = stripAnsi(new TextDecoder().decode(bytes));
+            outTailRef.current = (outTailRef.current + txt).slice(-256);
+            const lastLine = outTailRef.current.split(/[\r\n]/).pop() ?? "";
+            if (PWD_PROMPT_RE.test(lastLine)) passwordModeRef.current = true;
+          } catch {
+            /* 디코딩 실패 무시 */
+          }
         });
 
         if (disposed) return;

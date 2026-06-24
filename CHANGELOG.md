@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Security**: passwords typed at prompts (sudo, ssh, `passwd`, ssh-key passphrase) no longer leak into the command history or inline autocomplete. The terminal now detects password prompts from the output and excludes that input line from history and suggestions. (#118)
+
 ## [0.19.0] — 2026-06-24
 
 ### Added
