@@ -694,6 +694,22 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
   const [appVersion, setAppVersion] = useState("");
   // 입력칸에서 드래그 선택 후 오버레이 위에서 손을 떼면 닫히는 버그 방지(아래 onMouseDown/onClick).
   const downOnOverlay = useRef(false);
+  // 키보드만으로 모든 설정 조작 (#117): 모달 안의 포커스 가능한 컨트롤들을 모은다.
+  const modalRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
+  const SEL =
+    'button, select, input, textarea, [href], [tabindex]:not([tabindex="-1"])';
+  const visible = (el: HTMLElement) =>
+    !el.hasAttribute("disabled") && el.offsetParent !== null;
+  function focusables(): HTMLElement[] {
+    if (!modalRef.current) return [];
+    return Array.from(modalRef.current.querySelectorAll<HTMLElement>(SEL)).filter(visible);
+  }
+  // 탭 내용 영역(하단)의 포커스 가능한 컨트롤들 — ↓로 진입/이동에 쓴다(#117).
+  function contentFocusables(): HTMLElement[] {
+    if (!contentRef.current) return [];
+    return Array.from(contentRef.current.querySelectorAll<HTMLElement>(SEL)).filter(visible);
+  }
   // AI 컨텍스트 줄 수 입력 — 타이핑 중 빈 값/중간값을 허용하고, blur 때만 1~2000으로 보정한다.
   const [aiLinesStr, setAiLinesStr] = useState(String(settings.general.aiContextLines));
   useEffect(() => {
@@ -721,12 +737,54 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
         onClose();
         return;
       }
-      const el = document.activeElement;
+      // Tab 포커스 트랩 (#117): 포커스를 모달 안 컨트롤들 사이에서만 순환시킨다. 입력 중에도
+      // 동작 — 종전엔 포커스가 모달 밖(배경 앱)으로 새 키보드로 설정값에 못 갔다.
+      if (e.key === "Tab") {
+        const items = focusables();
+        if (items.length === 0) return;
+        e.preventDefault();
+        const cur = document.activeElement as HTMLElement | null;
+        const i = cur ? items.indexOf(cur) : -1;
+        const next = e.shiftKey
+          ? i <= 0
+            ? items.length - 1
+            : i - 1
+          : i === -1 || i === items.length - 1
+            ? 0
+            : i + 1;
+        items[next].focus();
+        return;
+      }
+      const el = document.activeElement as HTMLElement | null;
       const typing =
         el instanceof HTMLElement &&
         (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT");
+      // INPUT/SELECT 등에 포커스가 있으면 방향키는 그 컨트롤의 네이티브 동작(값 변경/커서)에 맡긴다.
       if (typing) return;
-      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+      const inContent = !!(el && contentRef.current?.contains(el));
+      const cf = contentFocusables();
+      // ↓ : 탭에서 내용으로 진입 / 내용 안에서는 다음 컨트롤로 (#117).
+      if (e.key === "ArrowDown") {
+        e.preventDefault();
+        if (!inContent) {
+          cf[0]?.focus();
+        } else {
+          const i = cf.indexOf(el!);
+          if (i >= 0 && i < cf.length - 1) cf[i + 1].focus();
+        }
+        return;
+      }
+      // ↑ : 내용 안에서 이전 컨트롤로, 첫 컨트롤이면 상단 탭 영역으로 복귀.
+      if (e.key === "ArrowUp") {
+        if (!inContent) return;
+        e.preventDefault();
+        const i = cf.indexOf(el!);
+        if (i <= 0) modalRef.current?.focus();
+        else cf[i - 1].focus();
+        return;
+      }
+      // ←/→ : 상단 탭 전환 — 내용에 포커스가 있을 땐 동작하지 않는다.
+      if ((e.key === "ArrowLeft" || e.key === "ArrowRight") && !inContent) {
         e.preventDefault();
         setTab((cur) => {
           const idx = TABS.findIndex((tb) => tb.id === cur);
@@ -739,6 +797,11 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
     return () => window.removeEventListener("keydown", onKey);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onClose]);
+
+  // 열릴 때 모달로 포커스를 옮긴다(#117) — 그래야 Tab/←→가 바로 모달 안에서 동작한다.
+  useEffect(() => {
+    modalRef.current?.focus();
+  }, []);
 
   function patchTerminal(p: Partial<AppSettings["terminal"]>) {
     onChange({ ...settings, terminal: { ...settings.terminal, ...p } });
@@ -757,7 +820,14 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
       }}
       style={overlayStyle}
     >
-      <div onClick={(e) => e.stopPropagation()} style={modalStyle} role="dialog" aria-modal="true">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        onClick={(e) => e.stopPropagation()}
+        style={{ ...modalStyle, outline: "none" }}
+        role="dialog"
+        aria-modal="true"
+      >
         <header style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
           <strong style={{ fontSize: 15 }}>⚙ {t.settings}</strong>
           <button onClick={onClose} style={iconBtnStyle}>×</button>
@@ -783,7 +853,7 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
           ))}
         </div>
 
-        <div style={{ minHeight: 280 }}>
+        <div ref={contentRef} style={{ minHeight: 280 }}>
           {tab === "general" && (
             <Section>
               <Row label={t.language}>

@@ -16,6 +16,16 @@ body,
   overscroll-behavior: none;
 }
 
+/* 키보드 포커스 표시 (#117) — 설정 등 모달에서 Tab으로 이동할 때 어느 컨트롤이 포커스됐는지
+   보이게 한다. Tab을 가로채 .focus()로 옮기면 :focus-visible 휴리스틱이 안 걸리므로 :focus를
+   쓴다(모달이라 마우스 클릭 시 링이 잠깐 보여도 무방). 모달 컨테이너 자신은 위에서 outline:none. */
+[role="dialog"] :focus {
+  /* 컨트롤들이 인라인 outline:none을 가져서 !important로 덮는다(인라인보다 우선). */
+  outline: 2px solid #4a9eff !important;
+  outline-offset: 1px;
+  border-radius: 3px;
+}
+
 /* 한글/CJK IME 이중 표시 수정 (#75) — macOS **미러 경로 한정**.
    macOS의 커스텀 IME 미러는 조합 텍스트를 즉시 PTY로 보내 셸이 직접 표시하므로, xterm의
    .composition-view 오버레이가 겹치면 "차차"처럼 이중으로 보인다. 그래서 미러가 도는 경우만
