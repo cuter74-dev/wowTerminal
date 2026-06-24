@@ -1659,6 +1659,33 @@ function App() {
     }
   }
 
+  // 활성 호스트의 파일 브라우저 열기 (#116) — 툴바 버튼과 단축키가 공유한다.
+  // 시작 위치: ① OSC 7 추적값 → ② ssh_remote_cwd → ③ 홈.
+  function openFilesForActive() {
+    if (!activeHostId) return;
+    const hostId = activeHostId;
+    const paneId = activeTab?.focusedPaneId;
+    const open = (initialRemotePath?: string) =>
+      setFileBrowser({
+        hostId,
+        hostLabel: labelForHost(hostId),
+        initialRemotePath,
+      });
+    const osc7 = paneId ? getTerminal(paneId)?.getCwd() ?? undefined : undefined;
+    if (osc7) {
+      open(osc7);
+      return;
+    }
+    const sid = paneId ? sessionByLeaf.current[paneId] : undefined;
+    if (sid) {
+      void invoke<string | null>("ssh_remote_cwd", { sessionId: sid })
+        .then((p) => open(p ?? undefined))
+        .catch(() => open(undefined));
+    } else {
+      open(undefined);
+    }
+  }
+
   // 키보드 단축키
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
@@ -1668,14 +1695,14 @@ function App() {
       if (e.defaultPrevented) e.stopPropagation();
     }
     function onKeyImpl(e: KeyboardEvent) {
-      // ⌘K / Ctrl-K: 명령 팔레트 (편집 중이어도 동작).
-      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === "k" || e.key === "K")) {
+      const kb = settings.keybindings;
+      // 명령 팔레트 (편집 중이어도 동작).
+      if (matchesBinding(e, kb.commandPalette)) {
         e.preventDefault();
         setCmdPaletteOpen((v) => !v);
         return;
       }
       if (editingTabId) return;
-      const kb = settings.keybindings;
 
       // 사용자 정의 단축키 매칭 (각 바인딩이 수정자까지 self-describe).
       if (matchesBinding(e, kb.renameTab)) {
@@ -1727,6 +1754,37 @@ function App() {
         const step = matchesBinding(e, kb.prevTab) ? -1 : 1;
         const nextIdx = (idx + step + tabs.length) % tabs.length;
         setActiveTabId(tabs[nextIdx].id);
+        return;
+      }
+      // 앱 액션 단축키 (#116) — 종전엔 버튼/명령 팔레트로만 열렸다.
+      if (matchesBinding(e, kb.openSettings)) {
+        e.preventDefault();
+        setShowSettings(true);
+        return;
+      }
+      if (matchesBinding(e, kb.openDashboard)) {
+        e.preventDefault();
+        setDashboardOpen(true);
+        return;
+      }
+      if (matchesBinding(e, kb.tmuxSessions)) {
+        e.preventDefault();
+        setTmuxPickerOpen(true);
+        return;
+      }
+      if (matchesBinding(e, kb.portForward)) {
+        e.preventDefault();
+        setPortForwardOpen(true);
+        return;
+      }
+      if (matchesBinding(e, kb.toggleBroadcast)) {
+        e.preventDefault();
+        setBroadcast((v) => !v);
+        return;
+      }
+      if (matchesBinding(e, kb.openFiles)) {
+        e.preventDefault();
+        openFilesForActive();
         return;
       }
 
@@ -1938,35 +1996,7 @@ function App() {
         activeTab={activeTab}
         tabCount={tabs.length}
         canOpenFiles={!!activeHostId}
-        onOpenFiles={() => {
-          if (!activeHostId) return;
-          // 파일 브라우저 원격 시작 위치 = 포커스된 패널 셸의 현재 폴더.
-          // 우선순위(드래그 업로드와 동일): ① OSC 7 추적값 → ② ssh_remote_cwd(/proc 조회,
-          // Linux 원격) → ③ 홈(undefined).
-          const hostId = activeHostId;
-          const paneId = activeTab?.focusedPaneId;
-          const open = (initialRemotePath?: string) =>
-            setFileBrowser({
-              hostId,
-              hostLabel: labelForHost(hostId),
-              initialRemotePath,
-            });
-          const osc7 = paneId
-            ? getTerminal(paneId)?.getCwd() ?? undefined
-            : undefined;
-          if (osc7) {
-            open(osc7);
-            return;
-          }
-          const sid = paneId ? sessionByLeaf.current[paneId] : undefined;
-          if (sid) {
-            void invoke<string | null>("ssh_remote_cwd", { sessionId: sid })
-              .then((p) => open(p ?? undefined))
-              .catch(() => open(undefined));
-          } else {
-            open(undefined);
-          }
-        }}
+        onOpenFiles={openFilesForActive}
         onOpenSettings={() => setShowSettings(true)}
         broadcast={broadcast}
         onToggleBroadcast={() => setBroadcast((v) => !v)}

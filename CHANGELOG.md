@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- More actions are now rebindable in **Settings → Shortcuts**: the command palette (previously a fixed ⌘K), open settings, open dashboard, tmux session picker, port forwarding, toggle input broadcast, and open file browser. (#116)
+
 ## [0.18.1] — 2026-06-23
 
 ### Changed

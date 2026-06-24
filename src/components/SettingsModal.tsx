@@ -1111,6 +1111,13 @@ const ACTION_LABELS: LangDict<Record<ShortcutAction, string>> = {
     renameTab: "Rename tab",
     toggleHostPanel: "Toggle host panel",
     toggleAiPanel: "Toggle AI panel",
+    commandPalette: "Command palette",
+    openSettings: "Open settings",
+    openDashboard: "Open dashboard",
+    tmuxSessions: "tmux sessions",
+    portForward: "Port forwarding",
+    toggleBroadcast: "Toggle input broadcast",
+    openFiles: "Open file browser",
   },
   ko: {
     newTab: "새 탭",
@@ -1123,6 +1130,13 @@ const ACTION_LABELS: LangDict<Record<ShortcutAction, string>> = {
     renameTab: "탭 이름 변경",
     toggleHostPanel: "호스트 패널 토글",
     toggleAiPanel: "AI 패널 토글",
+    commandPalette: "명령 팔레트",
+    openSettings: "설정 열기",
+    openDashboard: "대시보드 열기",
+    tmuxSessions: "tmux 세션",
+    portForward: "포트 포워딩",
+    toggleBroadcast: "입력 브로드캐스트 토글",
+    openFiles: "파일 브라우저 열기",
   },
 };
 
@@ -1137,6 +1151,13 @@ const SHORTCUT_ACTIONS: ShortcutAction[] = [
   "renameTab",
   "toggleHostPanel",
   "toggleAiPanel",
+  "commandPalette",
+  "openSettings",
+  "openDashboard",
+  "tmuxSessions",
+  "portForward",
+  "toggleBroadcast",
+  "openFiles",
 ];
 
 function ShortcutsTab({

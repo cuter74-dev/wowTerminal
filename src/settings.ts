@@ -137,7 +137,15 @@ export type ShortcutAction =
   | "duplicateTab"
   | "renameTab"
   | "toggleHostPanel"
-  | "toggleAiPanel";
+  | "toggleAiPanel"
+  // 앱 액션(종전엔 버튼/명령 팔레트로만 — 이제 재지정 가능, #116).
+  | "commandPalette"
+  | "openSettings"
+  | "openDashboard"
+  | "tmuxSessions"
+  | "portForward"
+  | "toggleBroadcast"
+  | "openFiles";
 
 export type Keybindings = Record<ShortcutAction, KeyBinding>;
 
@@ -152,6 +160,13 @@ export const DEFAULT_KEYBINDINGS: Keybindings = {
   renameTab: { key: "F2", mod: false, shift: false, alt: false },
   toggleHostPanel: { key: "b", mod: true, shift: false, alt: false },
   toggleAiPanel: { key: "j", mod: true, shift: false, alt: false },
+  commandPalette: { key: "k", mod: true, shift: false, alt: false },
+  openSettings: { key: ",", mod: true, shift: false, alt: false },
+  openDashboard: { key: "e", mod: true, shift: true, alt: false },
+  tmuxSessions: { key: "k", mod: true, shift: true, alt: false },
+  portForward: { key: "p", mod: true, shift: true, alt: false },
+  toggleBroadcast: { key: "b", mod: true, shift: true, alt: false },
+  openFiles: { key: "o", mod: true, shift: true, alt: false },
 };
 
 /** 키보드 이벤트가 바인딩과 일치하는지. Ctrl/⌘는 동일하게 본다. */
