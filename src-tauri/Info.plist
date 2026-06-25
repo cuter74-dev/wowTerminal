@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- macOS 15+/iOS: 사설망(192.168.x 등) SSH/SFTP 호스트 접속에 로컬 네트워크 권한이 필요하다.
+         이 키가 없으면 권한 프롬프트가 뜨지 않고 LAN 연결이 조용히 차단돼 "No route to host"가 난다(#119).
+         Tauri가 이 Info.plist를 macOS/iOS 번들 Info.plist에 자동 머지한다. -->
+    <key>NSLocalNetworkUsageDescription</key>
+    <string>wowTerminal connects to SSH and SFTP hosts on your local network.</string>
+</dict>
+</plist>

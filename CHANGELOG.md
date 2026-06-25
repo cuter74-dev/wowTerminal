@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **macOS**: SSH/SFTP connections to local-network hosts (e.g. `192.168.x.x`) no longer fail with `No route to host`. The app bundle now declares `NSLocalNetworkUsageDescription`, so macOS shows the Local Network permission prompt and registers the app under System Settings → Privacy & Security → Local Network instead of silently blocking LAN connections. Existing installs: enable wowTerminal there once. (#119)
+
 ## [0.19.1] — 2026-06-24
 
 ### Fixed
