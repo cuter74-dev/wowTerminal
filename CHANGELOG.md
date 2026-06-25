@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.19.2] — 2026-06-25
+
 ### Fixed
 - **macOS**: SSH/SFTP connections to local-network hosts (e.g. `192.168.x.x`) no longer fail with `No route to host`. The app bundle now declares `NSLocalNetworkUsageDescription`, so macOS shows the Local Network permission prompt and registers the app under System Settings → Privacy & Security → Local Network instead of silently blocking LAN connections. Existing installs: enable wowTerminal there once. (#119)
 
@@ -411,7 +413,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.1...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.2...HEAD
+[0.19.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.1...v0.19.2
 [0.19.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.1...v0.19.0
 [0.18.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.0...v0.18.1
