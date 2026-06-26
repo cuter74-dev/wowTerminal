@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- Host list groups can now be collapsed/expanded: click the group header to fold its hosts away. The state is remembered per group across restarts, and the chevron (▶/▼) is larger and clearly visible/clickable (previously a tiny non-functional ▾). (#120)
+
 ## [0.19.2] — 2026-06-25
 
 ### Fixed

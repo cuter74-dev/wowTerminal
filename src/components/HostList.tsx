@@ -696,6 +696,7 @@ export function HostList({
             return (
               <GroupSection
                 key={g.id}
+                groupKey={g.id}
                 label={g.name}
                 hosts={list}
                 activeHostId={activeHostId}
@@ -717,6 +718,7 @@ export function HostList({
           if (!ungrouped || ungrouped.length === 0) return null;
           return (
             <GroupSection
+              groupKey="__ungrouped__"
               label={t.ungrouped}
               hosts={ungrouped}
               activeHostId={activeHostId}
@@ -947,7 +949,30 @@ function HostContextMenu({
   );
 }
 
+// 그룹 접힘 상태를 그룹별로 localStorage에 영속화 (#120).
+const GROUP_COLLAPSE_KEY = "wt.hostgroup.collapsed";
+function loadCollapsedGroups(): Set<string> {
+  try {
+    return new Set(
+      JSON.parse(localStorage.getItem(GROUP_COLLAPSE_KEY) || "[]") as string[],
+    );
+  } catch {
+    return new Set();
+  }
+}
+function persistGroupCollapsed(key: string, collapsed: boolean) {
+  const s = loadCollapsedGroups();
+  if (collapsed) s.add(key);
+  else s.delete(key);
+  try {
+    localStorage.setItem(GROUP_COLLAPSE_KEY, JSON.stringify([...s]));
+  } catch {
+    /* 무시 */
+  }
+}
+
 function GroupSection({
+  groupKey,
   label,
   hosts,
   activeHostId,
@@ -962,6 +987,7 @@ function GroupSection({
   onDuplicate,
   onContextMenu,
 }: {
+  groupKey: string;
   label: string;
   hosts: SshHost[];
   activeHostId: string | null;
@@ -977,20 +1003,50 @@ function GroupSection({
   onContextMenu: (h: SshHost, x: number, y: number) => void;
 }) {
   const tr = useT(STR);
+  const [collapsed, setCollapsed] = useState(() =>
+    loadCollapsedGroups().has(groupKey),
+  );
+  const toggle = () => {
+    persistGroupCollapsed(groupKey, !collapsed);
+    setCollapsed((v) => !v);
+  };
   return (
     <div>
-      <div
+      <button
+        type="button"
+        onClick={toggle}
+        title={collapsed ? "Expand" : "Collapse"}
         style={{
-          padding: "6px 12px 2px",
-          fontSize: 10,
-          textTransform: "uppercase",
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          width: "100%",
+          padding: "7px 12px 4px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          textAlign: "left",
+          color: "#7aa",
           letterSpacing: 1,
-          color: "#699",
         }}
       >
-        ▾ {label} ({hosts.length})
-      </div>
-      {hosts.map((h) => {
+        <span
+          style={{
+            fontSize: 13,
+            lineHeight: 1,
+            width: 14,
+            display: "inline-block",
+            color: "#9cc",
+          }}
+        >
+          {collapsed ? "▶" : "▼"}
+        </span>
+        <span style={{ fontSize: 10, textTransform: "uppercase" }}>
+          {label} ({hosts.length})
+        </span>
+      </button>
+      {!collapsed &&
+        hosts.map((h) => {
         const selected = selectedId === h.id || activeHostId === h.id;
         return (
           <div
