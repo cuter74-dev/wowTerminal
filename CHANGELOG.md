@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-06-25
+
 ### Added
 - Host list groups can now be collapsed/expanded: click the group header to fold its hosts away. The state is remembered per group across restarts, and the chevron (▶/▼) is larger and clearly visible/clickable (previously a tiny non-functional ▾). (#120)
 
@@ -416,7 +418,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.2...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.0...HEAD
+[0.20.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.2...v0.20.0
 [0.19.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.1...v0.19.2
 [0.19.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.0...v0.19.1
 [0.19.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.18.1...v0.19.0
