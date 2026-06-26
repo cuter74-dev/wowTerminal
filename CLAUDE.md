@@ -23,10 +23,12 @@ Every task follows this order:
 
 - Record every user-facing change in `CHANGELOG.md`.
   - When committing, add a one-line entry under the `[Unreleased]` section of `CHANGELOG.md`, classified as **Added/Changed/Fixed/Removed**, with `(#issue-number)`.
-- **Version bump rule (strict SemVer, 0.x phase)**: the next version is decided by the `[Unreleased]` entries.
-  - If `[Unreleased]` has any **Added** (new feature) → bump **minor** (`0.X.0`). (In 0.x, breaking changes also bump minor.)
-  - If there are only **Changed/Fixed/Removed** (no new feature) → bump **patch** (`0.x.Y`).
+- **Version bump rule (0.x phase) — by change *size*, not by category** (decided 2026-06-26): the next version is decided by how big the change is, so the version rises slowly.
+  - Bump **minor** (`0.X.0`) **only for major changes**: main-menu / navigation changes, or large / headline features.
+  - Bump **patch** (`0.x.Y`) for **everything else** — small feature additions *and* bug fixes both bump patch. (Feature vs. bug is still recorded in `CHANGELOG.md` via **Added** / **Fixed**, but both only bump the patch digit.)
+  - Prefer **batching** several small changes into one release instead of releasing each one, so the version doesn't climb fast.
   - If the user specifies a particular version, that instruction takes priority.
+  - Note: 4-segment versions like `0.x.y.z` are **not possible** — Cargo / Tauri / npm / the auto-updater all require 3-part SemVer.
 - On "bump the version and release":
   1. Move the `[Unreleased]` entries into a new version section `## [X.Y.Z] — YYYY-MM-DD`, and update the comparison links at the bottom.
   2. Bump the version: `package.json` / `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` / `src-tauri/Cargo.lock` (`cargo update -p wowterminal --precise X.Y.Z`).
