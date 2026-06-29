@@ -541,6 +541,7 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
           displayName: `${b.displayName} (copy)`,
           apiBase: b.apiBase,
           defaultModel: b.defaultModel,
+          reasoningEffort: b.reasoningEffort,
           apiKey: null,
         },
       });
@@ -689,6 +690,20 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
   );
 }
 
+// 사고력 강도 라벨 (#123) — 큰 STR을 안 건드리도록 별도 미니 사전(en 필수, 나머지 en 폴백).
+const RE_STR: LangDict<{ label: string; none: string; hint: string }> = {
+  en: {
+    label: "Reasoning effort",
+    none: "None (default)",
+    hint: "Only for reasoning models (o1 / o3 / gpt-5). Leave None for regular models.",
+  },
+  ko: {
+    label: "사고력 강도",
+    none: "없음 (기본)",
+    hint: "추론 모델(o1 / o3 / gpt-5)에만 적용됩니다. 일반 모델은 ‘없음’으로 두세요.",
+  },
+};
+
 function BackendForm({
   initial,
   existingIds,
@@ -701,6 +716,7 @@ function BackendForm({
   onSaved: () => void;
 }) {
   const t = useT(STR);
+  const re = useT(RE_STR);
   const [presetIdx, setPresetIdx] = useState(initial ? -1 : 0);
   const [id, setId] = useState(initial?.id ?? "");
   const [displayName, setDisplayName] = useState(initial?.displayName ?? "");
@@ -709,6 +725,10 @@ function BackendForm({
     initial?.defaultModel ?? "",
   );
   const [apiKey, setApiKey] = useState("");
+  // 사고력 강도(#123): "" = 미설정, 또는 low/medium/high.
+  const [reasoningEffort, setReasoningEffort] = useState(
+    initial?.reasoningEffort ?? "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -783,6 +803,7 @@ function BackendForm({
           displayName: displayName.trim(),
           apiBase: apiBase.trim(),
           defaultModel: defaultModel.trim(),
+          reasoningEffort: reasoningEffort || null,
           apiKey: apiKey || null,
         },
       });
@@ -898,6 +919,22 @@ function BackendForm({
             {modelsErr}
           </div>
         )}
+      </Field>
+
+      <Field label={re.label}>
+        <select
+          value={reasoningEffort}
+          onChange={(e) => setReasoningEffort(e.target.value)}
+          style={{ ...inputStyle, width: "100%" }}
+        >
+          <option value="">{re.none}</option>
+          <option value="low">low</option>
+          <option value="medium">medium</option>
+          <option value="high">high</option>
+        </select>
+        <div style={{ color: "#888", fontSize: 11, marginTop: 4 }}>
+          {re.hint}
+        </div>
       </Field>
 
       <Field

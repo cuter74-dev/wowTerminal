@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { LangDict, useT } from "../i18n";
 
@@ -182,6 +182,24 @@ export function FirstContactModal({ info, onCancel, onTrusted }: Props) {
       setBusy(false);
     }
   }
+
+  // 키보드만으로 처리 (#121): Enter = 신뢰하고 접속(기본 동작), Esc = 취소.
+  // 마우스로 버튼을 누를 필요 없이 비밀번호 입력 흐름에서 바로 Enter로 진행할 수 있다.
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) {
+      if (busy) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        void handleTrust();
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        onCancel();
+      }
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [busy]);
 
   return (
     <div

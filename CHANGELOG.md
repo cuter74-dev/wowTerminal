@@ -7,6 +7,13 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- Inline autocomplete now suggests command flags/subcommands from a built-in dictionary (git, docker, claude, kubectl, npm, systemctl, ssh, apt, cargo) — e.g. typing `claude --dangerou` suggests `claude --dangerously-skip-permissions` to accept with →. Works over SSH too (no command execution). (#122)
+- LLM backends can set a **reasoning effort** (low / medium / high) for reasoning models (o1 / o3 / gpt-5); left off for regular models. (#123)
+
+### Fixed
+- The SSH first-contact host key dialog can now be confirmed with **Enter** (Esc to cancel) — no mouse click needed, so a password login flow proceeds with just the keyboard. (#121)
+
 ## [0.20.0] — 2026-06-25
 
 ### Added

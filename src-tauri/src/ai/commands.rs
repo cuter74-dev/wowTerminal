@@ -89,6 +89,8 @@ pub struct BackendInfo {
     pub display_name: String,
     pub api_base: String,
     pub default_model: String,
+    /// 추론 모델용 사고력 강도(low/medium/high) 또는 미설정 시 None (#123).
+    pub reasoning_effort: Option<String>,
     /// API 키가 keyring에 저장되어 있으면 true.
     pub has_api_key: bool,
 }
@@ -112,6 +114,7 @@ pub async fn ai_list_backend_configs(
                     display_name: o.display_name,
                     api_base: o.api_base,
                     default_model: o.default_model,
+                    reasoning_effort: o.reasoning_effort,
                     has_api_key: has,
                 });
             }
@@ -165,6 +168,9 @@ pub struct SaveBackendArgs {
     pub display_name: String,
     pub api_base: String,
     pub default_model: String,
+    /// 추론 모델용 사고력 강도(low/medium/high). 빈 값/None이면 미설정(#123).
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
     /// 평문. 받자마자 keyring에 저장하고 메모리에서는 잊는다.
     /// None / 빈 문자열이면 keyring을 건드리지 않음 (기존 키 유지).
     pub api_key: Option<String>,
@@ -207,6 +213,7 @@ pub async fn ai_save_backend(
         api_base: args.api_base,
         api_key_secret_id: secret_id.clone(),
         default_model: args.default_model,
+        reasoning_effort: args.reasoning_effort,
     });
     state.backends.upsert(config.clone()).map_err(|e| e.to_string())?;
 
@@ -267,8 +274,10 @@ async fn register_backend(
             } else {
                 None
             };
-            let backend =
-                Arc::new(OpenAiCompatibleBackend::new(&o.id, &o.api_base, api_key));
+            let backend = Arc::new(
+                OpenAiCompatibleBackend::new(&o.id, &o.api_base, api_key)
+                    .with_reasoning_effort(o.reasoning_effort.clone()),
+            );
             registry.register(backend).await;
             Ok(())
         }

@@ -16,6 +16,8 @@ pub struct OpenAiCompatibleBackend {
     id: String,
     api_base: String,
     api_key: Option<String>,
+    /// 추론 모델용 사고력 강도(low/medium/high). None이면 요청에 안 보낸다(#123).
+    reasoning_effort: Option<String>,
     http: Client,
 }
 
@@ -26,6 +28,7 @@ impl OpenAiCompatibleBackend {
             // 앞뒤 공백 + 끝 슬래시 제거 (사용자 입력에 trailing space가 흔함).
             api_base: api_base.into().trim().trim_end_matches('/').to_string(),
             api_key,
+            reasoning_effort: None,
             http: Client::new(),
         }
     }
@@ -33,6 +36,12 @@ impl OpenAiCompatibleBackend {
     /// 테스트 등에서 base URL을 동적으로 바꿔야 할 때 사용.
     pub fn with_client(mut self, client: Client) -> Self {
         self.http = client;
+        self
+    }
+
+    /// 추론 모델용 사고력 강도 설정. 빈 문자열/None이면 미설정으로 둔다.
+    pub fn with_reasoning_effort(mut self, effort: Option<String>) -> Self {
+        self.reasoning_effort = effort.filter(|s| !s.trim().is_empty());
         self
     }
 
@@ -53,7 +62,9 @@ impl AiBackend for OpenAiCompatibleBackend {
     }
 
     async fn complete(&self, req: ChatRequest) -> Result<ChatResponse, AiError> {
-        let body = OpenAiChatRequest::from(&req);
+        let mut body = OpenAiChatRequest::from(&req);
+        // 백엔드에 설정된 사고력 강도를 요청에 주입(#123). 추론 모델만 이 필드를 받는다.
+        body.reasoning_effort = self.reasoning_effort.as_deref();
 
         let mut builder = self.http.post(self.chat_url()).json(&body);
         if let Some(key) = &self.api_key {
@@ -177,6 +188,8 @@ struct OpenAiChatRequest<'a> {
     #[serde(skip_serializing_if = "Option::is_none")]
     max_tokens: Option<u32>,
     #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     stream: Option<bool>,
 }
 
@@ -187,6 +200,7 @@ impl<'a> From<&'a ChatRequest> for OpenAiChatRequest<'a> {
             messages: req.messages.iter().map(OpenAiMessage::from).collect(),
             temperature: req.temperature,
             max_tokens: req.max_tokens,
+            reasoning_effort: None,
             stream: None,
         }
     }

@@ -24,4 +24,8 @@ pub struct OpenAiCompatibleConfig {
     pub api_key_secret_id: Option<String>,
     /// 기본 모델명.
     pub default_model: String,
+    /// 추론 모델(o1/o3/gpt-5 등)용 사고력 강도: "low" / "medium" / "high".
+    /// `None`이면 요청에 안 보낸다(비추론 모델 호환). 기존 설정 파일 호환을 위해 default.
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
 }

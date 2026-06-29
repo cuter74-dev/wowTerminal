@@ -65,6 +65,8 @@ export interface BackendInfo {
   displayName: string;
   apiBase: string;
   defaultModel: string;
+  /** 추론 모델용 사고력 강도(low/medium/high) 또는 미설정 시 null (#123). */
+  reasoningEffort: string | null;
   hasApiKey: boolean;
 }
 
