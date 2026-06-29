@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.1] — 2026-06-29
+
 ### Added
 - Inline autocomplete now suggests command flags/subcommands from a built-in dictionary (git, docker, claude, kubectl, npm, systemctl, ssh, apt, cargo) — e.g. typing `claude --dangerou` suggests `claude --dangerously-skip-permissions` to accept with →. Works over SSH too (no command execution). (#122)
 - LLM backends can set a **reasoning effort** (low / medium / high) for reasoning models (o1 / o3 / gpt-5); left off for regular models. (#123)
@@ -425,7 +427,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.1...HEAD
+[0.20.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.0...v0.20.1
 [0.20.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.2...v0.20.0
 [0.19.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.1...v0.19.2
 [0.19.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.19.0...v0.19.1
