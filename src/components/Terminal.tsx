@@ -1250,6 +1250,9 @@ export function Terminal({
       term.write(
         "\x1b[?1003l\x1b[?1002l\x1b[?1000l\x1b[?1006l\x1b[?1005l\x1b[?1015l\x1b[?2004l\x1b[?1l\x1b[?1049l\x1b[?25h",
       );
+      // 재접속 시 이전 화면 잔상 위에 새 세션이 겹쳐 찍히는 문제(#126): 버퍼를 비워 깨끗한
+      // 화면에서 시작한다. tmux는 attach가 전체를 다시 그리므로 영향 없다.
+      term.clear();
       try {
         sessionId = await invoke<string>(
           cmds.spawnCmd,

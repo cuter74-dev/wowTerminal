@@ -918,6 +918,8 @@ function App() {
   tabsRef.current = tabs;
   const activeTabIdRef = useRef(activeTabId);
   activeTabIdRef.current = activeTabId;
+  // 탭바에서 ←/→로 탭을 전환할 때(#125) 자동 터미널 포커스를 한 번 건너뛰게 하는 플래그.
+  const tabKeyNavRef = useRef(false);
   // 입력 자가 테스트 (#95): selftest 플래그로 기동된 경우, 셸이 뜬 뒤 합성 입력
   // 시나리오를 1회 실행한다(영어 타이핑/백스페이스/한글 미러). 플래그는 즉시 소거.
   useEffect(() => {
@@ -1083,7 +1085,10 @@ function App() {
     const focusId = activeTab.focusedPaneId ?? ids[0];
     const raf = requestAnimationFrame(() => {
       ids.forEach((id) => getTerminal(id)?.fit());
-      getTerminal(focusId)?.focus();
+      // 탭바에서 ←/→로 전환 중이면(#125) 터미널로 포커스를 옮기지 않는다 — 포커스가 탭에
+      // 머물러야 연속으로 화살표 네비가 된다. 그 외(클릭/⌘Tab 등)엔 평소대로 터미널 포커스.
+      if (tabKeyNavRef.current) tabKeyNavRef.current = false;
+      else getTerminal(focusId)?.focus();
     });
     // 복원 tmux attach (#90): 숨김 상태로 spawn된 leaf는 탭이 보이고 fit/resize가
     // PTY에 전달된 뒤 attach해야 tmux가 실제 크기로 그린다. fit 직후 잠깐 띄워 전송.
@@ -2008,6 +2013,10 @@ function App() {
         alertedTabIds={tabAlerts}
         editingTabId={editingTabId}
         onActivate={setActiveTabId}
+        onActivateByKey={(id) => {
+          tabKeyNavRef.current = true;
+          setActiveTabId(id);
+        }}
         onClose={closeTab}
         onNew={newLocalTab}
         onContextMenu={(tabId, x, y) => setContextMenu({ tabId, x, y })}

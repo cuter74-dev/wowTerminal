@@ -67,6 +67,8 @@ interface Props {
   /** 인라인 편집 중인 탭 (이름 변경). null이면 편집 중 아님. */
   editingTabId: string | null;
   onActivate: (id: string) => void;
+  /** 화살표 키로 전환할 때 호출 — 포커스를 터미널로 옮기지 않고 탭에 유지한다(#125). */
+  onActivateByKey?: (id: string) => void;
   onClose: (id: string) => void;
   onNew: () => void;
   onContextMenu: (id: string, x: number, y: number) => void;
@@ -84,6 +86,7 @@ export function TabBar({
   alertedTabIds,
   editingTabId,
   onActivate,
+  onActivateByKey,
   onClose,
   onNew,
   onContextMenu,
@@ -93,8 +96,64 @@ export function TabBar({
   onTabPointerDown,
 }: Props) {
   const tr = useT(STR);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const activeRef = useRef<HTMLDivElement>(null);
+  const targetScrollRef = useRef<number | null>(null);
+  const rafRef = useRef<number>(0);
+  // 화살표 키로 탭을 전환했을 때만 새 활성 탭으로 포커스를 옮긴다(#125) — 클릭/단축키 전환 시엔
+  // 터미널 포커스를 유지한다.
+  const navByKeyRef = useRef(false);
+
+  // 활성 탭이 바뀌면 보이도록 자동 스크롤(#124) + 화살표 네비 중이면 새 탭으로 포커스 이동(#125).
+  useEffect(() => {
+    activeRef.current?.scrollIntoView({ inline: "nearest", block: "nearest" });
+    if (navByKeyRef.current) {
+      activeRef.current?.focus();
+      navByKeyRef.current = false;
+    }
+  }, [activeTabId, tabs.length]);
+
+  // 언마운트 시 진행 중인 관성 애니메이션 정리.
+  useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+
+  // 세로 휠을 가로 스크롤로 변환(macOS 오버레이 스크롤바가 숨겨져도 휠로 이동) — 목표값으로
+  // requestAnimationFrame 보간해 휠 한 칸의 큰 delta가 뚝뚝 끊기지 않고 부드럽게 흐르게 한다(#124).
+  function onWheel(e: React.WheelEvent<HTMLDivElement>) {
+    const el = scrollRef.current;
+    if (!el || el.scrollWidth <= el.clientWidth) return;
+    let delta = e.deltaY;
+    if (delta === 0) return;
+    if (e.deltaMode === 1) delta *= 16; // 라인 단위 → 픽셀
+    else if (e.deltaMode === 2) delta *= el.clientWidth; // 페이지 단위
+    const max = el.scrollWidth - el.clientWidth;
+    const base = targetScrollRef.current ?? el.scrollLeft;
+    targetScrollRef.current = Math.max(0, Math.min(max, base + delta));
+    if (!rafRef.current) {
+      const step = () => {
+        const e2 = scrollRef.current;
+        const target = targetScrollRef.current;
+        if (!e2 || target === null) {
+          rafRef.current = 0;
+          return;
+        }
+        const diff = target - e2.scrollLeft;
+        if (Math.abs(diff) < 0.5) {
+          e2.scrollLeft = target;
+          targetScrollRef.current = null;
+          rafRef.current = 0;
+          return;
+        }
+        e2.scrollLeft += diff * 0.25; // ease-out 보간
+        rafRef.current = requestAnimationFrame(step);
+      };
+      rafRef.current = requestAnimationFrame(step);
+    }
+  }
+
   return (
     <div
+      ref={scrollRef}
+      onWheel={onWheel}
       style={{
         display: "flex",
         alignItems: "stretch",
@@ -103,6 +162,9 @@ export function TabBar({
         height: 34,
         overflowX: "auto",
         overflowY: "hidden",
+        // 스크롤/클릭 중 탭 라벨이 선택되어 하이라이트되지 않게(#124). WKWebView는 Webkit 접두사 필요.
+        userSelect: "none",
+        WebkitUserSelect: "none",
       }}
     >
       {tabs.map((t) => {
@@ -113,12 +175,33 @@ export function TabBar({
         return (
           <div
             key={t.id}
+            ref={active ? activeRef : undefined}
+            role="tab"
+            aria-selected={active}
+            tabIndex={active ? 0 : -1}
             onMouseDown={(e) => {
               if (e.button === 0 && !editing) {
                 onTabPointerDown(t.id, e.clientX, e.clientY);
               }
             }}
-            onClick={() => onActivate(t.id)}
+            onClick={(e) => {
+              onActivate(t.id);
+              // 클릭한 탭에 포커스를 둬서 곧바로 ←/→로 탭 이동할 수 있게 한다(#125).
+              if (!editing) e.currentTarget.focus();
+            }}
+            onKeyDown={(e) => {
+              if (editing) return;
+              if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+                e.preventDefault();
+                const idx = tabs.findIndex((x) => x.id === t.id);
+                if (idx < 0) return;
+                const ni =
+                  (idx + (e.key === "ArrowRight" ? 1 : -1) + tabs.length) %
+                  tabs.length;
+                navByKeyRef.current = true;
+                (onActivateByKey ?? onActivate)(tabs[ni].id);
+              }
+            }}
             onDoubleClick={() => {
               if (!editing) onStartRename(t.id);
             }}
@@ -137,10 +220,13 @@ export function TabBar({
               background: active ? "#1e1e1e" : "transparent",
               color: active ? "#fff" : "#aaa",
               borderTop: active ? "2px solid #4a9eff" : "2px solid transparent",
-              minWidth: 120,
+              // 탭이 많으면 적당히 줄어들되 너무 좁아지지 않게(라벨 일부 유지) — 그 이상은 스크롤(#124).
+              flex: "0 1 auto",
+              minWidth: 88,
               maxWidth: 220,
               fontSize: 12,
               userSelect: "none",
+              outline: "none", // 포커스는 활성 탭의 파란 상단 보더로 표시(#125).
             }}
             title={t.label}
           >
@@ -208,6 +294,7 @@ export function TabBar({
             fontSize: 18,
             padding: "0 14px",
             lineHeight: 1,
+            flexShrink: 0,
           }}
           title={tr.newTab}
         >
@@ -262,6 +349,9 @@ function RenameInput({
         minWidth: 0,
         outline: "none",
         borderRadius: 2,
+        // 탭바 컨테이너의 user-select:none을 무시하고 이름 편집 시 선택 가능하게.
+        userSelect: "text",
+        WebkitUserSelect: "text",
       }}
     />
   );

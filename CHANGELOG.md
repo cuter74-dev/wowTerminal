@@ -7,6 +7,13 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- Tab bar: click a tab, then switch between tabs with the **←/→ arrow keys** (focus stays on the tab bar; other tab shortcuts still work). (#125)
+
+### Fixed
+- Tab bar with many tabs open: tabs now shrink to fit and the **mouse wheel scrolls the bar horizontally** (smooth inertia), the active tab **auto-scrolls into view**, and tab labels no longer get selected while scrolling — previously tabs past the right edge were unreachable. (#124)
+- **SSH reconnect** no longer draws the new session on top of the old screen's leftover content — the terminal buffer is cleared on reconnect (tmux still redraws itself via attach). (#126)
+
 ## [0.20.1] — 2026-06-29
 
 ### Added
