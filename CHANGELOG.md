@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Changed
+- Inline autocomplete is now accepted with **Tab** instead of →/End (which collided with plain cursor movement). Tab accepts when a suggestion is showing, otherwise it falls through to normal shell completion; →/End are pure cursor movement again. (#127)
+
 ## [0.20.2] — 2026-07-03
 
 ### Added
