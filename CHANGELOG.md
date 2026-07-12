@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.4] — 2026-07-12
+
 ### Added
 - AI panel: a 🧠 dropdown overrides the reasoning effort per session (auto = backend setting, or minimal/low/medium/high/max). Values are passed through verbatim, so provider-specific levels (e.g. GLM's `max`, OpenAI's `minimal`) work; the backend registration field is now free-form with suggestions. (#129)
 
@@ -451,7 +453,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.3...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.4...HEAD
+[0.20.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.3...v0.20.4
 [0.20.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.2...v0.20.3
 [0.20.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.1...v0.20.2
 [0.20.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.0...v0.20.1
