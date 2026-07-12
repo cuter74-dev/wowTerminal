@@ -45,6 +45,14 @@ impl OpenAiCompatibleBackend {
         self
     }
 
+    /// 유효 사고력 강도: 요청 단위 오버라이드가 있으면 그것, 없으면 백엔드 등록값(#129).
+    fn effective_reasoning<'a>(&'a self, req: &'a ChatRequest) -> Option<&'a str> {
+        req.reasoning_effort
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .or(self.reasoning_effort.as_deref())
+    }
+
     fn chat_url(&self) -> String {
         // 사용자가 api_base에 `/chat/completions`까지 넣어둔 경우 중복 부착 방지.
         if self.api_base.ends_with("/chat/completions") {
@@ -63,8 +71,8 @@ impl AiBackend for OpenAiCompatibleBackend {
 
     async fn complete(&self, req: ChatRequest) -> Result<ChatResponse, AiError> {
         let mut body = OpenAiChatRequest::from(&req);
-        // 백엔드에 설정된 사고력 강도를 요청에 주입(#123). 추론 모델만 이 필드를 받는다.
-        body.reasoning_effort = self.reasoning_effort.as_deref();
+        // 사고력 강도 주입(#123/#129): 요청 오버라이드 우선, 없으면 백엔드 등록값.
+        body.reasoning_effort = self.effective_reasoning(&req);
 
         let mut builder = self.http.post(self.chat_url()).json(&body);
         if let Some(key) = &self.api_key {
@@ -112,6 +120,8 @@ impl AiBackend for OpenAiCompatibleBackend {
 
         let model = req.model.clone();
         let mut body = OpenAiChatRequest::from(&req);
+        // 스트리밍 경로에도 사고력 강도 주입(#129 — #123 때 이 경로가 누락돼 있었다).
+        body.reasoning_effort = self.effective_reasoning(&req);
         body.stream = Some(true);
 
         let mut builder = self.http.post(self.chat_url()).json(&body);
@@ -286,6 +296,7 @@ mod tests {
             ],
             temperature: Some(0.2),
             max_tokens: Some(50),
+            reasoning_effort: None,
         }
     }
 

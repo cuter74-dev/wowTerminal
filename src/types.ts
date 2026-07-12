@@ -82,6 +82,8 @@ export interface ChatRequest {
   messages: ChatMessage[];
   temperature?: number | null;
   max_tokens?: number | null;
+  /** 요청 단위 사고력 강도 오버라이드(#129). 없으면 백엔드 등록값 사용. */
+  reasoning_effort?: string | null;
 }
 
 export interface ChatResponse {

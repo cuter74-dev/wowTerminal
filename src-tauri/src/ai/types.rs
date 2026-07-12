@@ -23,6 +23,9 @@ pub struct ChatRequest {
     pub messages: Vec<Message>,
     pub temperature: Option<f32>,
     pub max_tokens: Option<u32>,
+    /// 요청 단위 사고력 강도 오버라이드(#129). None이면 백엔드 등록값을 쓴다.
+    #[serde(default)]
+    pub reasoning_effort: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

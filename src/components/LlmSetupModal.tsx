@@ -737,12 +737,12 @@ const RE_STR: LangDict<{ label: string; none: string; hint: string }> = {
   en: {
     label: "Reasoning effort",
     none: "None (default)",
-    hint: "Only for reasoning models (o1 / o3 / gpt-5). Leave None for regular models.",
+    hint: "Only for reasoning models. Values vary by provider — e.g. minimal/low/medium/high (OpenAI o1/o3/gpt-5), max (GLM). Leave empty for regular models.",
   },
   ko: {
     label: "사고력 강도",
     none: "없음 (기본)",
-    hint: "추론 모델(o1 / o3 / gpt-5)에만 적용됩니다. 일반 모델은 ‘없음’으로 두세요.",
+    hint: "추론 모델에만 적용됩니다. 값은 제공자마다 다릅니다 — 예: minimal/low/medium/high(OpenAI o1/o3/gpt-5), max(GLM). 일반 모델은 비워두세요.",
   },
 };
 
@@ -964,16 +964,22 @@ function BackendForm({
       </Field>
 
       <Field label={re.label}>
-        <select
+        {/* 제공자마다 값이 달라(minimal/low/medium/high는 OpenAI, max는 GLM 등) 자유 입력 +
+            datalist 제안으로 받는다. 빈 값 = 미설정(요청에 안 보냄). */}
+        <input
           value={reasoningEffort}
-          onChange={(e) => setReasoningEffort(e.target.value)}
+          onChange={(e) => setReasoningEffort(e.target.value.trim())}
+          placeholder={re.none}
+          list="wt-reasoning-efforts"
           style={{ ...inputStyle, width: "100%" }}
-        >
-          <option value="">{re.none}</option>
-          <option value="low">low</option>
-          <option value="medium">medium</option>
-          <option value="high">high</option>
-        </select>
+        />
+        <datalist id="wt-reasoning-efforts">
+          <option value="minimal" />
+          <option value="low" />
+          <option value="medium" />
+          <option value="high" />
+          <option value="max" />
+        </datalist>
         <div style={{ color: "#888", fontSize: 11, marginTop: 4 }}>
           {re.hint}
         </div>

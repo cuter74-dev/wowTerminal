@@ -106,6 +106,7 @@ mod tests {
             }],
             temperature: None,
             max_tokens: None,
+            reasoning_effort: None,
         };
         let resp = reg.complete("alpha", req).await.unwrap();
         assert_eq!(resp.content, "dummy alpha");
@@ -119,6 +120,7 @@ mod tests {
             messages: vec![],
             temperature: None,
             max_tokens: None,
+            reasoning_effort: None,
         };
         let err = reg.complete("nope", req).await.unwrap_err();
         match err {
@@ -151,6 +153,7 @@ mod tests {
             }],
             temperature: None,
             max_tokens: None,
+            reasoning_effort: None,
         };
         let resp = reg.complete("via-reg", req).await.unwrap();
         assert_eq!(resp.content, "registry works");

@@ -690,6 +690,10 @@ export function AIPanel({
   const [sessions, setSessions] = useState<ChatSession[]>(() => loadSessions());
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
   const [showHistory, setShowHistory] = useState(false);
+  // 세션 단위 사고력 강도 오버라이드(#129): "" = 백엔드 등록값 사용.
+  const [reasoningOverride, setReasoningOverride] = useState("");
+  // 새 대화(+)로 리셋 후 진행 중이던 스트림 콜백이 이전 대화를 다시 그리지 않게 하는 세대 표식.
+  const chatEpochRef = useRef(0);
   // 세션별 시스템 요약 캐시 (#103). OS/셸/유저는 세션 내내 안정적이라 한 번만 조회한다.
   const sysInfoCache = useRef<Map<string, string>>(new Map());
 
@@ -740,6 +744,7 @@ export function AIPanel({
   function selectSession(id: string) {
     const s = sessions.find((x) => x.id === id);
     if (!s) return;
+    chatEpochRef.current += 1; // 진행 중 스트림이 이 세션 화면을 덮지 않게(#130).
     setActiveSessionId(id);
     setMessages(s.messages);
     if (s.backendId && backends.find((b) => b.id === s.backendId)) {
@@ -836,6 +841,8 @@ export function AIPanel({
     setMessages(display);
     persistSession(sid, display);
     setBusy(true);
+    // 이 요청이 속한 대화 세대(#130): 새 대화(+)로 세대가 바뀌면 늦은 스트림/에러 콜백을 버린다.
+    const epoch = chatEpochRef.current;
 
     const reqMessages: ChatMessage[] = [];
     // 어떤 시스템에 연결됐는지(OS/셸/유저)와 현재 경로는 출력-첨부 토글과 무관하게 항상 주입한다 (#103).
@@ -876,12 +883,15 @@ export function AIPanel({
       const req: ChatRequest = {
         model: current.defaultModel,
         messages: reqMessages,
+        // 세션 오버라이드가 있으면 요청에 실어 백엔드 등록값을 덮는다(#129).
+        reasoning_effort: reasoningOverride || null,
       };
       const channel = new Channel<StreamEvent>();
       let acc = "";
       // 스트리밍으로 채울 빈 assistant 메시지를 미리 추가.
       setMessages([...display, { role: "assistant", content: "" }]);
       channel.onmessage = (ev) => {
+        if (epoch !== chatEpochRef.current) return; // 새 대화로 리셋됨 — 이전 스트림 무시.
         if (ev.type === "delta") {
           acc += ev.delta;
           setMessages([...display, { role: "assistant", content: acc }]);
@@ -908,13 +918,15 @@ export function AIPanel({
         onEvent: channel,
       });
     } catch (e) {
-      setError(String(e));
-      const final = [
-        ...display,
-        { role: "assistant" as const, content: t.errorPrefix(String(e)) },
-      ];
-      setMessages(final);
-      persistSession(sid, final);
+      if (epoch === chatEpochRef.current) {
+        setError(String(e));
+        const final = [
+          ...display,
+          { role: "assistant" as const, content: t.errorPrefix(String(e)) },
+        ];
+        setMessages(final);
+        persistSession(sid, final);
+      }
     } finally {
       setBusy(false);
     }
@@ -946,6 +958,9 @@ export function AIPanel({
   }, []);
 
   function newChat() {
+    // 진행 중 스트림이 이전 대화를 다시 그리지 않도록 세대를 올린다(#130 — "+ 가 안 먹는" 원인).
+    chatEpochRef.current += 1;
+    setBusy(false);
     setMessages([]);
     setActiveSessionId(null);
     setError(null);
@@ -1008,6 +1023,30 @@ export function AIPanel({
           </select>
         ) : (
           <span style={{ color: "#789", fontSize: 11 }}>{t.noBackend}</span>
+        )}
+        {backends.length > 0 && (
+          <select
+            value={reasoningOverride}
+            onChange={(e) => setReasoningOverride(e.target.value)}
+            title="Reasoning effort (session override)"
+            style={{
+              background: "#101015",
+              color: reasoningOverride ? "#9cf" : "#888",
+              border: "1px solid #333",
+              borderRadius: 4,
+              padding: "4px 4px",
+              fontSize: 12,
+            }}
+          >
+            {/* 사고력 강도(#129): 기본은 백엔드 등록값, 세션 단위 오버라이드. 값은 그대로
+                전달되므로 제공자별 확장값(minimal=OpenAI, max=GLM 등)도 지원. */}
+            <option value="">🧠 auto</option>
+            <option value="minimal">🧠 minimal</option>
+            <option value="low">🧠 low</option>
+            <option value="medium">🧠 med</option>
+            <option value="high">🧠 high</option>
+            <option value="max">🧠 max</option>
+          </select>
         )}
         <button
           onClick={() => setShowSetup(true)}

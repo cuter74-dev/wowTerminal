@@ -7,6 +7,13 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- AI panel: a 🧠 dropdown overrides the reasoning effort per session (auto = backend setting, or minimal/low/medium/high/max). Values are passed through verbatim, so provider-specific levels (e.g. GLM's `max`, OpenAI's `minimal`) work; the backend registration field is now free-form with suggestions. (#129)
+
+### Fixed
+- AI panel: pressing **＋ (new chat)** during an active generation looked dead — the in-flight stream kept repainting the old conversation over the cleared panel. Late stream callbacks are now dropped after ＋ or switching sessions. (#130)
+- AI: the backend-level reasoning effort (#123) was never applied on the streaming path — the AI panel streams all requests, so the setting silently did nothing. Now injected on both paths. (#129)
+
 ## [0.20.3] — 2026-07-12
 
 ### Added
