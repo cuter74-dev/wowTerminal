@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- AI backend presets for **Ollama Cloud** (https://ollama.com/v1) and **LM Studio** (local, http://localhost:1234/v1) — both OpenAI-compatible, pick from the preset dropdown instead of typing the base URL. (#128)
+
 ### Changed
 - Inline autocomplete is now accepted with **Tab** instead of →/End (which collided with plain cursor movement). Tab accepts when a suggestion is showing, otherwise it falls through to normal shell completion; →/End are pure cursor movement again. (#127)
 

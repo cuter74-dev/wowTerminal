@@ -21,6 +21,8 @@ type PresetLabelKey =
   | "presetOpenai"
   | "presetClaude"
   | "presetOllama"
+  | "presetOllamaCloud"
+  | "presetLmstudio"
   | "presetCustom";
 
 const PRESETS: Array<{
@@ -56,6 +58,22 @@ const PRESETS: Array<{
     needsApiKey: false,
   },
   {
+    labelKey: "presetOllamaCloud",
+    id: "ollama-cloud",
+    displayName: "Ollama Cloud",
+    apiBase: "https://ollama.com/v1",
+    defaultModel: "gpt-oss:120b",
+    needsApiKey: true,
+  },
+  {
+    labelKey: "presetLmstudio",
+    id: "lmstudio",
+    displayName: "LM Studio",
+    apiBase: "http://localhost:1234/v1",
+    defaultModel: "",
+    needsApiKey: false,
+  },
+  {
     labelKey: "presetCustom",
     id: "",
     displayName: "",
@@ -79,6 +97,8 @@ const STR: LangDict<{
     presetOpenai: string;
     presetClaude: string;
     presetOllama: string;
+    presetOllamaCloud: string;
+    presetLmstudio: string;
     presetCustom: string;
     editTitle: (id: string) => string;
     newBackend: string;
@@ -114,6 +134,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — requires OpenAI-compatible gateway",
     presetOllama: "Ollama (local)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "Custom (vLLM/TGI, etc.)",
     editTitle: (id) => `Edit backend — ${id}`,
     newBackend: "New backend",
@@ -150,6 +172,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — OpenAI 호환 게이트웨이 필요",
     presetOllama: "Ollama (로컬)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "직접 입력 (vLLM/TGI 등)",
     editTitle: (id) => `백엔드 편집 — ${id}`,
     newBackend: "새 백엔드",
@@ -185,6 +209,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — requiere una puerta de enlace compatible con OpenAI",
     presetOllama: "Ollama (local)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "Personalizado (vLLM/TGI, etc.)",
     editTitle: (id) => `Editar backend — ${id}`,
     newBackend: "Nuevo backend",
@@ -221,6 +247,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — 需要 OpenAI 兼容网关",
     presetOllama: "Ollama（本地）",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "自定义（vLLM/TGI 等）",
     editTitle: (id) => `编辑后端 — ${id}`,
     newBackend: "新建后端",
@@ -257,6 +285,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — OpenAI 互換ゲートウェイが必要",
     presetOllama: "Ollama（ローカル）",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "カスタム（vLLM/TGI など）",
     editTitle: (id) => `バックエンドを編集 — ${id}`,
     newBackend: "新しいバックエンド",
@@ -293,6 +323,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — требуется шлюз, совместимый с OpenAI",
     presetOllama: "Ollama (локально)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "Пользовательский (vLLM/TGI и др.)",
     editTitle: (id) => `Изменить бэкенд — ${id}`,
     newBackend: "Новый бэкенд",
@@ -329,6 +361,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — nécessite une passerelle compatible OpenAI",
     presetOllama: "Ollama (local)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "Personnalisé (vLLM/TGI, etc.)",
     editTitle: (id) => `Modifier le backend — ${id}`,
     newBackend: "Nouveau backend",
@@ -365,6 +399,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — erfordert ein OpenAI-kompatibles Gateway",
     presetOllama: "Ollama (lokal)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "Benutzerdefiniert (vLLM/TGI usw.)",
     editTitle: (id) => `Backend bearbeiten — ${id}`,
     newBackend: "Neues Backend",
@@ -401,6 +437,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — cần cổng tương thích OpenAI",
     presetOllama: "Ollama (cục bộ)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "Tùy chỉnh (vLLM/TGI, v.v.)",
     editTitle: (id) => `Sửa backend — ${id}`,
     newBackend: "Backend mới",
@@ -437,6 +475,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — memerlukan gateway kompatibel OpenAI",
     presetOllama: "Ollama (lokal)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "Kustom (vLLM/TGI, dll.)",
     editTitle: (id) => `Ubah backend — ${id}`,
     newBackend: "Backend baru",
@@ -473,6 +513,8 @@ const STR: LangDict<{
     presetOpenai: "OpenAI",
     presetClaude: "Anthropic (Claude) — OpenAI-संगत गेटवे आवश्यक",
     presetOllama: "Ollama (लोकल)",
+    presetOllamaCloud: "Ollama Cloud",
+    presetLmstudio: "LM Studio (local)",
     presetCustom: "कस्टम (vLLM/TGI, आदि)",
     editTitle: (id) => `बैकएंड संपादित करें — ${id}`,
     newBackend: "नया बैकएंड",
