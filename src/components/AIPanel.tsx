@@ -940,6 +940,9 @@ export function AIPanel({
     }
     // 개행 없이 입력만 — 사용자가 직접 Enter로 실행하도록 (안전).
     handle.sendInput(code);
+    // 포커스를 터미널로 옮긴다(#131): 버튼에 포커스가 남으면 Enter가 버튼을 다시 눌러
+    // 같은 명령이 중복 입력됐다. 이제 입력 직후 바로 Enter로 실행할 수 있다.
+    handle.focus();
   }
 
   // 터미널 커맨드 블록의 ✨ 버튼 → 그 블록(명령+출력)을 AI에 질문. ref로 최신 sendText 사용.

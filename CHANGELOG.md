@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- AI panel: after clicking **▶ Send to terminal**, pressing Enter re-inserted the same command (focus stayed on the button). Focus now moves to the terminal pane, so Enter runs the command immediately. (#131)
+
 ## [0.20.4] — 2026-07-12
 
 ### Added
