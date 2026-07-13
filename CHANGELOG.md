@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.5] — 2026-07-13
+
 ### Fixed
 - AI panel: after clicking **▶ Send to terminal**, pressing Enter re-inserted the same command (focus stayed on the button). Focus now moves to the terminal pane, so Enter runs the command immediately. (#131)
 
@@ -456,7 +458,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.4...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.5...HEAD
+[0.20.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.4...v0.20.5
 [0.20.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.3...v0.20.4
 [0.20.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.2...v0.20.3
 [0.20.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.1...v0.20.2
