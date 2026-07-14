@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.6] — 2026-07-14
+
 ### Fixed
 - Adding/editing/deleting an LLM backend now updates the AI panel in **all open tabs** immediately — previously only the tab that opened the settings saw the change until a new tab was opened. (#132)
 
@@ -461,7 +463,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.5...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.6...HEAD
+[0.20.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.5...v0.20.6
 [0.20.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.4...v0.20.5
 [0.20.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.3...v0.20.4
 [0.20.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.2...v0.20.3
