@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { emit } from "@tauri-apps/api/event";
 import { LangDict, useT } from "../i18n";
 import { BackendInfo } from "../types";
+
+/** 백엔드 추가/수정/삭제를 모든 AI 패널(탭별 인스턴스)에 알린다(#132). */
+function notifyBackendsChanged() {
+  void emit("wt://backends-changed");
+}
 
 interface Props {
   onClose: () => void;
@@ -564,6 +570,7 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
       await invoke("ai_delete_backend", { id });
       await reload();
       onChanged();
+      notifyBackendsChanged();
     } catch (e) {
       setError(String(e));
     }
@@ -589,6 +596,7 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
       });
       await reload();
       onChanged();
+      notifyBackendsChanged();
     } catch (e) {
       setError(String(e));
     }
@@ -715,6 +723,7 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
               setEditing(null);
               await reload();
               onChanged();
+      notifyBackendsChanged();
             }}
           />
         )}

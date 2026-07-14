@@ -802,6 +802,16 @@ export function AIPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // 백엔드 추가/수정/삭제 시 모든 탭의 AI 패널 갱신(#132) — AI 패널은 탭마다 별개
+  // 인스턴스라, LlmSetupModal을 연 패널만 reload되고 다른 탭은 새로 열기 전까지 몰랐다.
+  useEffect(() => {
+    const un = listen("wt://backends-changed", () => void reload());
+    return () => {
+      void un.then((f) => f());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // 활성 대화 세션 id를 부모에 보고 → App이 탭별로 보관(분리 시 인계용).
   useEffect(() => {
     onActiveSession?.(activeSessionId);

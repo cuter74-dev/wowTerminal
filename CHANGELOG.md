@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- Adding/editing/deleting an LLM backend now updates the AI panel in **all open tabs** immediately — previously only the tab that opened the settings saw the change until a new tab was opened. (#132)
+
 ## [0.20.5] — 2026-07-13
 
 ### Fixed
