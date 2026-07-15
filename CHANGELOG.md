@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.7] — 2026-07-15
+
 ### Fixed
 - **macOS Korean input**: jamo were typed separately when the machine's IME reverted to 229-only behavior (after a macOS/input-source change) while a previously saved composition-machine latch kept the custom mirror permanently off. The stale latch now self-heals — if no composition ever starts in a session but printable IME keys accumulate, the mirror re-engages from that keystroke. (#133)
 
@@ -466,7 +468,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.6...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.7...HEAD
+[0.20.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.6...v0.20.7
 [0.20.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.5...v0.20.6
 [0.20.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.4...v0.20.5
 [0.20.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.3...v0.20.4
