@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **macOS Korean input**: jamo were typed separately when the machine's IME reverted to 229-only behavior (after a macOS/input-source change) while a previously saved composition-machine latch kept the custom mirror permanently off. The stale latch now self-heals — if no composition ever starts in a session but printable IME keys accumulate, the mirror re-engages from that keystroke. (#133)
+
 ## [0.20.6] — 2026-07-14
 
 ### Fixed

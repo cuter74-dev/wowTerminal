@@ -629,6 +629,27 @@ export function Terminal({
     } catch {
       /* 무시 */
     }
+    // 래치 자가 복구(#133): macOS 업데이트/입력기 변경으로 같은 머신이 composition을 더는
+    // 안 보내는 229-only로 회귀할 수 있다. 그런데 과거 latch(wt.ime.cmp=1)가 미러를 영구히
+    // 차단해 한글 자모가 따로 입력된다(실측: n229=62, nCS=0, mirror=0). 이 세션에서 CS가
+    // 한 번도 없는데 인쇄형 229 키가 쌓이면 latch를 지우고 미러로 복귀한다. 건강한 조합
+    // 머신은 첫 자모에서 반드시 CS가 오므로(그때 csSeenSession=true) 오탐하지 않는다.
+    let csSeenSession = false;
+    let stale229 = 0;
+    const healStaleCompositionLatch = () => {
+      compositionMachine = false;
+      stale229 = 0;
+      try {
+        localStorage.removeItem(CMP_KEY);
+      } catch {
+        /* 무시 */
+      }
+      try {
+        document.body.classList.remove("wt-native-ime");
+      } catch {
+        /* 무시 */
+      }
+    };
     const markCompositionMachine = (data: string | null) => {
       if (compositionMachine || !data || !HANGUL.test(data)) return;
       compositionMachine = true;
@@ -912,6 +933,8 @@ export function Terminal({
         scheduleImeDiag();
         composing = true;
         nativeComposition = true;
+        csSeenSession = true; // 이 세션은 composition이 동작 — latch 자가복구(#133) 비활성.
+        stale229 = 0;
         // 조합 머신에선 textarea를 건드리지 않는다 — 네이티브 composition이 소유하므로
         // ta.value를 비우면 조합 중인 음절이 깨진다("한글이 제대로 안 써짐"의 직접 원인).
         if (!compositionMachine) resetIme();
@@ -1053,6 +1076,19 @@ export function Terminal({
       if (e.keyCode === 229) {
         imeDiag.n229++; // [진단 #83]
         scheduleImeDiag();
+        // latch 자가 복구(#133): 조합 머신으로 latch됐지만 이 세션에서 composition이 전혀
+        // 시작되지 않은 채 인쇄형 229 키만 쌓이면 — 입력기/OS 변경으로 229-only로 회귀한
+        // 것 — latch를 지우고 이번 키부터 미러로 처리한다. (Backspace/229는 정상 조합
+        // 머신에서 한글 삭제 시에도 발생하므로 카운트에서 제외.)
+        if (
+          isMacWebView &&
+          compositionMachine &&
+          !csSeenSession &&
+          e.key !== "Backspace"
+        ) {
+          stale229 += 1;
+          if (stale229 >= 4) healStaleCompositionLatch();
+        }
         // 조합 머신(네이티브 IME가 한글 처리)·진행 중 composition·비-macOS는 네이티브로 넘긴다.
         // 미러는 composition 이벤트가 전혀 없는 229-only macOS에서만 켠다.
         if (!isMacWebView || nativeComposition || compositionMachine) return true;
