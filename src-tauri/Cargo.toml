@@ -1,6 +1,6 @@
 [package]
 name = "wowterminal"
-version = "0.20.7"
+version = "0.20.8"
 description = "AI Terminal with multi-backend AI (cloud/local/self-hosted) and SSH manager"
 authors = ["cuter74-dev"]
 license = "MIT"

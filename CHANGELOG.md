@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.8] — 2026-07-15
+
 ### Added
 - **File browser**: transfer whole folders (recursive up/download) and multi-select files/folders — Cmd/Ctrl+click to toggle, Shift+click for a range; the ← / → buttons and context menu act on the entire selection. (#135)
 
@@ -474,7 +476,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.7...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.8...HEAD
+[0.20.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.7...v0.20.8
 [0.20.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.6...v0.20.7
 [0.20.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.5...v0.20.6
 [0.20.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.4...v0.20.5
