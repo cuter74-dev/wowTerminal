@@ -7,6 +7,12 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- **File browser**: transfer whole folders (recursive up/download) and multi-select files/folders — Cmd/Ctrl+click to toggle, Shift+click for a range; the ← / → buttons and context menu act on the entire selection. (#135)
+
+### Fixed
+- **File browser**: Rename / New folder / New file no longer freeze — the browser `prompt()` dialog (unsupported in Tauri's WKWebView) was replaced with an in-app input modal. (#134)
+
 ## [0.20.7] — 2026-07-15
 
 ### Fixed

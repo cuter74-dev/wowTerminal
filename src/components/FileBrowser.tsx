@@ -54,6 +54,7 @@ const STR: LangDict<{
     colName: string;
     colSize: string;
     colModified: string;
+    selectedCount: (n: number) => string;
     propsTitle: (name: string) => string;
     directory: string;
     octal: string;
@@ -131,6 +132,7 @@ const STR: LangDict<{
     colName: "Name",
     colSize: "Size",
     colModified: "Modified",
+    selectedCount: (n) => `${n} selected`,
     propsTitle: (name) => `Properties / Permissions — ${name}`,
     directory: "Directory",
     octal: "octal",
@@ -208,6 +210,7 @@ const STR: LangDict<{
     colName: "이름",
     colSize: "크기",
     colModified: "수정",
+    selectedCount: (n) => `${n}개 선택됨`,
     propsTitle: (name) => `속성 / 권한 — ${name}`,
     directory: "디렉토리",
     octal: "8진수",
@@ -285,6 +288,7 @@ const STR: LangDict<{
     colName: "Nombre",
     colSize: "Tamaño",
     colModified: "Modificado",
+    selectedCount: (n) => `${n} seleccionados`,
     propsTitle: (name) => `Propiedades / Permisos — ${name}`,
     directory: "Directorio",
     octal: "octal",
@@ -362,6 +366,7 @@ const STR: LangDict<{
     colName: "名称",
     colSize: "大小",
     colModified: "修改时间",
+    selectedCount: (n) => `已选 ${n} 项`,
     propsTitle: (name) => `属性 / 权限 — ${name}`,
     directory: "目录",
     octal: "八进制",
@@ -439,6 +444,7 @@ const STR: LangDict<{
     colName: "名前",
     colSize: "サイズ",
     colModified: "更新日時",
+    selectedCount: (n) => `${n}件選択`,
     propsTitle: (name) => `プロパティ / 権限 — ${name}`,
     directory: "ディレクトリ",
     octal: "8進数",
@@ -516,6 +522,7 @@ const STR: LangDict<{
     colName: "Имя",
     colSize: "Размер",
     colModified: "Изменён",
+    selectedCount: (n) => `Выбрано: ${n}`,
     propsTitle: (name) => `Свойства / Права — ${name}`,
     directory: "Каталог",
     octal: "восьмеричный",
@@ -593,6 +600,7 @@ const STR: LangDict<{
     colName: "Nom",
     colSize: "Taille",
     colModified: "Modifié",
+    selectedCount: (n) => `${n} sélectionné(s)`,
     propsTitle: (name) => `Propriétés / Permissions — ${name}`,
     directory: "Répertoire",
     octal: "octal",
@@ -670,6 +678,7 @@ const STR: LangDict<{
     colName: "Name",
     colSize: "Größe",
     colModified: "Geändert",
+    selectedCount: (n) => `${n} ausgewählt`,
     propsTitle: (name) => `Eigenschaften / Berechtigungen — ${name}`,
     directory: "Verzeichnis",
     octal: "oktal",
@@ -747,6 +756,7 @@ const STR: LangDict<{
     colName: "Tên",
     colSize: "Kích thước",
     colModified: "Đã sửa đổi",
+    selectedCount: (n) => `Đã chọn ${n}`,
     propsTitle: (name) => `Thuộc tính / Quyền — ${name}`,
     directory: "Thư mục",
     octal: "bát phân",
@@ -824,6 +834,7 @@ const STR: LangDict<{
     colName: "Nama",
     colSize: "Ukuran",
     colModified: "Diubah",
+    selectedCount: (n) => `${n} dipilih`,
     propsTitle: (name) => `Properti / Izin — ${name}`,
     directory: "Direktori",
     octal: "oktal",
@@ -901,6 +912,7 @@ const STR: LangDict<{
     colName: "नाम",
     colSize: "आकार",
     colModified: "संशोधित",
+    selectedCount: (n) => `${n} चयनित`,
     propsTitle: (name) => `गुण / अनुमतियां — ${name}`,
     directory: "डायरेक्टरी",
     octal: "अष्टाधारी",
@@ -984,6 +996,15 @@ function nameExists(listing: Listing | null, name: string): boolean {
   return !!listing?.entries.some((e) => e.name === name);
 }
 
+// 목록 정렬(디렉토리 우선, 이름순). Panel 표시와 범위 선택(Shift-클릭)이 같은 순서를 쓰도록 공유.
+function sortEntries(listing: Listing | null): FileEntry[] {
+  if (!listing) return [];
+  return [...listing.entries].sort((a, b) => {
+    if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
+    return a.name.localeCompare(b.name);
+  });
+}
+
 // 확장자 → 이미지 MIME (미리보기용). 미지원이면 null.
 function imageMime(name: string): string | null {
   const ext = name.toLowerCase().split(".").pop() ?? "";
@@ -1024,8 +1045,63 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
   const t = useT(STR);
   const [local, setLocal] = useState<Listing | null>(null);
   const [remote, setRemote] = useState<Listing | null>(null);
+  // primary(마지막 클릭) 선택 — 컨텍스트 메뉴·삭제·미리보기의 단일 대상.
   const [localSel, setLocalSel] = useState<FileEntry | null>(null);
   const [remoteSel, setRemoteSel] = useState<FileEntry | null>(null);
+  // 다중 선택 이름 집합(#135). Cmd/Ctrl-클릭 토글, Shift-클릭 범위. 전송은 이 집합 전체.
+  const [localSelSet, setLocalSelSet] = useState<Set<string>>(new Set());
+  const [remoteSelSet, setRemoteSelSet] = useState<Set<string>>(new Set());
+  const localAnchorRef = useRef<string | null>(null);
+  const remoteAnchorRef = useRef<string | null>(null);
+
+  // 행 클릭 → 선택 갱신. 수정자(Cmd/Ctrl=토글, Shift=앵커부터 범위)에 따라 집합을 만든다.
+  function clickRow(
+    side: "local" | "remote",
+    entry: FileEntry,
+    mods: { meta: boolean; shift: boolean },
+  ) {
+    const listing = side === "local" ? local : remote;
+    const entries = sortEntries(listing);
+    const setSet = side === "local" ? setLocalSelSet : setRemoteSelSet;
+    const curSet = side === "local" ? localSelSet : remoteSelSet;
+    const anchorRef = side === "local" ? localAnchorRef : remoteAnchorRef;
+    const setPrimary = side === "local" ? setLocalSel : setRemoteSel;
+
+    if (mods.shift && anchorRef.current) {
+      const ai = entries.findIndex((e) => e.name === anchorRef.current);
+      const bi = entries.findIndex((e) => e.name === entry.name);
+      if (ai >= 0 && bi >= 0) {
+        const [lo, hi] = ai < bi ? [ai, bi] : [bi, ai];
+        setSet(new Set(entries.slice(lo, hi + 1).map((e) => e.name)));
+        setPrimary(entry);
+        return;
+      }
+    }
+    if (mods.meta) {
+      const next = new Set(curSet);
+      if (next.has(entry.name)) next.delete(entry.name);
+      else next.add(entry.name);
+      setSet(next);
+      anchorRef.current = entry.name;
+      setPrimary(next.has(entry.name) ? entry : null);
+      return;
+    }
+    setSet(new Set([entry.name]));
+    anchorRef.current = entry.name;
+    setPrimary(entry);
+  }
+
+  function clearSel(side: "local" | "remote") {
+    if (side === "local") {
+      setLocalSel(null);
+      setLocalSelSet(new Set());
+      localAnchorRef.current = null;
+    } else {
+      setRemoteSel(null);
+      setRemoteSelSet(new Set());
+      remoteAnchorRef.current = null;
+    }
+  }
   const [error, setError] = useState<string | null>(null);
   const [remoteBusy, setRemoteBusy] = useState(true);
   const [transfers, setTransfers] = useState<TransferItem[]>([]);
@@ -1051,6 +1127,13 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
   } | null>(null);
   const [permEdit, setPermEdit] = useState<FileEntry | null>(null);
   const [showSearch, setShowSearch] = useState(false);
+  // 텍스트 입력 프롬프트(이름 변경/새 폴더/새 파일). 브라우저 prompt()는 Tauri WKWebView에서
+  // 반환되지 않아 앱이 멈춘 것처럼 보였다(#134) — 앱 내부 모달로 대체.
+  const [textPrompt, setTextPrompt] = useState<{
+    title: string;
+    initial: string;
+    onSubmit: (value: string) => void;
+  } | null>(null);
 
   const loadLocal = useCallback(async (path?: string) => {
     try {
@@ -1140,7 +1223,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
     entry: FileEntry,
     e: React.MouseEvent,
   ) {
-    if (e.button !== 0 || entry.is_dir) return; // 디렉토리 전송은 v1 미지원
+    if (e.button !== 0) return; // 폴더도 재귀 전송 지원(#135).
     setPaneDrag({ entry, from, x: e.clientX, y: e.clientY, active: false });
   }
   useEffect(() => {
@@ -1183,9 +1266,67 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // 다운로드/업로드를 큐에 넣고 비동기 진행 (동시 여러 전송 가능).
-  async function doDownload(entry: FileEntry) {
-    if (entry.is_dir || !remote) return;
+  // 단일 원격 항목(파일/폴더)을 지정 로컬 폴더로 다운로드하고 전송 큐에 등록.
+  function queueDownload(entry: FileEntry, localDir: string, refresh: boolean) {
+    if (!remote) return;
+    const id = newTransferId();
+    const remotePath = joinPosix(remote.cwd, entry.name);
+    setTransfers((prev) => [
+      ...prev,
+      {
+        id,
+        label: `↓ ${entry.name}${entry.is_dir ? "/" : ""}`,
+        direction: "down",
+        transferred: 0,
+        total: entry.is_dir ? 0 : entry.size,
+        status: "active",
+      },
+    ]);
+    void invoke("sftp_download", { hostId, remotePath, localDir, transferId: id })
+      .then(() => {
+        updateTransfer(id, { status: "done" });
+        if (refresh && localDir === local?.cwd) void loadLocal(localDir);
+      })
+      .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
+  }
+
+  // 단일 로컬 항목(파일/폴더)을 원격 cwd로 업로드하고 전송 큐에 등록.
+  function queueUpload(entry: FileEntry, remoteDir: string) {
+    if (!local) return;
+    const id = newTransferId();
+    const localPath = joinLocal(local.cwd, entry.name);
+    setTransfers((prev) => [
+      ...prev,
+      {
+        id,
+        label: `↑ ${entry.name}${entry.is_dir ? "/" : ""}`,
+        direction: "up",
+        transferred: 0,
+        total: entry.is_dir ? 0 : entry.size,
+        status: "active",
+      },
+    ]);
+    void invoke("sftp_upload", { hostId, localPath, remoteDir, transferId: id })
+      .then(() => {
+        updateTransfer(id, { status: "done" });
+        void loadRemote(remoteDir);
+      })
+      .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
+  }
+
+  // 선택된 원격 항목(들)을 다운로드 — 저장 폴더를 한 번 고르고 모두 그 안에 저장(#135).
+  async function doDownload(primary?: FileEntry) {
+    if (!remote) return;
+    const names =
+      remoteSelSet.size > 0
+        ? [...remoteSelSet]
+        : primary
+          ? [primary.name]
+          : remoteSel
+            ? [remoteSel.name]
+            : [];
+    const entries = sortEntries(remote).filter((e) => names.includes(e.name));
+    if (!entries.length) return;
     // WKWebView는 앱→OS 드래그 아웃을 지원하지 않으므로, 저장할 폴더를 직접 고른다.
     const dir = await openDialog({
       directory: true,
@@ -1193,59 +1334,38 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
       defaultPath: local?.cwd,
     });
     if (typeof dir !== "string") return;
-    const id = newTransferId();
-    const remotePath = joinPosix(remote.cwd, entry.name);
-    setTransfers((prev) => [
-      ...prev,
-      { id, label: `↓ ${entry.name}`, direction: "down", transferred: 0, total: entry.size, status: "active" },
-    ]);
-    void invoke("sftp_download", { hostId, remotePath, localDir: dir, transferId: id })
-      .then(() => {
-        updateTransfer(id, { status: "done", transferred: entry.size });
-        // 선택한 폴더가 현재 로컬 뷰면 새로고침.
-        if (dir === local?.cwd) void loadLocal(dir);
-      })
-      .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
+    for (const entry of entries) queueDownload(entry, dir, true);
   }
 
-  function doUpload(entry: FileEntry) {
-    if (entry.is_dir || !local || !remote) return;
+  // 선택된 로컬 항목(들)을 원격 cwd로 업로드(#135).
+  function doUpload(primary?: FileEntry) {
+    if (!local || !remote) return;
+    const names =
+      localSelSet.size > 0
+        ? [...localSelSet]
+        : primary
+          ? [primary.name]
+          : localSel
+            ? [localSel.name]
+            : [];
+    const entries = sortEntries(local).filter((e) => names.includes(e.name));
+    if (!entries.length) return;
+    // 단일 파일 덮어쓰기만 확인(다중/폴더는 병합 업로드).
     if (
-      nameExists(remote, entry.name) &&
-      !confirm(t.confirmOverwriteRemote(entry.name))
+      entries.length === 1 &&
+      !entries[0].is_dir &&
+      nameExists(remote, entries[0].name) &&
+      !confirm(t.confirmOverwriteRemote(entries[0].name))
     )
       return;
-    const id = newTransferId();
     const remoteCwd = remote.cwd;
-    const localPath = joinPosix(local.cwd, entry.name);
-    setTransfers((prev) => [
-      ...prev,
-      { id, label: `↑ ${entry.name}`, direction: "up", transferred: 0, total: entry.size, status: "active" },
-    ]);
-    void invoke("sftp_upload", { hostId, localPath, remoteDir: remoteCwd, transferId: id })
-      .then(() => {
-        updateTransfer(id, { status: "done", transferred: entry.size });
-        void loadRemote(remoteCwd);
-      })
-      .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
+    for (const entry of entries) queueUpload(entry, remoteCwd);
   }
 
   // 패널 간 드래그 다운로드 — 폴더 선택 없이 현재 로컬 폴더로 바로 저장.
   function doDownloadTo(entry: FileEntry) {
-    if (entry.is_dir || !remote || !local) return;
-    const id = newTransferId();
-    const localCwd = local.cwd;
-    const remotePath = joinPosix(remote.cwd, entry.name);
-    setTransfers((prev) => [
-      ...prev,
-      { id, label: `↓ ${entry.name}`, direction: "down", transferred: 0, total: entry.size, status: "active" },
-    ]);
-    void invoke("sftp_download", { hostId, remotePath, localDir: localCwd, transferId: id })
-      .then(() => {
-        updateTransfer(id, { status: "done", transferred: entry.size });
-        void loadLocal(localCwd);
-      })
-      .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
+    if (!remote || !local) return;
+    queueDownload(entry, local.cwd, true);
   }
 
   // 패널 간 pointer 드래그: 이동 임계를 넘으면 active, mouseup 시 반대 패널 위면 전송.
@@ -1269,7 +1389,9 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
             e.clientY <= r.bottom
           );
         };
-        if (d.from === "local" && inRect(remotePanelRef)) doUpload(d.entry);
+        // 드래그는 끌어놓은 그 항목만 전송(다중 선택 집합과 무관).
+        if (d.from === "local" && inRect(remotePanelRef) && remote)
+          queueUpload(d.entry, remote.cwd);
         else if (d.from === "remote" && inRect(localPanelRef)) doDownloadTo(d.entry);
       }
       if (paneDragRef.current) setPaneDrag(null);
@@ -1299,44 +1421,65 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
     }
   }
 
-  async function mkdirRemote() {
+  function mkdirRemote() {
     if (!remote) return;
-    const name = prompt(t.promptNewFolder);
-    if (!name) return;
-    try {
-      await invoke("sftp_mkdir", { hostId, path: joinPosix(remote.cwd, name) });
-      await loadRemote(remote.cwd);
-    } catch (e) {
-      setError(t.errMkdir(String(e)));
-    }
+    setTextPrompt({
+      title: t.promptNewFolder,
+      initial: "",
+      onSubmit: async (name) => {
+        if (!name || !remote) return;
+        try {
+          await invoke("sftp_mkdir", {
+            hostId,
+            path: joinPosix(remote.cwd, name),
+          });
+          await loadRemote(remote.cwd);
+        } catch (e) {
+          setError(t.errMkdir(String(e)));
+        }
+      },
+    });
   }
 
-  async function touchRemote() {
+  function touchRemote() {
     if (!remote) return;
-    const name = prompt(t.promptNewFile);
-    if (!name) return;
-    try {
-      await invoke("sftp_touch", { hostId, path: joinPosix(remote.cwd, name) });
-      await loadRemote(remote.cwd);
-    } catch (e) {
-      setError(t.errTouch(String(e)));
-    }
+    setTextPrompt({
+      title: t.promptNewFile,
+      initial: "",
+      onSubmit: async (name) => {
+        if (!name || !remote) return;
+        try {
+          await invoke("sftp_touch", {
+            hostId,
+            path: joinPosix(remote.cwd, name),
+          });
+          await loadRemote(remote.cwd);
+        } catch (e) {
+          setError(t.errTouch(String(e)));
+        }
+      },
+    });
   }
 
-  async function renameRemote(entry: FileEntry) {
+  function renameRemote(entry: FileEntry) {
     if (!remote) return;
-    const next = prompt(t.promptNewName, entry.name);
-    if (!next || next === entry.name) return;
-    try {
-      await invoke("sftp_rename", {
-        hostId,
-        from: joinPosix(remote.cwd, entry.name),
-        to: joinPosix(remote.cwd, next),
-      });
-      await loadRemote(remote.cwd);
-    } catch (e) {
-      setError(t.errRename(String(e)));
-    }
+    setTextPrompt({
+      title: t.promptNewName,
+      initial: entry.name,
+      onSubmit: async (next) => {
+        if (!next || next === entry.name || !remote) return;
+        try {
+          await invoke("sftp_rename", {
+            hostId,
+            from: joinPosix(remote.cwd, entry.name),
+            to: joinPosix(remote.cwd, next),
+          });
+          await loadRemote(remote.cwd);
+        } catch (e) {
+          setError(t.errRename(String(e)));
+        }
+      },
+    });
   }
 
   async function applyChmod(entry: FileEntry, mode: number) {
@@ -1545,10 +1688,10 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
             <Panel
               title={t.local}
               listing={local}
-              selected={localSel}
-              onSelect={setLocalSel}
+              selectedNames={localSelSet}
+              onRowClick={(e, mods) => clickRow("local", e, mods)}
               onNavigate={(p) => {
-                setLocalSel(null);
+                clearSel("local");
                 void loadLocal(p);
               }}
               onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "local" })}
@@ -1573,18 +1716,18 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
             }}
           >
             <button
-              onClick={() => remoteSel && doDownload(remoteSel)}
-              disabled={!remoteSel || remoteSel.is_dir}
+              onClick={() => void doDownload()}
+              disabled={remoteSelSet.size === 0 && !remoteSel}
               title={t.downloadTitle}
-              style={arrowBtnStyle(!!remoteSel && !remoteSel.is_dir)}
+              style={arrowBtnStyle(remoteSelSet.size > 0 || !!remoteSel)}
             >
               ←
             </button>
             <button
-              onClick={() => localSel && doUpload(localSel)}
-              disabled={!localSel || localSel.is_dir}
+              onClick={() => doUpload()}
+              disabled={localSelSet.size === 0 && !localSel}
               title={t.uploadTitle}
-              style={arrowBtnStyle(!!localSel && !localSel.is_dir)}
+              style={arrowBtnStyle(localSelSet.size > 0 || !!localSel)}
             >
               →
             </button>
@@ -1594,10 +1737,10 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
               title={t.remoteWith(hostLabel)}
               listing={remote}
               busy={remoteBusy}
-              selected={remoteSel}
-              onSelect={setRemoteSel}
+              selectedNames={remoteSelSet}
+              onRowClick={(e, mods) => clickRow("remote", e, mods)}
               onNavigate={(p) => {
-                setRemoteSel(null);
+                clearSel("remote");
                 void loadRemote(p);
               }}
               onContextMenu={(entry, x, y) => setMenu({ entry, x, y, side: "remote" })}
@@ -1645,6 +1788,19 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
             onApply={(mode) => {
               void applyChmod(permEdit, mode);
               setPermEdit(null);
+            }}
+          />
+        )}
+
+        {textPrompt && (
+          <PromptModal
+            title={textPrompt.title}
+            initial={textPrompt.initial}
+            onCancel={() => setTextPrompt(null)}
+            onSubmit={(value) => {
+              const handler = textPrompt.onSubmit;
+              setTextPrompt(null);
+              handler(value);
             }}
           />
         )}
@@ -1737,13 +1893,13 @@ function ContextMenu({
   const items: Array<{ label: string; action: () => void; disabled?: boolean }> = [];
   if (side === "remote") {
     items.push({ label: t.ctxPreview, action: onPreview, disabled: entry.is_dir });
-    items.push({ label: t.ctxDownload, action: onDownload, disabled: entry.is_dir });
+    items.push({ label: t.ctxDownload, action: onDownload });
     items.push({ label: t.ctxRename, action: onRename });
     items.push({ label: t.ctxProps, action: onProps });
     items.push({ label: t.ctxDelete, action: onDelete });
   } else {
     items.push({ label: t.ctxPreview, action: onPreview, disabled: entry.is_dir });
-    items.push({ label: t.ctxUpload, action: onUpload, disabled: entry.is_dir });
+    items.push({ label: t.ctxUpload, action: onUpload });
   }
 
   const mx = Math.min(x, window.innerWidth - 180);
@@ -1995,8 +2151,8 @@ function Panel({
   title,
   listing,
   busy,
-  selected,
-  onSelect,
+  selectedNames,
+  onRowClick,
   onNavigate,
   onContextMenu,
   onItemMouseDown,
@@ -2007,8 +2163,8 @@ function Panel({
   title: string;
   listing: Listing | null;
   busy?: boolean;
-  selected: FileEntry | null;
-  onSelect: (e: FileEntry) => void;
+  selectedNames: Set<string>;
+  onRowClick: (e: FileEntry, mods: { meta: boolean; shift: boolean }) => void;
   onNavigate: (path: string) => void;
   onContextMenu: (e: FileEntry, x: number, y: number) => void;
   onItemMouseDown: (e: FileEntry, ev: React.MouseEvent) => void;
@@ -2018,12 +2174,8 @@ function Panel({
   joinPath: (cwd: string, name: string) => string;
 }) {
   const t = useT(STR);
-  const entries = listing
-    ? [...listing.entries].sort((a, b) => {
-        if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
-        return a.name.localeCompare(b.name);
-      })
-    : [];
+  const entries = sortEntries(listing);
+  const selCount = selectedNames.size;
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -2053,6 +2205,20 @@ function Panel({
         >
           {listing?.cwd ?? "…"}
         </span>
+        {selCount > 1 && (
+          <span
+            style={{
+              color: "#9cf",
+              fontSize: 11,
+              background: "#0a3550",
+              borderRadius: 10,
+              padding: "1px 8px",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {t.selectedCount(selCount)}
+          </span>
+        )}
       </div>
 
       <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
@@ -2083,15 +2249,18 @@ function Panel({
                 <td style={tdStyle}></td>
               </tr>
               {entries.map((e: FileEntry) => {
-                const sel = selected?.name === e.name;
+                const sel = selectedNames.has(e.name);
                 return (
                   <tr
                     key={e.name}
-                    onClick={() => onSelect(e)}
+                    onClick={(ev) =>
+                      onRowClick(e, { meta: ev.metaKey || ev.ctrlKey, shift: ev.shiftKey })
+                    }
                     onMouseDown={(ev) => onItemMouseDown(e, ev)}
                     onContextMenu={(ev) => {
                       ev.preventDefault();
-                      onSelect(e);
+                      // 이미 선택 집합에 있으면 유지, 아니면 이 항목만 단일 선택.
+                      if (!sel) onRowClick(e, { meta: false, shift: false });
                       onContextMenu(e, ev.clientX, ev.clientY);
                     }}
                     onDoubleClick={() =>
@@ -2131,6 +2300,116 @@ function Panel({
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  );
+}
+
+function PromptModal({
+  title,
+  initial,
+  onCancel,
+  onSubmit,
+}: {
+  title: string;
+  initial: string;
+  onCancel: () => void;
+  onSubmit: (value: string) => void;
+}) {
+  const t = useT(STR);
+  const [value, setValue] = useState(initial);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.focus();
+    // 이름 변경 시 확장자 앞까지만 선택하면 편하지만, 단순히 전체 선택으로 통일.
+    el.select();
+  }, []);
+  const submit = () => {
+    const v = value.trim();
+    if (v) onSubmit(v);
+  };
+  return (
+    <div
+      onClick={onCancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: 360,
+          background: "#26262d",
+          border: "1px solid #333",
+          borderRadius: 6,
+          color: "#e6e6e6",
+          padding: 18,
+          fontSize: 13,
+        }}
+      >
+        <strong style={{ fontSize: 14 }}>{title}</strong>
+        <input
+          ref={inputRef}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              submit();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              onCancel();
+            }
+          }}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            marginTop: 12,
+            padding: "8px 10px",
+            background: "#1b1b22",
+            border: "1px solid #3a3a44",
+            borderRadius: 4,
+            color: "#e6e6e6",
+            fontSize: 13,
+            outline: "none",
+          }}
+        />
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 16,
+          }}
+        >
+          <button onClick={onCancel} style={toolBtnStyle}>
+            {t.cancel}
+          </button>
+          <button
+            onClick={submit}
+            disabled={!value.trim()}
+            style={{
+              ...toolBtnStyle,
+              background: "#0a5380",
+              borderColor: "#4a9eff",
+              color: "#fff",
+              opacity: value.trim() ? 1 : 0.5,
+            }}
+          >
+            OK
+          </button>
+        </div>
       </div>
     </div>
   );

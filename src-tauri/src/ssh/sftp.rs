@@ -154,7 +154,8 @@ impl SftpManager {
             .ok_or_else(|| SshError::NotFound(host_id.into()))
     }
 
-    /// 원격 → 로컬. 64KB 청크 스트리밍 + 진행 이벤트. 다운로드한 바이트 수 반환.
+    /// 원격 → 로컬. 파일이면 단일 스트리밍, 디렉토리면 재귀 다운로드(#135).
+    /// 진행 이벤트는 전체 바이트 기준 누적으로 보고한다. 다운로드한 바이트 수 반환.
     pub async fn download(
         &self,
         host_id: &str,
@@ -162,15 +163,74 @@ impl SftpManager {
         local: &str,
         transfer_id: &str,
     ) -> Result<u64, SshError> {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let conn = self.conn(host_id).await?;
-        let total = conn
+        let meta = conn
             .sftp
             .metadata(remote)
             .await
-            .ok()
-            .and_then(|m| m.size)
-            .unwrap_or(0);
+            .map_err(|e| SshError::Channel(format!("stat {remote}: {e}")))?;
+        if meta.is_dir() {
+            // 원격 트리를 훑어 (파일 목록, 총 바이트)을 먼저 수집한 뒤 순차 다운로드.
+            let mut files: Vec<(String, String, u64)> = Vec::new();
+            tokio::fs::create_dir_all(local)
+                .await
+                .map_err(|e| SshError::Io(format!("mkdir {local}: {e}")))?;
+            let mut stack = vec![(remote.to_string(), local.to_string())];
+            while let Some((rdir, ldir)) = stack.pop() {
+                let entries = conn
+                    .sftp
+                    .read_dir(&rdir)
+                    .await
+                    .map_err(|e| SshError::Channel(format!("read_dir {rdir}: {e}")))?;
+                for e in entries {
+                    let name = e.file_name();
+                    if name == "." || name == ".." {
+                        continue;
+                    }
+                    let rp = format!("{}/{}", rdir.trim_end_matches('/'), name);
+                    let lp = std::path::Path::new(&ldir)
+                        .join(&name)
+                        .to_string_lossy()
+                        .to_string();
+                    let m = e.metadata();
+                    if m.is_dir() {
+                        tokio::fs::create_dir_all(&lp)
+                            .await
+                            .map_err(|e| SshError::Io(format!("mkdir {lp}: {e}")))?;
+                        stack.push((rp, lp));
+                    } else {
+                        files.push((rp, lp, m.size.unwrap_or(0)));
+                    }
+                }
+            }
+            let total: u64 = files.iter().map(|f| f.2).sum();
+            let mut done: u64 = 0;
+            (self.progress)(transfer_id.to_string(), 0, total);
+            for (rp, lp, _sz) in files {
+                done += self
+                    .stream_download(&conn, &rp, &lp, transfer_id, done, total)
+                    .await?;
+            }
+            Ok(done)
+        } else {
+            let total = meta.size.unwrap_or(0);
+            (self.progress)(transfer_id.to_string(), 0, total);
+            self.stream_download(&conn, remote, local, transfer_id, 0, total)
+                .await
+        }
+    }
+
+    /// 단일 원격 파일을 로컬로 스트리밍. 진행은 (base + 파일내 누적) / total 로 보고.
+    async fn stream_download(
+        &self,
+        conn: &Arc<SftpConn>,
+        remote: &str,
+        local: &str,
+        transfer_id: &str,
+        base: u64,
+        total: u64,
+    ) -> Result<u64, SshError> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let mut rf = conn
             .sftp
             .open(remote)
@@ -181,7 +241,6 @@ impl SftpManager {
             .map_err(|e| SshError::Io(format!("create {local}: {e}")))?;
         let mut buf = vec![0u8; 64 * 1024];
         let mut done: u64 = 0;
-        (self.progress)(transfer_id.to_string(), 0, total);
         loop {
             let n = rf
                 .read(&mut buf)
@@ -194,13 +253,14 @@ impl SftpManager {
                 .await
                 .map_err(|e| SshError::Io(format!("write {local}: {e}")))?;
             done += n as u64;
-            (self.progress)(transfer_id.to_string(), done, total);
+            (self.progress)(transfer_id.to_string(), base + done, total);
         }
         let _ = out.flush().await;
         Ok(done)
     }
 
-    /// 로컬 → 원격. 64KB 청크 스트리밍 + 진행 이벤트. 업로드한 바이트 수 반환.
+    /// 로컬 → 원격. 파일이면 단일 스트리밍, 디렉토리면 재귀 업로드(#135).
+    /// 진행 이벤트는 전체 바이트 기준 누적으로 보고한다. 업로드한 바이트 수 반환.
     pub async fn upload(
         &self,
         host_id: &str,
@@ -208,12 +268,70 @@ impl SftpManager {
         remote: &str,
         transfer_id: &str,
     ) -> Result<u64, SshError> {
-        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let conn = self.conn(host_id).await?;
-        let total = tokio::fs::metadata(local)
+        let meta = tokio::fs::metadata(local)
             .await
-            .map(|m| m.len())
-            .unwrap_or(0);
+            .map_err(|e| SshError::Io(format!("stat {local}: {e}")))?;
+        if meta.is_dir() {
+            // 로컬 트리를 훑어 (파일 목록, 총 바이트)을 먼저 수집한 뒤 순차 업로드.
+            let mut files: Vec<(String, String, u64)> = Vec::new();
+            // 원격 루트 디렉토리 생성(이미 있으면 무시).
+            let _ = conn.sftp.create_dir(remote).await;
+            let mut stack = vec![(local.to_string(), remote.to_string())];
+            while let Some((ldir, rdir)) = stack.pop() {
+                let mut rd = tokio::fs::read_dir(&ldir)
+                    .await
+                    .map_err(|e| SshError::Io(format!("read_dir {ldir}: {e}")))?;
+                while let Some(ent) = rd
+                    .next_entry()
+                    .await
+                    .map_err(|e| SshError::Io(format!("read_dir {ldir}: {e}")))?
+                {
+                    let name = ent.file_name().to_string_lossy().to_string();
+                    let lp = ent.path().to_string_lossy().to_string();
+                    let rp = format!("{}/{}", rdir.trim_end_matches('/'), name);
+                    let ft = ent
+                        .file_type()
+                        .await
+                        .map_err(|e| SshError::Io(format!("stat {lp}: {e}")))?;
+                    if ft.is_dir() {
+                        let _ = conn.sftp.create_dir(&rp).await;
+                        stack.push((lp, rp));
+                    } else if ft.is_file() {
+                        let sz = ent.metadata().await.map(|m| m.len()).unwrap_or(0);
+                        files.push((lp, rp, sz));
+                    }
+                    // 심볼릭 링크 등은 건너뛴다.
+                }
+            }
+            let total: u64 = files.iter().map(|f| f.2).sum();
+            let mut done: u64 = 0;
+            (self.progress)(transfer_id.to_string(), 0, total);
+            for (lp, rp, _sz) in files {
+                done += self
+                    .stream_upload(&conn, &lp, &rp, transfer_id, done, total)
+                    .await?;
+            }
+            Ok(done)
+        } else {
+            let total = meta.len();
+            (self.progress)(transfer_id.to_string(), 0, total);
+            self.stream_upload(&conn, local, remote, transfer_id, 0, total)
+                .await
+        }
+    }
+
+    /// 단일 로컬 파일을 원격으로 스트리밍. 진행은 (base + 파일내 누적) / total 로 보고.
+    async fn stream_upload(
+        &self,
+        conn: &Arc<SftpConn>,
+        local: &str,
+        remote: &str,
+        transfer_id: &str,
+        base: u64,
+        total: u64,
+    ) -> Result<u64, SshError> {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
         let mut inp = tokio::fs::File::open(local)
             .await
             .map_err(|e| SshError::Io(format!("open {local}: {e}")))?;
@@ -224,7 +342,6 @@ impl SftpManager {
             .map_err(|e| SshError::Channel(format!("create {remote}: {e}")))?;
         let mut buf = vec![0u8; 64 * 1024];
         let mut done: u64 = 0;
-        (self.progress)(transfer_id.to_string(), 0, total);
         loop {
             let n = inp
                 .read(&mut buf)
@@ -237,7 +354,7 @@ impl SftpManager {
                 .await
                 .map_err(|e| SshError::Channel(format!("write {remote}: {e}")))?;
             done += n as u64;
-            (self.progress)(transfer_id.to_string(), done, total);
+            (self.progress)(transfer_id.to_string(), base + done, total);
         }
         let _ = rf.flush().await;
         let _ = rf.shutdown().await;
