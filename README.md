@@ -58,8 +58,8 @@ an SSH host manager, and a dual-pane SFTP file browser, in one fast desktop app.
   - Dead-session detection — if the connection drops (e.g. after sleep), the tab says so
     and **Enter reconnects in place** (back into tmux when auto-attach is set).
   - Command history search (`Ctrl/⌘ + R`), inline autocomplete from history (accept with
-    `→`/`End`; `Tab` stays shell completion), and a configurable default start directory for
-    new terminals.
+    `Shift + →`; `Tab` stays shell completion and `→`/`End` stay cursor movement), and a
+    configurable default start directory for new terminals.
 - **UI**
   - Collapsible left host panel and right AI panel, with draggable widths.
   - 11 UI languages (auto-detected from your OS locale, switchable in Settings).

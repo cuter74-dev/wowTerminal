@@ -1165,29 +1165,47 @@ export function Terminal({
         setHistorySearch(true);
         return false; // PTY로 보내지 않음 — 앱이 처리
       }
-      // 인라인 제안 수락 = Tab (#127). 종전엔 →/End였으나 순수 커서 이동과 겹쳐서 Tab으로 변경.
-      // 제안이 떠 있으면(제안은 커서가 줄 끝일 때만 존재) Tab으로 수락하고, 제안이 없으면 평소대로
-      // 셸 자동완성(파일/디렉터리/명령)으로 통과한다. →/End는 이제 순수 커서 이동(가로채지 않음).
-      if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) {
-        if (
-          !e.shiftKey &&
-          suggestionRef.current &&
-          // 대체 화면 TUI(vim/tmux/less 등)에선 제안이 없고 Tab은 앱/셸 완성으로 넘긴다.
-          term.buffer.active.type !== "alternate"
-        ) {
-          const rest = suggestionRef.current.slice(lineBufRef.current.length);
-          if (rest) {
-            e.preventDefault();
+      // 인라인 제안 수락 = Shift+→ (#139). 이 키는 두 번 뒤집힌 이력이 있다:
+      //   #102 Tab → →/End  (Tab이 셸 완성과 충돌: 제안이 뜨면 셸 완성을 못 함)
+      //   #127 →/End → Tab  (→/End가 순수 커서 이동과 충돌, tmux/TUI에서 무동작)
+      // 즉 #127이 #102가 Tab을 버린 이유를 되돌려 셸 완성 충돌이 되살아났다. Shift+→는
+      // 셸에 기본 바인딩이 없어(터미널은 \e[1;2C 전송) 양쪽 충돌이 모두 없다 — Tab은 항상
+      // 셸 완성, →/End 단독은 순수 커서 이동으로 각각 제자리를 찾는다.
+      // 프롬프트(일반 화면)에서 **모디파이어 + 방향키는 전부 삼킨다**(#139). 셸에는 이
+      // 시퀀스(\e[1;2C 류) 바인딩이 없어 그대로 흘리면 앞부분(\e[1)만 먹히고 나머지가
+      // ";2C" 처럼 화면에 그대로 찍힌다(실측). 삼키는 쪽이 쓰레기 문자보다 낫다.
+      // 유일한 동작은 Shift+→ — 인라인 제안이 떠 있으면 수락한다(없으면 무동작).
+      // 대체 화면 TUI(vim/less/tmux 등)는 이 시퀀스를 제대로 처리하므로 그쪽은 통과.
+      // ⌘↑/⌘↓(명령 점프)는 이 블록보다 앞에서 처리되므로 영향받지 않는다.
+      const isArrowKey =
+        e.key === "ArrowLeft" ||
+        e.key === "ArrowRight" ||
+        e.key === "ArrowUp" ||
+        e.key === "ArrowDown";
+      if (
+        isArrowKey &&
+        (e.shiftKey || e.altKey || e.metaKey || e.ctrlKey) &&
+        term.buffer.active.type !== "alternate"
+      ) {
+        e.preventDefault();
+        // 제안 수락은 다른 모디파이어가 섞이지 않은 순수 Shift+→ 일 때만.
+        if (e.key === "ArrowRight" && e.shiftKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+          const sug = suggestionRef.current;
+          const rest = sug ? sug.slice(lineBufRef.current.length) : "";
+          if (sug && rest) {
             writeToSession(rest);
-            lineBufRef.current = suggestionRef.current;
+            lineBufRef.current = sug;
             suggestionRef.current = null;
             setSuggestion(null);
-            return false;
           }
         }
-        // 제안 없음 → 셸 완성으로 통과. Shift+Tab은 역탭 \e[Z.
+        return false;
+      }
+      // Tab은 언제나 셸 완성(파일/디렉터리/명령)으로 통과한다 — 제안 수락은 위 Shift+→ 담당.
+      // 브라우저 기본 포커스 이동만 막는다(포커스가 AI 패널 등으로 넘어가는 것 방지).
+      if (e.key === "Tab" && !e.metaKey && !e.ctrlKey && !e.altKey) {
         e.preventDefault();
-        writeToSession(e.shiftKey ? "\x1b[Z" : "\t");
+        writeToSession(e.shiftKey ? "\x1b[Z" : "\t"); // Shift+Tab은 역탭 \e[Z.
         return false;
       }
       return true;
@@ -1595,7 +1613,7 @@ export function Terminal({
             pointerEvents: "none",
           }}
         >
-          → {suggestion}
+          ⇧→ {suggestion}
         </div>
       )}
       {historySearch && (

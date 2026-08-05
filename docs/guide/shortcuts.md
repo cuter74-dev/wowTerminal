@@ -23,16 +23,17 @@
 | Shortcut | Action |
 |---|---|
 | `Ctrl/⌘ + R` | Search command history |
-| `→` / `End` | Accept the inline autocomplete suggestion (when one is shown at the end of the line) |
+| `Shift + →` | Accept the inline autocomplete suggestion (when one is shown at the end of the line) |
 | `Tab` | Shell completion (file / directory / command) |
 | `Option/Alt + Delete` | Delete the previous word |
 | `⌘ + Delete` | Delete the whole line |
 
 The inline suggestion comes from your command history (plus a few built-in seeds, e.g.
-`claude --dangerously-skip-permissions`). It's the fish / zsh-autosuggestions / Warp
-convention: `Tab` always goes to the shell, `→`/`End` accept the suggestion. Inside
-full-screen apps (vim, `less`, Claude Code, …) the suggestion is disabled, so `→`/`End`
-behave natively.
+`claude --dangerously-skip-permissions`). The accept key is deliberately its own chord:
+`Tab` always goes to the shell for completion, `→`/`End` stay pure cursor movement, and
+`Shift + →` — which no shell binds by default — accepts the suggestion. Inside full-screen
+apps (vim, `less`, Claude Code, …) the suggestion is disabled, so `Shift + →` is passed
+through to the app.
 
 In history search, type to filter, use `↑`/`↓` to move, `Enter` to pick, `Esc` to cancel.
 

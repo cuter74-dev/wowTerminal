@@ -8,9 +8,14 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Added
+- **File browser**: click a column header to sort by **name, size, or modified time**; clicking the same header again flips the direction, and the active column shows ▲/▼. Folders stay grouped at the top regardless of the sort. Each pane keeps its own sort, remembered across sessions. (#138)
 - **File browser**: transferring an item whose name already exists at the destination now asks what to do — **Overwrite** (**Merge** when both sides are folders), **Save as new name** (pre-filled with a free slot such as `report (1).txt`), **Skip**, or **Cancel** — with an "apply to the rest" checkbox so a multi-selection asks only once. Applies to downloads and uploads on every path: the ← / → buttons, the context menu, dragging between panes, and dropping files from the OS. (#137)
 
 ### Changed
+- Inline autocomplete is now accepted with **`Shift + →`**. `Tab` goes back to being shell completion only, and `→`/`End` stay pure cursor movement — so neither key has to serve two purposes. `Tab` had taken over accepting in #127, which brought back the very clash that made #102 drop it: with a suggestion showing, `Tab` accepted it instead of running the shell's own file/command completion. No shell binds `Shift + →` by default, so it collides with neither. The on-screen hint and the docs, which still said `→` after #127, now match the actual key. (#139)
+
+### Fixed
+- Terminal: **modifier + arrow keys no longer type stray characters** at the shell prompt. Sequences like `\e[1;2C` (Shift + →) have no shell binding, so the shell consumed the `\e[1` and echoed the rest — `;2C`, `;2D`, `;3D` and friends landed in the command line. Those chords are now swallowed at the prompt; `Shift + →` still accepts an inline suggestion when one is showing. Plain arrows, `⌘↑`/`⌘↓` command jumping, and full-screen apps (vim, `less`, tmux — which handle the sequences properly) are unaffected. (#139)
 - **File browser**: downloads no longer overwrite a same-named file silently, and the upload overwrite prompt moved from the browser `confirm()` dialog to the in-app modal — `confirm()` is the same WKWebView family as the `prompt()` that froze in #134, and it only ever covered single files. (#137)
 - Release builds now install with `npm ci` instead of `npm install`, pinning dependencies to the lockfile — `npm install` re-resolves caret ranges, so a dependency minor could ship in an auto-update with no source change (the path that produced the xterm 6.0 incident in #85). (#136)
 
