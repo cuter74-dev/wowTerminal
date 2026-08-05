@@ -28,8 +28,14 @@ if (navigator.userAgent.includes("Mac")) {
   document.body.classList.add("plat-mac");
   // composition 머신(네이티브 IME)으로 판별된 적이 있으면 composition-view 숨김을 해제한다
   // — 조합 중 음절이 보이도록(#100). Terminal.tsx가 latch 시에도 이 클래스를 부여한다.
+  // 단 래치는 **현재 환경 지문**에 각인된 것만 신뢰한다(#136). 업데이트/OS변경으로 지문이
+  // 바뀌면 옛 판정으로 클래스를 미리 켜지 않는다(재검출은 Terminal.tsx가 담당).
   try {
-    if (localStorage.getItem("wt.ime.cmp") === "1") {
+    const fp = `${__APP_VERSION__}|${navigator.userAgent}`;
+    if (
+      localStorage.getItem("wt.ime.cmp") === "1" &&
+      localStorage.getItem("wt.ime.cmp.fp") === fp
+    ) {
       document.body.classList.add("wt-native-ime");
     }
   } catch {

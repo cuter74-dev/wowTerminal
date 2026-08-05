@@ -90,7 +90,10 @@ jobs:
             patchelf
 
       - name: Install frontend dependencies
-        run: npm install
+        # npm ci: lockfile 고정 설치. npm install은 caret(^) 범위를 재해석해 xterm 등
+        # 의존성 마이너가 소스 변경 없이 자동업데이트에 실려 IME/출력 동작을 바꿀 수 있다
+        # (#85 xterm 6.0 proposed-API 사건의 재발 경로). 릴리스는 lock에 묶는다(#136).
+        run: npm ci
 
       - name: Build & release
         uses: tauri-apps/tauri-action@v0

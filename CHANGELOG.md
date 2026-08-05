@@ -7,6 +7,13 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **macOS Korean input**: the composition-machine verdict is now stamped with an environment fingerprint (app version + WebView user agent). The `wt.ime.cmp` latch used to outlive app and macOS updates, so a verdict made on the old environment was trusted on the new one — the root cause behind "Korean breaks every time it updates". A fingerprint mismatch now discards the old verdict and re-detects in that session. (#136)
+- **SFTP folder download**: remote directory entries are validated as a single path component before being joined to a local path, so a malicious server answering `..`, `/etc/x` or `a/../b` can no longer write outside the destination folder. Recursion is also bounded (depth 64, 200,000 entries) against symlink loops and oversized trees. (#136)
+
+### Changed
+- Release builds now install with `npm ci` instead of `npm install`, pinning dependencies to the lockfile — `npm install` re-resolves caret ranges, so a dependency minor could ship in an auto-update with no source change (the path that produced the xterm 6.0 incident in #85). (#136)
+
 ## [0.20.8] — 2026-07-23
 
 ### Added

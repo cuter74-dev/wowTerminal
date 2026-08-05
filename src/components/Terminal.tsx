@@ -622,10 +622,33 @@ export function Terminal({
     // 악센트 길게 누르기/받아쓰기 같은 단발 composition은 라틴 문자라 오검출되지 않는다 —
     // v0.14.3의 "단발 composition이 미러를 영영 꺼버림" 회귀를 피하는 핵심 구분점이다.
     const CMP_KEY = "wt.ime.cmp";
+    // 래치를 각인할 환경 지문(#136): 앱 버전 + WebView UA(WebKit 버전 포함). A형(229-only)
+    // ↔ B형(composition) 판정은 앱 업데이트(xterm/tauri 번들 변화)와 macOS WebView 업데이트
+    // 양쪽에 따라 뒤집힌다. 그런데 wt.ime.cmp 래치는 그 변화를 넘어 살아남아, 옛 환경의
+    // 판정을 새 환경에서 그대로 신뢰하면 한글이 깨진다("업데이트할 때마다 깨짐"의 근본).
+    // 래치 저장 시 지문을 함께 쓰고, 지문이 다르면(=업데이트/OS변경) 옛 판정을 버리고 이
+    // 세션에서 새로 감지한다. #133 자가치유는 백스톱으로 유지.
+    const CMP_FP_KEY = "wt.ime.cmp.fp";
+    const envFingerprint = `${__APP_VERSION__}|${navigator.userAgent}`;
     const HANGUL = /[ᄀ-ᇿ㄰-㆏가-힣]/;
+    // "조합이 실제로 살아있다"는 신호(자가치유 비활성용, #136). 라틴 범위(ASCII+Latin-1+
+    // Latin Extended-A/B, ~U+024F) 밖 문자가 조합 결과에 나타나면 = 한글·가나·한자 등을
+    // 조합하는 진짜 IME 머신이다. 악센트 롱프레스(é)·받아쓰기 같은 라틴 단발 composition은
+    // 여기 안 걸려 heal을 굶기지 않고(구 버그), 반대로 일본어/중국어 조합은 걸려 heal이
+    // 오발동해 CJK 입력을 깨뜨리지 않는다(한글 전용으로 좁히면 생기는 회귀).
+    const COMPOSED_ALIVE = /[^\u0000-\u024F]/;
     let compositionMachine = false;
     try {
-      compositionMachine = localStorage.getItem(CMP_KEY) === "1";
+      // 지문이 일치할 때만 래치를 신뢰한다. 지문이 없거나(구버전) 다르면(업데이트/OS변경)
+      // 옛 판정을 버리고 미검출(A형 기본, 미러 준비)로 시작 → 첫 한글 조합에서
+      // markCompositionMachine이 새 지문으로 다시 각인한다(#136).
+      const stored = localStorage.getItem(CMP_KEY) === "1";
+      const fpMatch = localStorage.getItem(CMP_FP_KEY) === envFingerprint;
+      compositionMachine = stored && fpMatch;
+      if (stored && !fpMatch) {
+        localStorage.removeItem(CMP_KEY);
+        localStorage.removeItem(CMP_FP_KEY);
+      }
     } catch {
       /* 무시 */
     }
@@ -641,6 +664,7 @@ export function Terminal({
       stale229 = 0;
       try {
         localStorage.removeItem(CMP_KEY);
+        localStorage.removeItem(CMP_FP_KEY);
       } catch {
         /* 무시 */
       }
@@ -663,6 +687,7 @@ export function Terminal({
       }
       try {
         localStorage.setItem(CMP_KEY, "1");
+        localStorage.setItem(CMP_FP_KEY, envFingerprint); // 현재 환경 지문으로 각인(#136).
       } catch {
         /* 무시 */
       }
@@ -928,13 +953,21 @@ export function Terminal({
       );
       // 최신 WKWebView에서 표준 composition 이벤트가 발생하면 그 사실을 기억해 커스텀 미러를
       // 끈다(한 번이라도 관찰되면 이후 전부 xterm 네이티브 IME에 맡긴다 — 구형은 미러 유지).
+      // 자가치유(#133) 비활성 신호(#136): "아무 composition"도 "한글 전용"도 아니라
+      // **라틴 밖 문자를 조합하는 composition**이어야 한다. 아무 CS로 켜면 악센트·받아쓰기
+      // 라틴 단발이 heal을 굶기고(치유 굶주림), 한글 전용으로 좁히면 일본어/중국어 조합
+      // 세션에서 heal이 오발동해 CJK 입력을 깬다. COMPOSED_ALIVE(=U+024F 초과)면 진짜
+      // 조합 IME가 살아있다는 뜻이라 latch가 유효 → heal 비활성.
+      const markCompositionSeen = (data: string | null) => {
+        if (!data || !COMPOSED_ALIVE.test(data)) return;
+        csSeenSession = true;
+        stale229 = 0;
+      };
       ta.addEventListener("compositionstart", () => {
         imeDiag.nCS++; // [진단 #83]
         scheduleImeDiag();
         composing = true;
         nativeComposition = true;
-        csSeenSession = true; // 이 세션은 composition이 동작 — latch 자가복구(#133) 비활성.
-        stale229 = 0;
         // 조합 머신에선 textarea를 건드리지 않는다 — 네이티브 composition이 소유하므로
         // ta.value를 비우면 조합 중인 음절이 깨진다("한글이 제대로 안 써짐"의 직접 원인).
         if (!compositionMachine) resetIme();
@@ -944,12 +977,14 @@ export function Terminal({
         scheduleImeDiag();
         // 조합 중 한글이 보이면 이 머신은 네이티브 composition으로 한글을 처리한다 — 미러 영구 OFF.
         markCompositionMachine((e as CompositionEvent).data);
+        markCompositionSeen((e as CompositionEvent).data);
       });
       ta.addEventListener("compositionend", (e) => {
         imeDiag.nCE++;
         scheduleImeDiag();
         composing = false;
         markCompositionMachine((e as CompositionEvent).data);
+        markCompositionSeen((e as CompositionEvent).data);
         // 조합 머신으로 확정됐으면 영구히 네이티브 유지(미러로 절대 복귀하지 않음).
         if (compositionMachine) return;
         // (미확정/229-only) 조합이 끝나면 잠깐 뒤 미러 모드로 복귀한다(직후 따라오는 229

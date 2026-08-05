@@ -43,6 +43,24 @@ struct SftpConn {
 /// 전송 진행 콜백: (transfer_id, transferred_bytes, total_bytes).
 pub type ProgressSink = Arc<dyn Fn(String, u64, u64) + Send + Sync>;
 
+/// 원격(신뢰 불가) readdir 이름이 로컬 경로에 안전하게 조인될 수 있는 **단일 경로
+/// 구성요소**인지 검사한다. 빈 문자열/`.`/`..`/구분자 포함/절대경로/다중 컴포넌트를
+/// 모두 거부해 경로 이탈(Zip-Slip류) 다운로드를 막는다(#136).
+fn is_safe_component(name: &str) -> bool {
+    if name.is_empty() || name == "." || name == ".." {
+        return false;
+    }
+    if name.contains('/') || name.contains('\\') {
+        return false;
+    }
+    // std 관점에서도 정확히 1개의 Normal 컴포넌트여야 한다(절대경로/RootDir/prefix 배제).
+    let mut comps = std::path::Path::new(name).components();
+    match (comps.next(), comps.next()) {
+        (Some(std::path::Component::Normal(_)), None) => true,
+        _ => false,
+    }
+}
+
 pub struct SftpManager {
     conns: Mutex<HashMap<String, Arc<SftpConn>>>,
     known_hosts: Arc<KnownHostsStore>,
@@ -171,12 +189,17 @@ impl SftpManager {
             .map_err(|e| SshError::Channel(format!("stat {remote}: {e}")))?;
         if meta.is_dir() {
             // 원격 트리를 훑어 (파일 목록, 총 바이트)을 먼저 수집한 뒤 순차 다운로드.
+            // 악성 서버의 무한/과대 트리(심링크 루프 포함)로 인한 자원 고갈을 막기 위해
+            // 깊이·엔트리 수에 상한을 둔다(#136). search()의 max_depth와 같은 방어.
+            const MAX_DEPTH: usize = 64;
+            const MAX_ENTRIES: usize = 200_000;
             let mut files: Vec<(String, String, u64)> = Vec::new();
+            let mut seen: usize = 0;
             tokio::fs::create_dir_all(local)
                 .await
                 .map_err(|e| SshError::Io(format!("mkdir {local}: {e}")))?;
-            let mut stack = vec![(remote.to_string(), local.to_string())];
-            while let Some((rdir, ldir)) = stack.pop() {
+            let mut stack = vec![(remote.to_string(), local.to_string(), 0usize)];
+            while let Some((rdir, ldir, depth)) = stack.pop() {
                 let entries = conn
                     .sftp
                     .read_dir(&rdir)
@@ -184,8 +207,18 @@ impl SftpManager {
                     .map_err(|e| SshError::Channel(format!("read_dir {rdir}: {e}")))?;
                 for e in entries {
                     let name = e.file_name();
-                    if name == "." || name == ".." {
+                    // 보안(경로 이탈 방지): readdir 엔트리는 반드시 단일 경로 구성요소다.
+                    // 악의적 SFTP 서버가 "..", "/etc/x", "a/../b" 같은 이름을 응답하면
+                    // Path::join이 대상 폴더 밖(절대경로면 통째로 대체)에 파일을 쓰게 되는
+                    // Zip-Slip류 취약점이 된다. 구성요소가 정확히 1개가 아니면 스킵한다(#136).
+                    if !is_safe_component(&name) {
                         continue;
+                    }
+                    seen += 1;
+                    if seen > MAX_ENTRIES {
+                        return Err(SshError::Channel(format!(
+                            "directory tree too large (> {MAX_ENTRIES} entries) — aborting"
+                        )));
                     }
                     let rp = format!("{}/{}", rdir.trim_end_matches('/'), name);
                     let lp = std::path::Path::new(&ldir)
@@ -194,10 +227,14 @@ impl SftpManager {
                         .to_string();
                     let m = e.metadata();
                     if m.is_dir() {
+                        // 깊이 상한 초과 시 더 내려가지 않는다(심링크 루프 방어).
+                        if depth >= MAX_DEPTH {
+                            continue;
+                        }
                         tokio::fs::create_dir_all(&lp)
                             .await
                             .map_err(|e| SshError::Io(format!("mkdir {lp}: {e}")))?;
-                        stack.push((rp, lp));
+                        stack.push((rp, lp, depth + 1));
                     } else {
                         files.push((rp, lp, m.size.unwrap_or(0)));
                     }
@@ -553,5 +590,28 @@ impl SftpManager {
             }
         }
         Ok(hits)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_safe_component;
+
+    #[test]
+    fn safe_component_accepts_normal_names() {
+        for ok in ["file.txt", "폴더", "a.tar.gz", "with space", ".hidden", "..foo", "foo.."] {
+            assert!(is_safe_component(ok), "should accept {ok:?}");
+        }
+    }
+
+    #[test]
+    fn safe_component_rejects_traversal_and_separators() {
+        for bad in [
+            "", ".", "..",
+            "../etc", "a/b", "foo/../bar",
+            "/etc/passwd", "/", "\\", "a\\b", "C:\\x",
+        ] {
+            assert!(!is_safe_component(bad), "should reject {bad:?}");
+        }
     }
 }

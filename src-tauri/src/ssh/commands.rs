@@ -596,6 +596,10 @@ pub async fn sftp_download(
     state: State<'_, SshState>,
 ) -> Result<String, String> {
     let name = basename(&remote_path);
+    // 방어적: basename이 ".."/빈 문자열 등을 돌려주면 local_dir 밖을 가리킬 수 있어 거부(#136).
+    if name.is_empty() || name == "." || name == ".." {
+        return Err("invalid remote file name".to_string());
+    }
     let local_path = PathBuf::from(&local_dir).join(name);
     let local_str = local_path.to_string_lossy().to_string();
     state
