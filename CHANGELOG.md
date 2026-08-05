@@ -7,7 +7,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
-## [0.20.8] — 2026-07-15
+## [0.20.8] — 2026-07-23
 
 ### Added
 - **File browser**: transfer whole folders (recursive up/download) and multi-select files/folders — Cmd/Ctrl+click to toggle, Shift+click for a range; the ← / → buttons and context menu act on the entire selection. (#135)
