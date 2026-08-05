@@ -975,13 +975,66 @@ function uniqueName(name: string, taken: Set<string>): string {
   return `${base} (${taken.size + 1})${ext}`;
 }
 
-// 목록 정렬(디렉토리 우선, 이름순). Panel 표시와 범위 선택(Shift-클릭)이 같은 순서를 쓰도록 공유.
-function sortEntries(listing: Listing | null): FileEntry[] {
+// --- 정렬(#138) ------------------------------------------------------------
+
+export type SortKey = "name" | "size" | "modified";
+export type SortState = { key: SortKey; dir: "asc" | "desc" };
+
+const DEFAULT_SORT: SortState = { key: "name", dir: "asc" };
+
+/**
+ * 열 머리글을 눌렀을 때의 다음 정렬 상태. 같은 열이면 방향만 반전하고, 다른 열로 옮기면
+ * 그 열의 기본 방향으로 시작한다 — 이름은 오름차순, 크기·수정시각은 내림차순(큰 것/최근
+ * 것을 먼저 보는 게 보통이라 한 번 더 누르는 수고를 던다).
+ */
+function nextSort(cur: SortState, key: SortKey): SortState {
+  if (cur.key === key) return { key, dir: cur.dir === "asc" ? "desc" : "asc" };
+  return { key, dir: key === "name" ? "asc" : "desc" };
+}
+
+/**
+ * 목록 정렬. 디렉토리는 정렬 기준과 무관하게 **항상 위에 묶는다**(대부분의 파일 관리자 관행).
+ * Panel 표시와 범위 선택(Shift-클릭)·전송 대상 순서가 반드시 같은 순서를 쓰도록 공유한다 —
+ * 어긋나면 Shift-클릭이 화면에 보이는 것과 다른 파일을 고른다(#135 범위 선택).
+ */
+function sortEntries(listing: Listing | null, sort: SortState = DEFAULT_SORT): FileEntry[] {
   if (!listing) return [];
+  const sign = sort.dir === "asc" ? 1 : -1;
   return [...listing.entries].sort((a, b) => {
     if (a.is_dir !== b.is_dir) return a.is_dir ? -1 : 1;
-    return a.name.localeCompare(b.name);
+    let d = 0;
+    if (sort.key === "size") d = a.size - b.size;
+    else if (sort.key === "modified") d = (a.modified ?? 0) - (b.modified ?? 0);
+    if (d === 0) return a.name.localeCompare(b.name) * (sort.key === "name" ? sign : 1);
+    return d * sign;
   });
+}
+
+const SORT_KEY_STORAGE = "wt.files.sort";
+
+/** 패널별 정렬 상태를 localStorage에서 읽는다. 값이 깨졌으면 기본값. */
+function loadSort(side: "local" | "remote"): SortState {
+  try {
+    const raw = localStorage.getItem(`${SORT_KEY_STORAGE}.${side}`);
+    if (!raw) return DEFAULT_SORT;
+    const v = JSON.parse(raw) as SortState;
+    if (
+      (v.key === "name" || v.key === "size" || v.key === "modified") &&
+      (v.dir === "asc" || v.dir === "desc")
+    )
+      return v;
+  } catch {
+    /* 무시 */
+  }
+  return DEFAULT_SORT;
+}
+
+function saveSort(side: "local" | "remote", sort: SortState) {
+  try {
+    localStorage.setItem(`${SORT_KEY_STORAGE}.${side}`, JSON.stringify(sort));
+  } catch {
+    /* 무시 */
+  }
 }
 
 // 확장자 → 이미지 MIME (미리보기용). 미지원이면 null.
@@ -1032,6 +1085,16 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
   const [remoteSelSet, setRemoteSelSet] = useState<Set<string>>(new Set());
   const localAnchorRef = useRef<string | null>(null);
   const remoteAnchorRef = useRef<string | null>(null);
+  // 패널별 정렬(#138). 표시·범위 선택·전송 순서가 같은 상태를 봐야 하므로 부모가 소유한다.
+  const [localSort, setLocalSort] = useState<SortState>(() => loadSort("local"));
+  const [remoteSort, setRemoteSort] = useState<SortState>(() => loadSort("remote"));
+
+  function changeSort(side: "local" | "remote", key: SortKey) {
+    const cur = side === "local" ? localSort : remoteSort;
+    const next = nextSort(cur, key);
+    (side === "local" ? setLocalSort : setRemoteSort)(next);
+    saveSort(side, next);
+  }
 
   // 행 클릭 → 선택 갱신. 수정자(Cmd/Ctrl=토글, Shift=앵커부터 범위)에 따라 집합을 만든다.
   function clickRow(
@@ -1040,7 +1103,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
     mods: { meta: boolean; shift: boolean },
   ) {
     const listing = side === "local" ? local : remote;
-    const entries = sortEntries(listing);
+    const entries = sortEntries(listing, side === "local" ? localSort : remoteSort);
     const setSet = side === "local" ? setLocalSelSet : setRemoteSelSet;
     const curSet = side === "local" ? localSelSet : remoteSelSet;
     const anchorRef = side === "local" ? localAnchorRef : remoteAnchorRef;
@@ -1431,7 +1494,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
           : remoteSel
             ? [remoteSel.name]
             : [];
-    const entries = sortEntries(remote).filter((e) => names.includes(e.name));
+    const entries = sortEntries(remote, remoteSort).filter((e) => names.includes(e.name));
     if (!entries.length) return;
     // WKWebView는 앱→OS 드래그 아웃을 지원하지 않으므로, 저장할 폴더를 직접 고른다.
     const dir = await openDialog({
@@ -1464,7 +1527,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
           : localSel
             ? [localSel.name]
             : [];
-    const entries = sortEntries(local).filter((e) => names.includes(e.name));
+    const entries = sortEntries(local, localSort).filter((e) => names.includes(e.name));
     if (!entries.length) return;
     const remoteCwd = remote.cwd;
     const plan = await planTransfers(entries, remote, remoteCwd);
@@ -1820,6 +1883,8 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
               onFileActivate={(entry) => void previewLocal(entry)}
               dragging={!!paneDrag?.active}
               joinPath={(cwd, name) => joinLocal(cwd, name)}
+              sort={localSort}
+              onSort={(key) => changeSort("local", key)}
             />
           </div>
           <div
@@ -1869,6 +1934,8 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
               onFileActivate={(entry) => void previewRemote(entry)}
               dragging={!!paneDrag?.active}
               joinPath={(cwd, name) => joinPosix(cwd, name)}
+              sort={remoteSort}
+              onSort={(key) => changeSort("remote", key)}
             />
           </div>
         </div>
@@ -2293,6 +2360,8 @@ function Panel({
   onFileActivate,
   dragging,
   joinPath,
+  sort,
+  onSort,
 }: {
   title: string;
   listing: Listing | null;
@@ -2306,10 +2375,32 @@ function Panel({
   onFileActivate?: (e: FileEntry) => void;
   dragging: boolean;
   joinPath: (cwd: string, name: string) => string;
+  sort: SortState;
+  onSort: (key: SortKey) => void;
 }) {
   const t = useT(STR);
-  const entries = sortEntries(listing);
+  const entries = sortEntries(listing, sort);
   const selCount = selectedNames.size;
+
+  // 정렬 가능한 열 머리글(#138). 활성 열은 밝게 + ▲/▼로 방향 표시.
+  const sortableTh = (key: SortKey, label: string, extra?: React.CSSProperties) => {
+    const active = sort.key === key;
+    return (
+      <th
+        onClick={() => onSort(key)}
+        style={{
+          ...thStyle,
+          ...extra,
+          cursor: "pointer",
+          color: active ? "#cde" : undefined,
+          whiteSpace: "nowrap",
+        }}
+      >
+        {label}
+        {active ? (sort.dir === "asc" ? " ▲" : " ▼") : ""}
+      </th>
+    );
+  };
 
   return (
     <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
@@ -2368,9 +2459,9 @@ function Panel({
           >
             <thead>
               <tr style={{ color: "#789", fontSize: 11 }}>
-                <th style={thStyle}>{t.colName}</th>
-                <th style={{ ...thStyle, width: 80, textAlign: "right" }}>{t.colSize}</th>
-                <th style={{ ...thStyle, width: 150 }}>{t.colModified}</th>
+                {sortableTh("name", t.colName)}
+                {sortableTh("size", t.colSize, { width: 80, textAlign: "right" })}
+                {sortableTh("modified", t.colModified, { width: 150 })}
               </tr>
             </thead>
             <tbody>
