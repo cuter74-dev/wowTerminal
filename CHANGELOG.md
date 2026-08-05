@@ -7,12 +7,16 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- **File browser**: transferring an item whose name already exists at the destination now asks what to do — **Overwrite** (**Merge** when both sides are folders), **Save as new name** (pre-filled with a free slot such as `report (1).txt`), **Skip**, or **Cancel** — with an "apply to the rest" checkbox so a multi-selection asks only once. Applies to downloads and uploads on every path: the ← / → buttons, the context menu, dragging between panes, and dropping files from the OS. (#137)
+
+### Changed
+- **File browser**: downloads no longer overwrite a same-named file silently, and the upload overwrite prompt moved from the browser `confirm()` dialog to the in-app modal — `confirm()` is the same WKWebView family as the `prompt()` that froze in #134, and it only ever covered single files. (#137)
+- Release builds now install with `npm ci` instead of `npm install`, pinning dependencies to the lockfile — `npm install` re-resolves caret ranges, so a dependency minor could ship in an auto-update with no source change (the path that produced the xterm 6.0 incident in #85). (#136)
+
 ### Fixed
 - **macOS Korean input**: the composition-machine verdict is now stamped with an environment fingerprint (app version + WebView user agent). The `wt.ime.cmp` latch used to outlive app and macOS updates, so a verdict made on the old environment was trusted on the new one — the root cause behind "Korean breaks every time it updates". A fingerprint mismatch now discards the old verdict and re-detects in that session. (#136)
 - **SFTP folder download**: remote directory entries are validated as a single path component before being joined to a local path, so a malicious server answering `..`, `/etc/x` or `a/../b` can no longer write outside the destination folder. Recursion is also bounded (depth 64, 200,000 entries) against symlink loops and oversized trees. (#136)
-
-### Changed
-- Release builds now install with `npm ci` instead of `npm install`, pinning dependencies to the lockfile — `npm install` re-resolves caret ranges, so a dependency minor could ship in an auto-update with no source change (the path that produced the xterm 6.0 incident in #85). (#136)
 
 ## [0.20.8] — 2026-07-23
 

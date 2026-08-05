@@ -586,20 +586,34 @@ fn basename(path: &str) -> &str {
         .unwrap_or(path)
 }
 
+/// 목적지 파일명으로 안전한지 검사한다. 경로 구분자나 `.`/`..`가 섞이면 대상 디렉토리 밖을
+/// 가리킬 수 있어 거부한다(#136). 이름 충돌 시 사용자가 고른 새 이름도 같은 경로를 타므로
+/// 원격이 준 basename과 동일하게 검사한다(#137).
+fn validate_dest_name(name: &str) -> Result<(), String> {
+    if name.is_empty()
+        || name == "."
+        || name == ".."
+        || name.contains('/')
+        || name.contains('\\')
+    {
+        return Err(format!("invalid destination name: {name:?}"));
+    }
+    Ok(())
+}
+
 /// 원격 파일을 로컬 디렉토리로 다운로드. 저장된 로컬 경로 반환.
+/// `dest_name`이 있으면 그 이름으로 저장한다 — 이름 충돌 시 "새 이름으로 저장" 선택용(#137).
 #[tauri::command]
 pub async fn sftp_download(
     host_id: String,
     remote_path: String,
     local_dir: String,
     transfer_id: String,
+    dest_name: Option<String>,
     state: State<'_, SshState>,
 ) -> Result<String, String> {
-    let name = basename(&remote_path);
-    // 방어적: basename이 ".."/빈 문자열 등을 돌려주면 local_dir 밖을 가리킬 수 있어 거부(#136).
-    if name.is_empty() || name == "." || name == ".." {
-        return Err("invalid remote file name".to_string());
-    }
+    let name = dest_name.as_deref().unwrap_or_else(|| basename(&remote_path));
+    validate_dest_name(name)?;
     let local_path = PathBuf::from(&local_dir).join(name);
     let local_str = local_path.to_string_lossy().to_string();
     state
@@ -611,18 +625,24 @@ pub async fn sftp_download(
 }
 
 /// 로컬 파일을 원격 디렉토리로 업로드. 업로드된 원격 경로 반환.
+/// `dest_name`이 있으면 그 이름으로 올린다 — 이름 충돌 시 "새 이름으로 저장" 선택용(#137).
 #[tauri::command]
 pub async fn sftp_upload(
     host_id: String,
     local_path: String,
     remote_dir: String,
     transfer_id: String,
+    dest_name: Option<String>,
     state: State<'_, SshState>,
 ) -> Result<String, String> {
-    let name = std::path::Path::new(&local_path)
-        .file_name()
-        .map(|s| s.to_string_lossy().to_string())
-        .ok_or_else(|| "invalid local path".to_string())?;
+    let name = match dest_name {
+        Some(n) => n,
+        None => std::path::Path::new(&local_path)
+            .file_name()
+            .map(|s| s.to_string_lossy().to_string())
+            .ok_or_else(|| "invalid local path".to_string())?,
+    };
+    validate_dest_name(&name)?;
     let remote_path = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
     state
         .sftp

@@ -9,8 +9,6 @@ import { FileEntry, Listing, SearchHit } from "../types";
 const STR: LangDict<{
     errLocal: (e: string) => string;
     errRemote: (e: string) => string;
-    confirmOverwriteLocal: (name: string) => string;
-    confirmOverwriteRemote: (name: string) => string;
     confirmDeleteRemote: (name: string) => string;
     errDelete: (e: string) => string;
     promptNewFolder: string;
@@ -85,10 +83,6 @@ const STR: LangDict<{
   en: {
     errLocal: (e) => `Local: ${e}`,
     errRemote: (e) => `Remote: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' already exists locally. Overwrite?`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' already exists on the remote. Overwrite?`,
     confirmDeleteRemote: (name) => `Delete remote '${name}'?`,
     errDelete: (e) => `Delete: ${e}`,
     promptNewFolder: "New remote folder name:",
@@ -163,10 +157,6 @@ const STR: LangDict<{
   ko: {
     errLocal: (e) => `로컬: ${e}`,
     errRemote: (e) => `원격: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `로컬에 '${name}'이(가) 이미 있습니다. 덮어쓸까요?`,
-    confirmOverwriteRemote: (name) =>
-      `원격에 '${name}'이(가) 이미 있습니다. 덮어쓸까요?`,
     confirmDeleteRemote: (name) => `원격 '${name}'을(를) 삭제할까요?`,
     errDelete: (e) => `삭제: ${e}`,
     promptNewFolder: "새 원격 폴더 이름:",
@@ -241,10 +231,6 @@ const STR: LangDict<{
   es: {
     errLocal: (e) => `Local: ${e}`,
     errRemote: (e) => `Remoto: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' ya existe localmente. ¿Sobrescribir?`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' ya existe en el remoto. ¿Sobrescribir?`,
     confirmDeleteRemote: (name) => `¿Eliminar el remoto '${name}'?`,
     errDelete: (e) => `Eliminar: ${e}`,
     promptNewFolder: "Nombre de la nueva carpeta remota:",
@@ -319,10 +305,6 @@ const STR: LangDict<{
   zh: {
     errLocal: (e) => `本地: ${e}`,
     errRemote: (e) => `远程: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' 在本地已存在。是否覆盖？`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' 在远程已存在。是否覆盖？`,
     confirmDeleteRemote: (name) => `删除远程 '${name}'？`,
     errDelete: (e) => `删除: ${e}`,
     promptNewFolder: "新远程文件夹名称:",
@@ -397,10 +379,6 @@ const STR: LangDict<{
   ja: {
     errLocal: (e) => `ローカル: ${e}`,
     errRemote: (e) => `リモート: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' はローカルに既に存在します。上書きしますか？`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' はリモートに既に存在します。上書きしますか？`,
     confirmDeleteRemote: (name) => `リモートの '${name}' を削除しますか？`,
     errDelete: (e) => `削除: ${e}`,
     promptNewFolder: "新しいリモートフォルダ名:",
@@ -475,10 +453,6 @@ const STR: LangDict<{
   ru: {
     errLocal: (e) => `Локально: ${e}`,
     errRemote: (e) => `Удалённо: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' уже существует локально. Перезаписать?`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' уже существует на удалённом сервере. Перезаписать?`,
     confirmDeleteRemote: (name) => `Удалить удалённый '${name}'?`,
     errDelete: (e) => `Удаление: ${e}`,
     promptNewFolder: "Имя новой удалённой папки:",
@@ -553,10 +527,6 @@ const STR: LangDict<{
   fr: {
     errLocal: (e) => `Local : ${e}`,
     errRemote: (e) => `Distant : ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' existe déjà en local. Écraser ?`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' existe déjà sur le distant. Écraser ?`,
     confirmDeleteRemote: (name) => `Supprimer le distant '${name}' ?`,
     errDelete: (e) => `Suppression : ${e}`,
     promptNewFolder: "Nom du nouveau dossier distant :",
@@ -631,10 +601,6 @@ const STR: LangDict<{
   de: {
     errLocal: (e) => `Lokal: ${e}`,
     errRemote: (e) => `Remote: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' existiert bereits lokal. Überschreiben?`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' existiert bereits auf dem Remote. Überschreiben?`,
     confirmDeleteRemote: (name) => `Remote '${name}' löschen?`,
     errDelete: (e) => `Löschen: ${e}`,
     promptNewFolder: "Name des neuen Remote-Ordners:",
@@ -709,10 +675,6 @@ const STR: LangDict<{
   vi: {
     errLocal: (e) => `Cục bộ: ${e}`,
     errRemote: (e) => `Từ xa: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' đã tồn tại cục bộ. Ghi đè?`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' đã tồn tại trên máy từ xa. Ghi đè?`,
     confirmDeleteRemote: (name) => `Xóa '${name}' trên máy từ xa?`,
     errDelete: (e) => `Xóa: ${e}`,
     promptNewFolder: "Tên thư mục từ xa mới:",
@@ -787,10 +749,6 @@ const STR: LangDict<{
   id: {
     errLocal: (e) => `Lokal: ${e}`,
     errRemote: (e) => `Jarak jauh: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' sudah ada secara lokal. Timpa?`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' sudah ada di server jarak jauh. Timpa?`,
     confirmDeleteRemote: (name) => `Hapus '${name}' di jarak jauh?`,
     errDelete: (e) => `Hapus: ${e}`,
     promptNewFolder: "Nama folder jarak jauh baru:",
@@ -865,10 +823,6 @@ const STR: LangDict<{
   hi: {
     errLocal: (e) => `लोकल: ${e}`,
     errRemote: (e) => `रिमोट: ${e}`,
-    confirmOverwriteLocal: (name) =>
-      `'${name}' पहले से लोकल में मौजूद है। अधिलेखित करें?`,
-    confirmOverwriteRemote: (name) =>
-      `'${name}' पहले से रिमोट पर मौजूद है। अधिलेखित करें?`,
     confirmDeleteRemote: (name) => `रिमोट '${name}' हटाएं?`,
     errDelete: (e) => `हटाएं: ${e}`,
     promptNewFolder: "नए रिमोट फ़ोल्डर का नाम:",
@@ -992,8 +946,33 @@ function joinLocal(cwd: string, name: string): string {
   return `${trimmed}${sep}${name}`;
 }
 
-function nameExists(listing: Listing | null, name: string): boolean {
-  return !!listing?.entries.some((e) => e.name === name);
+// --- 이름 충돌 처리(#137) --------------------------------------------------
+
+/** 충돌 모달의 선택 결과. rename이면 name에 사용자가 정한 이름이 들어온다. */
+type ConflictResolution = {
+  action: "overwrite" | "rename" | "skip" | "cancel";
+  name?: string;
+  applyAll: boolean;
+};
+
+/** 전송 계획 한 건 — destName이 null이면 원래 이름 그대로(=덮어쓰기). */
+type TransferPlan = { entry: FileEntry; destName: string | null };
+
+/**
+ * `taken`에 없는 이름을 만든다: "report.txt" → "report (1).txt" → "report (2).txt".
+ * 선행 점 파일(".bashrc")은 확장자가 없는 것으로 취급해 ".bashrc (1)"이 되게 한다.
+ */
+function uniqueName(name: string, taken: Set<string>): string {
+  if (!taken.has(name)) return name;
+  const dot = name.lastIndexOf(".");
+  const hasExt = dot > 0; // dot === 0 은 ".bashrc" — 확장자 아님
+  const base = hasExt ? name.slice(0, dot) : name;
+  const ext = hasExt ? name.slice(dot) : "";
+  for (let i = 1; i < 1000; i++) {
+    const cand = `${base} (${i})${ext}`;
+    if (!taken.has(cand)) return cand;
+  }
+  return `${base} (${taken.size + 1})${ext}`;
 }
 
 // 목록 정렬(디렉토리 우선, 이름순). Panel 표시와 범위 선택(Shift-클릭)이 같은 순서를 쓰도록 공유.
@@ -1134,6 +1113,88 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
     initial: string;
     onSubmit: (value: string) => void;
   } | null>(null);
+  // 이름 충돌 확인 모달(#137). 전송 전에 대상 폴더에 같은 이름이 있으면 띄우고, 선택을
+  // Promise로 돌려준다(askConflict). 종전엔 다운로드는 무조건 덮어쓰고 업로드만 confirm()으로
+  // 물었는데, confirm()도 prompt()와 같은 WKWebView 계열이라 앱 내부 모달로 통일했다.
+  const [conflict, setConflict] = useState<{
+    entry: FileEntry;
+    existing: FileEntry;
+    destLabel: string;
+    suggestion: string;
+    taken: Set<string>;
+    remaining: number;
+    resolve: (r: ConflictResolution) => void;
+  } | null>(null);
+
+  function askConflict(
+    args: Omit<NonNullable<typeof conflict>, "resolve">,
+  ): Promise<ConflictResolution> {
+    return new Promise((resolve) => {
+      setConflict({
+        ...args,
+        resolve: (r) => {
+          setConflict(null);
+          resolve(r);
+        },
+      });
+    });
+  }
+
+  /**
+   * 전송 대상들을 목적지 목록과 대조해 충돌을 해소한다.
+   * 충돌한 항목마다 모달을 띄우고(“나머지에도 동일 적용”이면 첫 선택을 재사용),
+   * 실제로 보낼 (항목, 목적지 이름) 목록을 만든다. 사용자가 취소하면 null.
+   */
+  async function planTransfers(
+    entries: FileEntry[],
+    dest: Listing | null,
+    destLabel: string,
+  ): Promise<TransferPlan[] | null> {
+    const existingByName = new Map<string, FileEntry>(
+      (dest?.entries ?? []).map((e) => [e.name, e] as const),
+    );
+    // taken은 "이미 있는 이름 + 이번 전송에서 새로 차지한 이름" — 자동 새 이름이 서로 겹치지 않게.
+    const taken = new Set(existingByName.keys());
+    const total = entries.filter((e) => existingByName.has(e.name)).length;
+    const plan: TransferPlan[] = [];
+    let bulk: ConflictResolution | null = null;
+    let seen = 0;
+    for (const entry of entries) {
+      const existing = existingByName.get(entry.name);
+      if (!existing) {
+        plan.push({ entry, destName: null });
+        taken.add(entry.name);
+        continue;
+      }
+      seen++;
+      const asked = bulk === null;
+      // 명시 주석 필수: 아래 `bulk = r`가 bulk의 흐름 타입을 r에 의존시켜, 주석이 없으면
+      // r ↔ bulk 순환 추론(TS7022)이 된다.
+      const r: ConflictResolution =
+        bulk ??
+        (await askConflict({
+          entry,
+          existing,
+          destLabel,
+          suggestion: uniqueName(entry.name, taken),
+          taken,
+          remaining: total - seen,
+        }));
+      if (asked && r.applyAll) bulk = r;
+      if (r.action === "cancel") return null;
+      if (r.action === "skip") continue;
+      if (r.action === "overwrite") {
+        plan.push({ entry, destName: null });
+        continue;
+      }
+      // rename — 모달을 직접 띄운 항목만 사용자가 입력한 이름을 쓰고, 일괄 적용으로 따라온
+      // 항목들은 각자 자동 제안 이름을 받는다(첫 항목 이름을 재사용하면 안 되므로).
+      const chosen = asked && r.name && !taken.has(r.name) ? r.name : uniqueName(entry.name, taken);
+      taken.add(chosen);
+      plan.push({ entry, destName: chosen });
+    }
+    return plan;
+  }
 
   const loadLocal = useCallback(async (path?: string) => {
     try {
@@ -1244,20 +1305,52 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
         const r = remoteRef.current;
         if (!r) return;
         const remoteCwd = r.cwd;
-        for (const path of p.paths) {
-          const name = path.split(/[\\/]/).pop() || path;
-          const id = newTransferId();
-          setTransfers((prev) => [
-            ...prev,
-            { id, label: `↑ ${name}`, direction: "up", transferred: 0, total: 0, status: "active" },
-          ]);
-          void invoke("sftp_upload", { hostId, localPath: path, remoteDir: remoteCwd, transferId: id })
-            .then(() => {
-              updateTransfer(id, { status: "done" });
-              void loadRemote(remoteCwd);
+        // OS에서 끌어온 경로는 이름만 알 수 있으므로(폴더 여부·크기 미상) 합성 항목으로
+        // 이름 충돌만 검사한다. 원본 경로는 항목 참조로 되찾는다(이름이 겹칠 수 있어 Map).
+        const pathOf = new Map<FileEntry, string>();
+        const dropped = p.paths.map((path) => {
+          const entry: FileEntry = {
+            name: path.split(/[\\/]/).pop() || path,
+            is_dir: false,
+            size: 0,
+          };
+          pathOf.set(entry, path);
+          return entry;
+        });
+        void (async () => {
+          const plan = await planTransfers(dropped, r, remoteCwd);
+          if (!plan) return;
+          for (const item of plan) {
+            const path = pathOf.get(item.entry);
+            if (!path) continue;
+            const id = newTransferId();
+            setTransfers((prev) => [
+              ...prev,
+              {
+                id,
+                label: item.destName
+                  ? `↑ ${item.entry.name} → ${item.destName}`
+                  : `↑ ${item.entry.name}`,
+                direction: "up",
+                transferred: 0,
+                total: 0,
+                status: "active",
+              },
+            ]);
+            void invoke("sftp_upload", {
+              hostId,
+              localPath: path,
+              remoteDir: remoteCwd,
+              transferId: id,
+              destName: item.destName,
             })
-            .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
-        }
+              .then(() => {
+                updateTransfer(id, { status: "done" });
+                void loadRemote(remoteCwd);
+              })
+              .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
+          }
+        })();
       })
       .then((f) => {
         un = f;
@@ -1267,22 +1360,31 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
   }, []);
 
   // 단일 원격 항목(파일/폴더)을 지정 로컬 폴더로 다운로드하고 전송 큐에 등록.
-  function queueDownload(entry: FileEntry, localDir: string, refresh: boolean) {
+  // destName이 있으면 그 이름으로 저장한다(이름 충돌 시 "새 이름으로 저장").
+  function queueDownload(
+    entry: FileEntry,
+    localDir: string,
+    refresh: boolean,
+    destName: string | null = null,
+  ) {
     if (!remote) return;
     const id = newTransferId();
     const remotePath = joinPosix(remote.cwd, entry.name);
+    const slash = entry.is_dir ? "/" : "";
     setTransfers((prev) => [
       ...prev,
       {
         id,
-        label: `↓ ${entry.name}${entry.is_dir ? "/" : ""}`,
+        label: destName
+          ? `↓ ${entry.name}${slash} → ${destName}${slash}`
+          : `↓ ${entry.name}${slash}`,
         direction: "down",
         transferred: 0,
         total: entry.is_dir ? 0 : entry.size,
         status: "active",
       },
     ]);
-    void invoke("sftp_download", { hostId, remotePath, localDir, transferId: id })
+    void invoke("sftp_download", { hostId, remotePath, localDir, transferId: id, destName })
       .then(() => {
         updateTransfer(id, { status: "done" });
         if (refresh && localDir === local?.cwd) void loadLocal(localDir);
@@ -1291,22 +1393,26 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
   }
 
   // 단일 로컬 항목(파일/폴더)을 원격 cwd로 업로드하고 전송 큐에 등록.
-  function queueUpload(entry: FileEntry, remoteDir: string) {
+  // destName이 있으면 그 이름으로 올린다(이름 충돌 시 "새 이름으로 저장").
+  function queueUpload(entry: FileEntry, remoteDir: string, destName: string | null = null) {
     if (!local) return;
     const id = newTransferId();
     const localPath = joinLocal(local.cwd, entry.name);
+    const slash = entry.is_dir ? "/" : "";
     setTransfers((prev) => [
       ...prev,
       {
         id,
-        label: `↑ ${entry.name}${entry.is_dir ? "/" : ""}`,
+        label: destName
+          ? `↑ ${entry.name}${slash} → ${destName}${slash}`
+          : `↑ ${entry.name}${slash}`,
         direction: "up",
         transferred: 0,
         total: entry.is_dir ? 0 : entry.size,
         status: "active",
       },
     ]);
-    void invoke("sftp_upload", { hostId, localPath, remoteDir, transferId: id })
+    void invoke("sftp_upload", { hostId, localPath, remoteDir, transferId: id, destName })
       .then(() => {
         updateTransfer(id, { status: "done" });
         void loadRemote(remoteDir);
@@ -1334,11 +1440,21 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
       defaultPath: local?.cwd,
     });
     if (typeof dir !== "string") return;
-    for (const entry of entries) queueDownload(entry, dir, true);
+    // 저장 폴더의 목록을 읽어 이름 충돌을 먼저 해소한다. 목록을 못 읽으면(권한 등) 충돌 검사
+    // 없이 진행 — 전송이 실패하면 큐에 에러로 남는다.
+    let dest: Listing | null = null;
+    try {
+      dest = await invoke<Listing>("local_list_dir", { path: dir });
+    } catch {
+      dest = null;
+    }
+    const plan = await planTransfers(entries, dest, dir);
+    if (!plan) return;
+    for (const p of plan) queueDownload(p.entry, dir, true, p.destName);
   }
 
-  // 선택된 로컬 항목(들)을 원격 cwd로 업로드(#135).
-  function doUpload(primary?: FileEntry) {
+  // 선택된 로컬 항목(들)을 원격 cwd로 업로드(#135). 이름 충돌은 항목마다 모달로 확인.
+  async function doUpload(primary?: FileEntry) {
     if (!local || !remote) return;
     const names =
       localSelSet.size > 0
@@ -1350,22 +1466,28 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
             : [];
     const entries = sortEntries(local).filter((e) => names.includes(e.name));
     if (!entries.length) return;
-    // 단일 파일 덮어쓰기만 확인(다중/폴더는 병합 업로드).
-    if (
-      entries.length === 1 &&
-      !entries[0].is_dir &&
-      nameExists(remote, entries[0].name) &&
-      !confirm(t.confirmOverwriteRemote(entries[0].name))
-    )
-      return;
     const remoteCwd = remote.cwd;
-    for (const entry of entries) queueUpload(entry, remoteCwd);
+    const plan = await planTransfers(entries, remote, remoteCwd);
+    if (!plan) return;
+    for (const p of plan) queueUpload(p.entry, remoteCwd, p.destName);
+  }
+
+  // 패널 간 드래그 업로드 — 끌어놓은 한 항목만 원격 cwd로.
+  async function doUploadTo(entry: FileEntry) {
+    if (!local || !remote) return;
+    const remoteCwd = remote.cwd;
+    const plan = await planTransfers([entry], remote, remoteCwd);
+    if (!plan) return;
+    for (const p of plan) queueUpload(p.entry, remoteCwd, p.destName);
   }
 
   // 패널 간 드래그 다운로드 — 폴더 선택 없이 현재 로컬 폴더로 바로 저장.
-  function doDownloadTo(entry: FileEntry) {
+  async function doDownloadTo(entry: FileEntry) {
     if (!remote || !local) return;
-    queueDownload(entry, local.cwd, true);
+    const localCwd = local.cwd;
+    const plan = await planTransfers([entry], local, localCwd);
+    if (!plan) return;
+    for (const p of plan) queueDownload(p.entry, localCwd, true, p.destName);
   }
 
   // 패널 간 pointer 드래그: 이동 임계를 넘으면 active, mouseup 시 반대 패널 위면 전송.
@@ -1390,9 +1512,8 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
           );
         };
         // 드래그는 끌어놓은 그 항목만 전송(다중 선택 집합과 무관).
-        if (d.from === "local" && inRect(remotePanelRef) && remote)
-          queueUpload(d.entry, remote.cwd);
-        else if (d.from === "remote" && inRect(localPanelRef)) doDownloadTo(d.entry);
+        if (d.from === "local" && inRect(remotePanelRef) && remote) void doUploadTo(d.entry);
+        else if (d.from === "remote" && inRect(localPanelRef)) void doDownloadTo(d.entry);
       }
       if (paneDragRef.current) setPaneDrag(null);
     }
@@ -1724,7 +1845,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
               ←
             </button>
             <button
-              onClick={() => doUpload()}
+              onClick={() => void doUpload()}
               disabled={localSelSet.size === 0 && !localSel}
               title={t.uploadTitle}
               style={arrowBtnStyle(localSelSet.size > 0 || !!localSel)}
@@ -1773,8 +1894,8 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
                 ? void previewRemote(menu.entry)
                 : void previewLocal(menu.entry)
             }
-            onDownload={() => doDownload(menu.entry)}
-            onUpload={() => doUpload(menu.entry)}
+            onDownload={() => void doDownload(menu.entry)}
+            onUpload={() => void doUpload(menu.entry)}
             onRename={() => void renameRemote(menu.entry)}
             onDelete={() => void deleteRemoteEntry(menu.entry)}
             onProps={() => setPermEdit(menu.entry)}
@@ -1789,6 +1910,19 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
               void applyChmod(permEdit, mode);
               setPermEdit(null);
             }}
+          />
+        )}
+
+        {conflict && (
+          <ConflictModal
+            key={`${conflict.destLabel}/${conflict.entry.name}`}
+            entry={conflict.entry}
+            existing={conflict.existing}
+            destLabel={conflict.destLabel}
+            suggestion={conflict.suggestion}
+            taken={conflict.taken}
+            remaining={conflict.remaining}
+            onResolve={conflict.resolve}
           />
         )}
 
@@ -2300,6 +2434,417 @@ function Panel({
             </tbody>
           </table>
         )}
+      </div>
+    </div>
+  );
+}
+
+// 충돌 모달 전용 사전(#137) — 컴포넌트 로컬 사전 + en 폴백(i18n.tsx 설계).
+const CONFLICT_STR: LangDict<{
+  title: string;
+  inDest: (dest: string) => string;
+  existing: string;
+  incoming: string;
+  folderHint: string;
+  newName: string;
+  nameTaken: string;
+  invalidName: string;
+  overwrite: string;
+  merge: string;
+  skip: string;
+  saveAs: string;
+  applyAll: (n: number) => string;
+  cancel: string;
+  unknown: string;
+}> = {
+  en: {
+    title: "An item with the same name already exists",
+    inDest: (dest) => `In ${dest}`,
+    existing: "Existing",
+    incoming: "New",
+    folderHint: "Merging keeps the existing files and overwrites only files with the same name.",
+    newName: "New name",
+    nameTaken: "That name is already taken.",
+    invalidName: "Invalid name.",
+    overwrite: "Overwrite",
+    merge: "Merge",
+    skip: "Skip",
+    saveAs: "Save as new name",
+    applyAll: (n) => `Apply to the remaining ${n}`,
+    cancel: "Cancel",
+    unknown: "—",
+  },
+  ko: {
+    title: "같은 이름이 이미 있습니다",
+    inDest: (dest) => `대상: ${dest}`,
+    existing: "기존",
+    incoming: "새 항목",
+    folderHint: "병합하면 기존 파일은 남고 같은 이름의 파일만 덮어씁니다.",
+    newName: "새 이름",
+    nameTaken: "그 이름도 이미 있습니다.",
+    invalidName: "사용할 수 없는 이름입니다.",
+    overwrite: "덮어쓰기",
+    merge: "병합",
+    skip: "건너뛰기",
+    saveAs: "새 이름으로 저장",
+    applyAll: (n) => `나머지 ${n}개에도 동일 적용`,
+    cancel: "취소",
+    unknown: "—",
+  },
+  es: {
+    title: "Ya existe un elemento con el mismo nombre",
+    inDest: (dest) => `En ${dest}`,
+    existing: "Existente",
+    incoming: "Nuevo",
+    folderHint:
+      "Al combinar se conservan los archivos existentes y solo se sobrescriben los del mismo nombre.",
+    newName: "Nuevo nombre",
+    nameTaken: "Ese nombre ya está en uso.",
+    invalidName: "Nombre no válido.",
+    overwrite: "Sobrescribir",
+    merge: "Combinar",
+    skip: "Omitir",
+    saveAs: "Guardar con nuevo nombre",
+    applyAll: (n) => `Aplicar a los ${n} restantes`,
+    cancel: "Cancelar",
+    unknown: "—",
+  },
+  zh: {
+    title: "已存在同名项目",
+    inDest: (dest) => `目标：${dest}`,
+    existing: "现有",
+    incoming: "新的",
+    folderHint: "合并将保留现有文件，仅覆盖同名文件。",
+    newName: "新名称",
+    nameTaken: "该名称已被占用。",
+    invalidName: "名称无效。",
+    overwrite: "覆盖",
+    merge: "合并",
+    skip: "跳过",
+    saveAs: "另存为新名称",
+    applyAll: (n) => `对其余 ${n} 项应用相同操作`,
+    cancel: "取消",
+    unknown: "—",
+  },
+  ja: {
+    title: "同じ名前の項目がすでにあります",
+    inDest: (dest) => `保存先: ${dest}`,
+    existing: "既存",
+    incoming: "新規",
+    folderHint: "統合すると既存のファイルは残り、同名のファイルだけ上書きされます。",
+    newName: "新しい名前",
+    nameTaken: "その名前もすでに使われています。",
+    invalidName: "使用できない名前です。",
+    overwrite: "上書き",
+    merge: "統合",
+    skip: "スキップ",
+    saveAs: "新しい名前で保存",
+    applyAll: (n) => `残り ${n} 件にも同じ操作を適用`,
+    cancel: "キャンセル",
+    unknown: "—",
+  },
+  ru: {
+    title: "Объект с таким именем уже существует",
+    inDest: (dest) => `В ${dest}`,
+    existing: "Существующий",
+    incoming: "Новый",
+    folderHint:
+      "При объединении существующие файлы сохраняются, перезаписываются только одноимённые.",
+    newName: "Новое имя",
+    nameTaken: "Это имя уже занято.",
+    invalidName: "Недопустимое имя.",
+    overwrite: "Перезаписать",
+    merge: "Объединить",
+    skip: "Пропустить",
+    saveAs: "Сохранить под новым именем",
+    applyAll: (n) => `Применить к остальным (${n})`,
+    cancel: "Отмена",
+    unknown: "—",
+  },
+  fr: {
+    title: "Un élément du même nom existe déjà",
+    inDest: (dest) => `Dans ${dest}`,
+    existing: "Existant",
+    incoming: "Nouveau",
+    folderHint:
+      "La fusion conserve les fichiers existants et n'écrase que ceux qui portent le même nom.",
+    newName: "Nouveau nom",
+    nameTaken: "Ce nom est déjà pris.",
+    invalidName: "Nom invalide.",
+    overwrite: "Remplacer",
+    merge: "Fusionner",
+    skip: "Ignorer",
+    saveAs: "Enregistrer sous un nouveau nom",
+    applyAll: (n) => `Appliquer aux ${n} restants`,
+    cancel: "Annuler",
+    unknown: "—",
+  },
+  de: {
+    title: "Ein Element mit diesem Namen existiert bereits",
+    inDest: (dest) => `In ${dest}`,
+    existing: "Vorhanden",
+    incoming: "Neu",
+    folderHint:
+      "Beim Zusammenführen bleiben vorhandene Dateien erhalten; nur gleichnamige werden überschrieben.",
+    newName: "Neuer Name",
+    nameTaken: "Dieser Name ist bereits vergeben.",
+    invalidName: "Ungültiger Name.",
+    overwrite: "Überschreiben",
+    merge: "Zusammenführen",
+    skip: "Überspringen",
+    saveAs: "Unter neuem Namen speichern",
+    applyAll: (n) => `Auf die restlichen ${n} anwenden`,
+    cancel: "Abbrechen",
+    unknown: "—",
+  },
+  vi: {
+    title: "Đã có mục trùng tên",
+    inDest: (dest) => `Đích: ${dest}`,
+    existing: "Hiện có",
+    incoming: "Mới",
+    folderHint: "Hợp nhất sẽ giữ các tệp hiện có và chỉ ghi đè tệp trùng tên.",
+    newName: "Tên mới",
+    nameTaken: "Tên đó cũng đã được dùng.",
+    invalidName: "Tên không hợp lệ.",
+    overwrite: "Ghi đè",
+    merge: "Hợp nhất",
+    skip: "Bỏ qua",
+    saveAs: "Lưu với tên mới",
+    applyAll: (n) => `Áp dụng cho ${n} mục còn lại`,
+    cancel: "Hủy",
+    unknown: "—",
+  },
+  id: {
+    title: "Item dengan nama yang sama sudah ada",
+    inDest: (dest) => `Di ${dest}`,
+    existing: "Yang ada",
+    incoming: "Baru",
+    folderHint:
+      "Menggabungkan akan mempertahankan berkas yang ada dan hanya menimpa berkas bernama sama.",
+    newName: "Nama baru",
+    nameTaken: "Nama itu sudah dipakai.",
+    invalidName: "Nama tidak valid.",
+    overwrite: "Timpa",
+    merge: "Gabungkan",
+    skip: "Lewati",
+    saveAs: "Simpan dengan nama baru",
+    applyAll: (n) => `Terapkan ke ${n} sisanya`,
+    cancel: "Batal",
+    unknown: "—",
+  },
+  hi: {
+    title: "इसी नाम की वस्तु पहले से मौजूद है",
+    inDest: (dest) => `गंतव्य: ${dest}`,
+    existing: "मौजूदा",
+    incoming: "नया",
+    folderHint:
+      "मर्ज करने पर मौजूदा फ़ाइलें बनी रहती हैं और केवल समान नाम वाली फ़ाइलें बदली जाती हैं।",
+    newName: "नया नाम",
+    nameTaken: "यह नाम भी पहले से मौजूद है।",
+    invalidName: "अमान्य नाम।",
+    overwrite: "अधिलेखित करें",
+    merge: "मर्ज करें",
+    skip: "छोड़ें",
+    saveAs: "नए नाम से सहेजें",
+    applyAll: (n) => `शेष ${n} पर भी लागू करें`,
+    cancel: "रद्द करें",
+    unknown: "—",
+  },
+};
+
+/**
+ * 이름 충돌 확인 모달(#137) — 덮어쓰기(폴더면 병합) / 새 이름으로 저장 / 건너뛰기 / 취소.
+ * 남은 충돌이 더 있으면 "나머지에도 동일 적용" 체크박스를 노출한다.
+ */
+function ConflictModal({
+  entry,
+  existing,
+  destLabel,
+  suggestion,
+  taken,
+  remaining,
+  onResolve,
+}: {
+  entry: FileEntry;
+  existing: FileEntry;
+  destLabel: string;
+  suggestion: string;
+  taken: Set<string>;
+  remaining: number;
+  onResolve: (r: ConflictResolution) => void;
+}) {
+  const t = useT(CONFLICT_STR);
+  const [name, setName] = useState(suggestion);
+  const [applyAll, setApplyAll] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    inputRef.current?.focus();
+    inputRef.current?.select();
+  }, []);
+
+  const trimmed = name.trim();
+  const invalid = !trimmed || trimmed === "." || trimmed === ".." || /[\\/]/.test(trimmed);
+  const dupe = !invalid && taken.has(trimmed);
+  const canRename = !invalid && !dupe;
+  // 폴더끼리 부딪힌 경우에만 "병합" — 백엔드 재귀 전송이 기존 트리에 덮어쓰며 합친다.
+  const isMerge = entry.is_dir && existing.is_dir;
+
+  const cancel = () => onResolve({ action: "cancel", applyAll: false });
+  const detail = (e: FileEntry, synthetic: boolean) =>
+    synthetic
+      ? t.unknown
+      : `${e.is_dir ? "" : fmtSize(e.size) + " · "}${fmtDate(e.modified) || t.unknown}`;
+
+  return (
+    <div
+      onClick={cancel}
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.5)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1200,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        onKeyDown={(e) => {
+          if (e.key === "Escape") {
+            e.preventDefault();
+            cancel();
+          }
+        }}
+        style={{
+          width: 420,
+          background: "#26262d",
+          border: "1px solid #333",
+          borderRadius: 6,
+          color: "#e6e6e6",
+          padding: 18,
+          fontSize: 13,
+        }}
+      >
+        <strong style={{ fontSize: 14 }}>{t.title}</strong>
+        <div style={{ marginTop: 10, wordBreak: "break-all" }}>
+          {entry.is_dir ? "📁" : "📄"} <strong>{entry.name}</strong>
+        </div>
+        <div style={{ marginTop: 4, color: "#9a9aa5", fontSize: 12, wordBreak: "break-all" }}>
+          {t.inDest(destLabel)}
+        </div>
+        <div
+          style={{
+            marginTop: 12,
+            padding: "8px 10px",
+            background: "#1b1b22",
+            border: "1px solid #3a3a44",
+            borderRadius: 4,
+            fontSize: 12,
+            color: "#c8c8d0",
+            display: "grid",
+            gridTemplateColumns: "auto 1fr",
+            columnGap: 10,
+            rowGap: 4,
+          }}
+        >
+          <span style={{ color: "#9a9aa5" }}>{t.existing}</span>
+          <span>{detail(existing, false)}</span>
+          <span style={{ color: "#9a9aa5" }}>{t.incoming}</span>
+          {/* OS 드래그로 들어온 항목은 크기·시각을 모른다(size 0 · modified 없음) → "—". */}
+          <span>{detail(entry, entry.size === 0 && !entry.modified)}</span>
+        </div>
+        {isMerge && (
+          <div style={{ marginTop: 8, fontSize: 12, color: "#9a9aa5" }}>{t.folderHint}</div>
+        )}
+        <label style={{ display: "block", marginTop: 12, fontSize: 12, color: "#9a9aa5" }}>
+          {t.newName}
+        </label>
+        <input
+          ref={inputRef}
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && canRename) {
+              e.preventDefault();
+              onResolve({ action: "rename", name: trimmed, applyAll });
+            }
+          }}
+          spellCheck={false}
+          autoCapitalize="off"
+          autoCorrect="off"
+          style={{
+            width: "100%",
+            boxSizing: "border-box",
+            marginTop: 4,
+            padding: "8px 10px",
+            background: "#1b1b22",
+            border: `1px solid ${canRename ? "#3a3a44" : "#7a3a3a"}`,
+            borderRadius: 4,
+            color: "#e6e6e6",
+            fontSize: 13,
+            outline: "none",
+          }}
+        />
+        <div style={{ minHeight: 16, marginTop: 4, fontSize: 11, color: "#e06c6c" }}>
+          {invalid ? t.invalidName : dupe ? t.nameTaken : ""}
+        </div>
+        {remaining > 0 && (
+          <label
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              marginTop: 4,
+              fontSize: 12,
+              color: "#c8c8d0",
+            }}
+          >
+            <input
+              type="checkbox"
+              checked={applyAll}
+              onChange={(e) => setApplyAll(e.target.checked)}
+            />
+            {t.applyAll(remaining)}
+          </label>
+        )}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 8,
+            marginTop: 16,
+            flexWrap: "wrap",
+          }}
+        >
+          <button onClick={cancel} style={toolBtnStyle}>
+            {t.cancel}
+          </button>
+          <button
+            onClick={() => onResolve({ action: "skip", applyAll })}
+            style={toolBtnStyle}
+          >
+            {t.skip}
+          </button>
+          <button
+            onClick={() => onResolve({ action: "rename", name: trimmed, applyAll })}
+            disabled={!canRename}
+            style={{ ...toolBtnStyle, opacity: canRename ? 1 : 0.5 }}
+          >
+            {t.saveAs}
+          </button>
+          <button
+            onClick={() => onResolve({ action: "overwrite", applyAll })}
+            style={{
+              ...toolBtnStyle,
+              background: "#0a5380",
+              borderColor: "#4a9eff",
+              color: "#fff",
+            }}
+          >
+            {isMerge ? t.merge : t.overwrite}
+          </button>
+        </div>
       </div>
     </div>
   );
