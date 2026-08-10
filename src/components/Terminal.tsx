@@ -896,7 +896,14 @@ export function Terminal({
     // 일치시킨다. input 이벤트와 compositionend 양쪽에서 호출(둘 다 idempotent).
     const flushMirror = () => {
       if (!ta) return;
-      const full = ta.value;
+      // NBSP 정규화를 **비교 전에** 적용한다(#143). 종전(#100)엔 전송 직전에만 정규화하고
+      // imeSent에는 원본(NBSP 포함)을 저장했는데, macOS가 삭제 도중 스페이스를 NBSP로
+      // 되돌려 쓰면 U+0020≠U+00A0 불일치로 백스페이스 1타마다 "2글자 되감기+스페이스
+      // 재전송"(\x7f\x7f␣)이 나갔다(실측 ring: " "↔NBSP 플립). 그 폭풍이 원격 셸
+      // 재그리기와 얽혀 좁은/랩된 줄에서 "지워도 화면에 글자가 남는" 잔여를 만들었다.
+      // 비교·저장·전송을 전부 정규화 값으로 통일하면 플립은 no-op, 백스페이스는 항상
+      // 정확히 \x7f 1개가 된다.
+      const full = ta.value.replace(/\u00a0/g, " ");
       let c = 0;
       while (c < full.length && c < imeSent.length && full[c] === imeSent[c]) {
         c++;
@@ -920,8 +927,7 @@ export function Terminal({
       imeDiag.mirrorChars += full.length - c; // [진단 #83]
       let out = "";
       for (let i = 0; i < bs; i++) out += "\x7f";
-      // non-breaking space(U+00A0) → 일반 스페이스 정규화 (#100, onData 경로와 동일 이유).
-      out += full.slice(c).replace(/\u00a0/g, " ");
+      out += full.slice(c); // full은 위에서 이미 NBSP 정규화됨(#100·#143).
       if (out) {
         writeToSession(out);
         broadcastInput(paneId ?? "", out);
@@ -1191,6 +1197,17 @@ export function Terminal({
           e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey;
         // 일반 문자/스페이스/백스페이스는 textarea가 받아 미러가 보낸다(xterm 차단).
         if (printable || e.key === "Backspace") {
+          // (#143) 미러가 아는 텍스트가 바닥난 상태의 백스페이스: 붙여넣기(#97 정리로
+          // textarea에 없음) 등 미러 밖에서 셸 라인에 들어간 텍스트가 남아 있어도,
+          // 빈 textarea에는 기본 삭제가 일으킬 input 이벤트가 없어 백스페이스가 통째로
+          // 증발했다("한글은 지워지는데 붙여넣기한 부분부터 안 지워짐" — 실측 재현).
+          // 이 경우 \x7f를 PTY로 직접 보낸다(미러 상태는 빈 그대로라 오염 없음).
+          if (e.key === "Backspace" && ta && ta.value === "") {
+            e.preventDefault();
+            writeToSession("\x7f");
+            broadcastInput(paneId ?? "", "\x7f");
+            return false;
+          }
           return false;
         }
         // Enter/화살표/Ctrl/Cmd/Esc/Tab 등 → 미러 종료 후 xterm 정상 처리로 넘긴다.

@@ -8,7 +8,7 @@ Every task follows this order:
 
 1. **Create a GitHub Issue**
    - Create an issue with `gh issue create` before starting work
-   - Title may be Korean or English; write the goal/scope/definition-of-done in the body
+   - **GitHub issues/commits are English-only; Korean goes to GitLab** (the GitLab mirror carries the Korean issues/commits — this matches the long-standing practice, e.g. "GitHub #83 (English) / GitLab #2 (Korean)"). Write the goal/scope/definition-of-done in the body
 2. **Create a work-log file**
    - Accumulate the day's work in `docs/work-log/YYYY-MM-DD.md`
    - Create it if it doesn't exist, otherwise append
