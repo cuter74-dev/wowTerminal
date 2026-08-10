@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.10] — 2026-08-10
+
 ### Fixed
 - **Android**: adding a host failed with an "io error" and nothing was saved. The config directory came from the `dirs` crate, which treats Android like desktop Linux (`$XDG_CONFIG_HOME`/`$HOME/.config`) — neither exists in an Android app process, so every store (hosts, groups, tags, keys, LLM backends, secrets) pointed at an unwritable path. Android now uses Tauri's `app_config_dir` (the app's internal storage); desktop and iOS keep their existing paths, so no installed user's data moves. (#142)
 - **Windows**: mouse-wheel scrolling now works in the file browser (file panels, the transfer queue, and remote search results). The terminal was unaffected because xterm handles the wheel in JS; the browser's lists relied on native CSS scrolling, which WebView2 was not delivering to this overlay. The lists now translate wheel events into scrolling directly — the same approach the tab bar has used since #124 — with `preventDefault` so platforms where native scrolling works don't scroll twice. (#141)
@@ -497,7 +499,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.9...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.10...HEAD
+[0.20.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.9...v0.20.10
 [0.20.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.8...v0.20.9
 [0.20.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.7...v0.20.8
 [0.20.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.6...v0.20.7
