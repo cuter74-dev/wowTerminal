@@ -8,6 +8,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Fixed
+- **Windows**: mouse-wheel scrolling now works in the file browser (file panels, the transfer queue, and remote search results). The terminal was unaffected because xterm handles the wheel in JS; the browser's lists relied on native CSS scrolling, which WebView2 was not delivering to this overlay. The lists now translate wheel events into scrolling directly — the same approach the tab bar has used since #124 — with `preventDefault` so platforms where native scrolling works don't scroll twice. (#141)
 - **Korean input**: pressing Space to commit a Hangul syllable sometimes duplicated the syllable (Windows) or swallowed the space (macOS). When the committing Space keydown arrives with `isComposing` and a real keyCode, xterm sends the syllable twice — once immediately on keydown and once from `compositionend`'s delayed re-read of the textarea (Enter avoids this because xterm clears the textarea on CR; Space has no such clear). On macOS composition machines the #100 in-composition guard then dropped the immediate sends, losing the space entirely. The app now swallows that keydown and sends the space itself right after xterm's delayed syllable send, so the order is always "syllable, space", exactly once each. Reproduced and verified with a new self-test case (T7). (#140)
 
 ## [0.20.9] — 2026-08-05

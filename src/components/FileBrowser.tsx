@@ -975,6 +975,31 @@ function uniqueName(name: string, taken: Set<string>): string {
   return `${base} (${taken.size + 1})${ext}`;
 }
 
+/**
+ * wheel을 JS 스크롤로 직접 변환한다(#141). Windows(WebView2)에서 이 오버레이의 CSS
+ * 네이티브 휠 스크롤이 동작하지 않는다 — 터미널은 xterm이 wheel을 JS로 처리해 정상인
+ * 것과 대비. 탭바(#124)와 같은 방식으로 직접 처리하고, preventDefault로 네이티브
+ * 스크롤을 눌러 정상 환경(macOS)에서 이중 스크롤이 생기지 않게 한다. React onWheel은
+ * root에 passive로 위임돼 preventDefault가 불가하므로 ref + passive:false로 등록한다.
+ */
+function useWheelScroll(): React.RefObject<HTMLDivElement | null> {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const onWheel = (e: WheelEvent) => {
+      if (e.ctrlKey) return; // 줌 제스처는 통과.
+      // deltaMode: 0=픽셀, 1=라인, 2=페이지 — 픽셀로 환산해 더한다.
+      const scale = e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? el.clientHeight : 1;
+      el.scrollTop += e.deltaY * scale;
+      e.preventDefault();
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
+  return ref;
+}
+
 // --- 정렬(#138) ------------------------------------------------------------
 
 export type SortKey = "name" | "size" | "modified";
@@ -2381,6 +2406,7 @@ function Panel({
   const t = useT(STR);
   const entries = sortEntries(listing, sort);
   const selCount = selectedNames.size;
+  const scrollRef = useWheelScroll(); // Windows 휠 스크롤(#141)
 
   // 정렬 가능한 열 머리글(#138). 활성 열은 밝게 + ▲/▼로 방향 표시.
   const sortableTh = (key: SortKey, label: string, extra?: React.CSSProperties) => {
@@ -2446,7 +2472,7 @@ function Panel({
         )}
       </div>
 
-      <div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+      <div ref={scrollRef} style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
         {busy && <div style={{ padding: 16, color: "#789" }}>{t.loading}</div>}
         {listing && (
           <table
@@ -3154,6 +3180,7 @@ function TransferQueue({
   transfers: TransferItem[];
   onClear: () => void;
 }) {
+  const qScrollRef = useWheelScroll(); // Windows 휠 스크롤(#141)
   const t = useT(STR);
   const active = transfers.filter((tr) => tr.status === "active").length;
   const finished = transfers.length - active;
@@ -3197,7 +3224,7 @@ function TransferQueue({
           </button>
         )}
       </div>
-      <div style={{ overflowY: "auto", padding: "0 12px 8px" }}>
+      <div ref={qScrollRef} style={{ overflowY: "auto", padding: "0 12px 8px" }}>
         {transfers.map((tr) => {
           const pct = tr.total > 0 ? Math.round((tr.transferred / tr.total) * 100) : 0;
           return (
@@ -3272,6 +3299,7 @@ function SearchModal({
   onClose: () => void;
   onNavigate: (path: string, isDir: boolean) => void;
 }) {
+  const hitsScrollRef = useWheelScroll(); // Windows 휠 스크롤(#141)
   const t = useT(STR);
   const [query, setQuery] = useState("");
   const [recursive, setRecursive] = useState(true);
@@ -3361,7 +3389,7 @@ function SearchModal({
           </button>
         </div>
         {err && <div style={{ padding: "0 14px 6px", color: "#fdd", fontSize: 11 }}>{err}</div>}
-        <div style={{ flex: 1, overflowY: "auto", padding: "0 6px 8px" }}>
+        <div ref={hitsScrollRef} style={{ flex: 1, overflowY: "auto", padding: "0 6px 8px" }}>
           {hits === null && (
             <div style={{ color: "#789", textAlign: "center", padding: 24, fontSize: 12 }}>
               {t.enterQuery}
