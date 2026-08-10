@@ -95,6 +95,18 @@ pub fn run() {
             let pty_manager = pty::commands::build_manager(&app.handle(), Arc::clone(&history));
             app.manage(PtyState(pty_manager));
 
+            // 설정 디렉토리. 데스크탑·iOS는 dirs::config_dir() 유지 — 기존 설치의 데이터
+            // 경로를 바꾸지 않는다(iOS는 샌드박스 HOME 기반이라 dirs가 유효 경로를 반환).
+            // Android는 dirs가 Linux처럼 $XDG/$HOME 기반이라 쓰기 불가 경로("/.config" 류)가
+            // 나와 hosts.toml 저장이 "io error"로 실패했다(#142) — Tauri의 app_config_dir
+            // (앱 내부 저장소, /data/user/0/<pkg>/…)를 쓴다. Android는 여태 저장이 안 됐으니
+            // 경로 변경으로 잃을 기존 데이터가 없다.
+            #[cfg(target_os = "android")]
+            let config_dir = app
+                .path()
+                .app_config_dir()
+                .expect("android app config dir");
+            #[cfg(not(target_os = "android"))]
             let config_dir = dirs::config_dir()
                 .map(|p| p.join("wowterminal"))
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
