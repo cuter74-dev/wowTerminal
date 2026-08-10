@@ -15,9 +15,20 @@ env:
 
 jobs:
   testflight:
-    runs-on: macos-15
+    # macos-26: App Store Connect rejects uploads built with anything older than the
+    # iOS 26 SDK (Xcode 26) as of 2026 — macos-15's default Xcode 16.4 fails validation.
+    runs-on: macos-26
     steps:
       - uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        run: |
+          ls -d /Applications/Xcode*.app
+          XC=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          if [ -z "$XC" ]; then XC=/Applications/Xcode.app; fi
+          echo "using $XC"
+          sudo xcode-select -s "$XC"
+          xcodebuild -version
 
       - uses: actions/setup-node@v4
         with:
