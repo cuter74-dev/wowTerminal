@@ -612,6 +612,8 @@ export function Terminal({
     // 조합이 실제 진행 중인 동안(compositionstart~compositionend)만 true. nativeComposition은
     // composition 머신에서 영구 true로 고정되므로 "지금 조합 중"을 별도로 추적한다(#100 중복).
     let composing = false;
+    // 조합을 커밋한 스페이스 keydown을 삼켰고, compositionend 후 공백 전송이 남아 있음(#140).
+    let pendingComposedSpace = false;
     // 일부 macOS(특히 최신 M-시리즈 설치본)는 한글을 **표준 composition 이벤트로** 처리한다
     // — 이런 머신에선 xterm 네이티브 IME가 조합을 완벽히 다루므로 커스텀 미러는 순수 방해다
     // (미러가 음절 첫 229에서 잠깐 켜져 stray를 보내고, imeActive가 영어 전환 후까지 남아
@@ -935,6 +937,18 @@ export function Terminal({
           if (!imeActive && ta.value) ta.value = "";
         }, 0);
       });
+      // (#140) 조합-스페이스 지연 전송: xterm의 compositionend 리스너(먼저 등록)가 음절
+      // 전송 setTimeout을 큐잉한 다음, 나중에 등록된 이 리스너가 공백 setTimeout을 큐잉한다
+      // → 큐 순서상 항상 "음절 → 공백". 전 플랫폼(Windows/Linux 네이티브 IME 포함).
+      ta.addEventListener("compositionend", () => {
+        if (!pendingComposedSpace) return;
+        pendingComposedSpace = false;
+        window.setTimeout(() => {
+          writeToSession(" ");
+          broadcastInput(paneId ?? "", " ");
+          lineBufRef.current += " "; // 제안/히스토리 라인 추적 유지
+        }, 0);
+      });
     }
     // 미러는 macOS에서만 켠다. Windows/Linux는 xterm 네이티브 IME가 한글/CJK를 직접 처리하므로
     // 미러 리스너를 등록하지 않는다(미러가 첫 음절 후 stuck되어 입력을 막던 #88을 근본 차단).
@@ -1103,6 +1117,28 @@ export function Terminal({
             if (t) term.paste(t); // bracketed-paste 모드를 존중해 PTY로 전달.
           })
           .catch(() => {});
+        return false;
+      }
+      // 조합을 커밋하는 스페이스(#140): 그대로 두면 xterm이 음절을 두 번 보낸다 —
+      // CompositionHelper.keydown이 keyCode 32(≠229/모디파이어)에서 finalize(false)로 음절을
+      // 즉시 전송하고, keydown 계속 진행이 스페이스를 전송한 뒤, compositionend의 setTimeout이
+      // textarea를 다시 읽어 음절을 재전송한다(Enter는 CR에서 textarea를 비워 안 겹치지만
+      // 스페이스는 비우기가 없다). mac 조합머신에선 #100 가드(조합 중 onData 폐기)가 즉시
+      // 전송분(음절+공백)을 삼켜 띄어쓰기가 사라진다(T7 실측: "st7-가x"). keydown을 여기서
+      // 삼키고, compositionend 후 xterm의 지연 음절 전송 다음 큐 순서로 공백을 보낸다
+      // (아래 compositionend 리스너). 조합이 계속되는 IME(일본어 변환 스페이스 등)는
+      // compositionend가 안 와 플래그가 남는데, 다음 keydown에서 폐기한다.
+      if (pendingComposedSpace && e.key !== " ") pendingComposedSpace = false;
+      if (
+        e.key === " " &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        (e.isComposing || composing) &&
+        !imeActive
+      ) {
+        e.preventDefault();
+        pendingComposedSpace = true;
         return false;
       }
       // IME 조합 키(keyCode 229). 미러는 구형 macOS WKWebView 전용이다. macOS가 아니거나

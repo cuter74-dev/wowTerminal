@@ -271,6 +271,56 @@ async function runScenarios(): Promise<void> {
   trace("t6-enter");
   await sleep(400);
 
+  // T7 — 조합을 커밋하는 스페이스 (#140): 네이티브 composition 경로에서 스페이스 keydown
+  // (keyCode 32, isComposing=true)이 조합을 끝낼 때, xterm은 음절을 즉시(finalize(false))
+  // + compositionend 지연 재읽기로 두 번 보낸다(Enter는 CR에서 textarea를 비워 안 겹치지만
+  // 스페이스는 비우기가 없다). mac 조합머신에선 #100 가드가 즉시 전송분(음절+공백)을 삼켜
+  // 공백이 사라진다. 실제 이벤트 순서 그대로 합성한다: CS → CU/insertCompositionText →
+  // 스페이스 keydown(조합 중) → CE. 커밋 텍스트는 실 브라우저처럼 textarea에 남겨 둔다
+  // (xterm의 지연 읽기 전에 비우면 재전송분이 사라져 버그가 재현되지 않는다).
+  // 기대 파일: "st7-가 x". 버그 시: "st7-가x"(mac 공백 씹힘) 또는 "st7-가 가x"(중복).
+  trace("t7-begin");
+  await typePlain("echo st7-");
+  {
+    const el = ta();
+    if (el) {
+      el.dispatchEvent(
+        new CompositionEvent("compositionstart", { data: "", bubbles: true }),
+      );
+      el.value = "가";
+      el.dispatchEvent(
+        new CompositionEvent("compositionupdate", { data: "가", bubbles: true }),
+      );
+      el.dispatchEvent(
+        new InputEvent("input", {
+          data: "가",
+          inputType: "insertCompositionText",
+          bubbles: true,
+        }),
+      );
+      // compositionupdate의 setTimeout(0)이 _compositionPosition.end를 잡을 시간.
+      await sleep(30);
+      const sp = new KeyboardEvent("keydown", {
+        key: " ",
+        bubbles: true,
+        cancelable: true,
+      });
+      Object.defineProperty(sp, "keyCode", { get: () => 32 });
+      Object.defineProperty(sp, "isComposing", { get: () => true });
+      el.dispatchEvent(sp);
+      el.dispatchEvent(
+        new CompositionEvent("compositionend", { data: "가", bubbles: true }),
+      );
+      // xterm의 지연 전송(setTimeout 0)이 값을 읽은 뒤에 비운다.
+      await sleep(120);
+      el.value = "";
+    }
+  }
+  await typePlain("x > /tmp/wt-st7.txt");
+  await pressKey("Enter", 13);
+  trace("t7-enter");
+  await sleep(400);
+
   // 완료 마커 (검증 스크립트의 대기 종료용).
   await typePlain("echo done > /tmp/wt-st-done.txt");
   await pressKey("Enter", 13);
