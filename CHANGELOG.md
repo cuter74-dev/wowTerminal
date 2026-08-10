@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.11] — 2026-08-10
+
 ### Fixed
 - **macOS Korean input**: Backspace stopped working partway while erasing a line that mixed pasted text and Hangul. Two mirror-path holes: (1) once the mirror's textarea ran out of characters, its Backspace produced no input event at all, so `\x7f` never reached the PTY and pasted text (cleared from the textarea by #97) could not be erased; a raw `\x7f` is now sent in that case. (2) The mirror diff compared against the raw textarea value while macOS flips spaces to NBSP mid-erase, producing a spurious "rewind 2 + resend space" per keystroke that tangled with the remote shell's redraw on narrow/wrapped lines; the diff, its saved baseline and the outgoing tail are now all NBSP-normalized so the flip is a no-op. Root-caused from captured diagnostics rings (kd/input/echo/lines). (#143)
 
@@ -502,7 +504,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.10...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.11...HEAD
+[0.20.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.10...v0.20.11
 [0.20.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.9...v0.20.10
 [0.20.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.8...v0.20.9
 [0.20.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.7...v0.20.8
