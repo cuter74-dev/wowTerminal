@@ -776,6 +776,8 @@ function BackendForm({
     initial?.defaultModel ?? "",
   );
   const [apiKey, setApiKey] = useState("");
+  // API 키 표시 토글 — 기본은 가림(type=password), 👁로 실제 문자를 확인할 수 있다.
+  const [showApiKey, setShowApiKey] = useState(false);
   // 사고력 강도(#123): "" = 미설정, 또는 low/medium/high.
   const [reasoningEffort, setReasoningEffort] = useState(
     initial?.reasoningEffort ?? "",
@@ -1001,14 +1003,35 @@ function BackendForm({
             : t.apiKeyOptional
         }
       >
-        <input
-          type="password"
-          value={apiKey}
-          onChange={(e) => setApiKey(e.target.value)}
-          placeholder="sk-..."
-          autoComplete="off"
-          style={inputStyle}
-        />
+        <div style={{ display: "flex", gap: 6 }}>
+          <input
+            type={showApiKey ? "text" : "password"}
+            value={apiKey}
+            onChange={(e) => setApiKey(e.target.value)}
+            placeholder="sk-..."
+            autoComplete="off"
+            spellCheck={false}
+            style={{ ...inputStyle, flex: 1, minWidth: 0 }}
+          />
+          <button
+            type="button"
+            onClick={() => setShowApiKey((v) => !v)}
+            title={showApiKey ? "Hide" : "Show"}
+            aria-label={showApiKey ? "Hide API key" : "Show API key"}
+            style={{
+              background: "#101015",
+              border: "1px solid #333",
+              borderRadius: 4,
+              color: showApiKey ? "#4a9eff" : "#888",
+              cursor: "pointer",
+              padding: "0 10px",
+              fontSize: 14,
+              flexShrink: 0,
+            }}
+          >
+            {showApiKey ? "🙈" : "👁"}
+          </button>
+        </div>
       </Field>
 
       {error && <div style={{ color: "#fdd", fontSize: 12 }}>{error}</div>}

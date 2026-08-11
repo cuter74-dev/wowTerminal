@@ -7,6 +7,10 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- LLM backend setup: the API key field has a show/hide (👁) toggle, so the actual characters can be checked while typing or pasting. It stays masked by default and the toggle only affects display. (#145)
+- **Android**: fixed the app UI overlapping the system status bar (edge-to-edge insets), restored the real app icon, hid the empty tab bar on mobile, made the crash screen readable with a Reload button, and let the AI panel header wrap so long backend names no longer push the controls off-screen. (#144)
+
 ## [0.20.11] — 2026-08-10
 
 ### Fixed
