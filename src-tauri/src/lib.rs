@@ -132,27 +132,57 @@ pub fn run() {
             );
             #[cfg(target_os = "ios")]
             let secret_store: Arc<dyn SecretStore> = Arc::new(KeyringStore::new("wowterminal"));
+            // Android는 **지연 초기화**로 감싼다: Argon2id(64MiB) 키 유도가 모바일 CPU에서
+            // 수 초 걸려 setup을 블록하면, 그 사이 웹뷰가 먼저 떠 invoke가
+            // "state not managed" 에러로 실패한다(재시작 직후 AI 탭에서 실측). 첫 시크릿
+            // 사용 시 1회만 초기화하고 setup은 즉시 통과한다.
             #[cfg(target_os = "android")]
             let secret_store: Arc<dyn SecretStore> = {
-                let key_path = config_dir.join("secret.key");
-                let passphrase = match std::fs::read_to_string(&key_path) {
-                    Ok(s) if !s.trim().is_empty() => s,
-                    _ => {
-                        use rand::RngCore;
-                        let mut buf = [0u8; 32];
-                        rand::thread_rng().fill_bytes(&mut buf);
-                        let hex: String = buf.iter().map(|b| format!("{b:02x}")).collect();
-                        let _ = std::fs::write(&key_path, &hex);
-                        hex
+                struct LazyEncryptedStore {
+                    dir: std::path::PathBuf,
+                    inner: std::sync::OnceLock<Arc<dyn SecretStore>>,
+                }
+                impl LazyEncryptedStore {
+                    fn get(&self) -> &Arc<dyn SecretStore> {
+                        self.inner.get_or_init(|| {
+                            let key_path = self.dir.join("secret.key");
+                            let passphrase = match std::fs::read_to_string(&key_path) {
+                                Ok(s) if !s.trim().is_empty() => s,
+                                _ => {
+                                    use rand::RngCore;
+                                    let mut buf = [0u8; 32];
+                                    rand::thread_rng().fill_bytes(&mut buf);
+                                    let hex: String =
+                                        buf.iter().map(|b| format!("{b:02x}")).collect();
+                                    let _ = std::fs::write(&key_path, &hex);
+                                    hex
+                                }
+                            };
+                            Arc::new(
+                                EncryptedFileStore::open_or_create(
+                                    self.dir.join("secrets.enc"),
+                                    passphrase.trim(),
+                                )
+                                .expect("open encrypted secret store"),
+                            )
+                        })
                     }
-                };
-                Arc::new(
-                    EncryptedFileStore::open_or_create(
-                        config_dir.join("secrets.enc"),
-                        passphrase.trim(),
-                    )
-                    .expect("open encrypted secret store"),
-                )
+                }
+                impl secrets::SecretStore for LazyEncryptedStore {
+                    fn save(&self, id: &str, value: &[u8]) -> Result<(), secrets::SecretError> {
+                        self.get().save(id, value)
+                    }
+                    fn load(&self, id: &str) -> Result<secrets::Secret, secrets::SecretError> {
+                        self.get().load(id)
+                    }
+                    fn delete(&self, id: &str) -> Result<(), secrets::SecretError> {
+                        self.get().delete(id)
+                    }
+                }
+                Arc::new(LazyEncryptedStore {
+                    dir: config_dir.clone(),
+                    inner: std::sync::OnceLock::new(),
+                })
             };
 
             // AI backends.toml 로드 후 registry에 등록.
