@@ -595,6 +595,11 @@ export function Terminal({
     // 한글/CJK IME 미러 상태 (자세한 설명은 아래 input 핸들러 참고).
     let imeActive = false;
     let imeSent = "";
+    // (#147) 미러가 꺼진 사이(예: compositionend 후 80ms 네이티브 유예창에 첫 자모 229가
+    // 통과된 경우) IME가 textarea에 넣었지만 PTY로는 전송되지 않은 내용이 있다는 표시.
+    // 이 값을 미러 시작 기준선(imeSent)으로 삼으면 "이미 보낸 것"으로 오인돼, 다음 조합
+    // 되감기의 \x7f가 화면의 엉뚱한 앞 글자를 지운다(실측 ring: sdfas → \x7f아 → sdfa아).
+    let imeUnsynced = false;
     // 최신 WKWebView(예: macOS M-시리즈 최신판)는 표준 composition 이벤트를 정상 발생시킨다.
     // 그런 환경에선 xterm 네이티브 IME가 입력을 처리하므로 커스텀 미러를 꺼야 한다(둘 다
     // 입력을 보내 글자가 중복되는 버그 방지 — 최신 macOS는 영어 입력도 인라인 예측 텍스트로
@@ -889,6 +894,7 @@ export function Terminal({
     const resetIme = () => {
       imeActive = false;
       imeSent = "";
+      imeUnsynced = false; // textarea를 비우므로 미전송 잔류도 함께 소멸(#147).
       if (ta) ta.value = "";
     };
     // textarea.value(항상 올바른 전체 텍스트)와 이미 보낸 부분(imeSent)의 차이를 계산해,
@@ -940,7 +946,10 @@ export function Terminal({
     if (ta) {
       ta.addEventListener("paste", () => {
         setTimeout(() => {
-          if (!imeActive && ta.value) ta.value = "";
+          if (!imeActive && ta.value) {
+            ta.value = "";
+            imeUnsynced = false; // 잔류가 사라졌으니 미전송 표시도 무효(#147).
+          }
         }, 0);
       });
       // (#140) 조합-스페이스 지연 전송: xterm의 compositionend 리스너(먼저 등록)가 음절
@@ -964,7 +973,20 @@ export function Terminal({
       ta.addEventListener(
         "input",
         (ev) => {
-          if (!imeActive) return; // 영어/제어키는 xterm 기존 경로가 담당.
+          if (!imeActive) {
+            // (#147) 미러 OFF 상태에서 textarea에 들어온 입력. 붙여넣기 잔류(#97)는 xterm
+            // paste 핸들러가 이미 전송했으므로 종전대로 무시하지만, IME 조합 삽입(80ms
+            // 유예창에 229가 네이티브로 통과된 첫 자모 등)은 아무도 전송하지 않은 값이다.
+            // 한글/CJK가 보이면 미전송 표시를 남겨, 미러 시작 시 기준선이 아니라 전송
+            // 대상으로 처리되게 한다.
+            if (
+              (ev as InputEvent).inputType !== "insertFromPaste" &&
+              COMPOSED_ALIVE.test(ta.value)
+            ) {
+              imeUnsynced = true;
+            }
+            return; // 영어/제어키는 xterm 기존 경로가 담당.
+          }
           ev.stopImmediatePropagation();
           flushMirror();
           scheduleImeDiag(); // [진단 #83]
@@ -1174,7 +1196,10 @@ export function Terminal({
           // preventDefault하지 않아 전송 후 기본 동작이 같은 텍스트를 textarea에
           // 남긴다)을 기준선으로 잡는다. 빈 기준선으로 시작하면 그 잔류가 통째로
           // 다시 전송돼 "붙여넣기가 또 되는" 중복이 생긴다(#97).
-          imeSent = ta?.value ?? "";
+          // 단, 미러 OFF 중 IME가 넣은 미전송 내용(#147)은 기준선으로 삼지 않는다 —
+          // 빈 기준선이면 다음 flush가 textarea 전체를 전송해 떨어뜨린 자모가 복구된다.
+          imeSent = imeUnsynced ? "" : (ta?.value ?? "");
+          imeUnsynced = false;
         }
         imeActive = true;
         return false;
