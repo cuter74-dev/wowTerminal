@@ -49,7 +49,34 @@ if (navigator.userAgent.includes("Mac")) {
 // prod 빌드에는 StrictMode가 없으므로(1회 실행) 동작 일관성을 위해 제거.
 // Sentry.ErrorBoundary로 감싸 React 렌더 단계의 미처리 에러도 GlitchTip에 보고한다.
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
-  <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
+  <Sentry.ErrorBoundary
+    fallback={
+      // 렌더 크래시 시의 최후 화면(#144) — 검정 배경 위 기본 텍스트는 읽히지 않았다.
+      <div
+        style={{
+          height: "100vh", display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center", gap: 12,
+          background: "#1e1e1e", color: "#e6e6e6",
+          fontFamily: "system-ui, sans-serif", padding: 24, textAlign: "center",
+        }}
+      >
+        <div style={{ fontSize: 40 }}>⚠️</div>
+        <div style={{ fontSize: 18, fontWeight: 600 }}>An unexpected error occurred</div>
+        <div style={{ color: "#9a9aa5", fontSize: 13 }}>
+          The error was reported automatically. Restart the app to continue.
+        </div>
+        <button
+          onClick={() => location.reload()}
+          style={{
+            marginTop: 8, padding: "8px 18px", borderRadius: 6, cursor: "pointer",
+            background: "#0a5380", color: "#fff", border: "1px solid #4a9eff", fontSize: 14,
+          }}
+        >
+          Reload
+        </button>
+      </div>
+    }
+  >
     <App />
   </Sentry.ErrorBoundary>,
 );

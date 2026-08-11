@@ -1011,6 +1011,9 @@ export function AIPanel({
           display: "flex",
           gap: 6,
           alignItems: "center",
+          // 좁은 패널(모바일 시트 등)에서 긴 백엔드 표시명이 우측 버튼들을 화면 밖으로
+          // 밀어내지 않게 줄바꿈 허용(#144 태블릿 실측). 넓은 패널에선 종전처럼 한 줄.
+          flexWrap: "wrap",
         }}
       >
         <strong style={{ color: "#fff", marginRight: "auto" }}>{t.assistant}</strong>
@@ -1026,6 +1029,10 @@ export function AIPanel({
               padding: "4px 6px",
               fontSize: 13,
               maxWidth: 200,
+              // 남는 폭 안에서 유연하게 줄어들 수 있게(#144) — 긴 모델명은 select가
+              // 자체적으로 말줄임한다.
+              minWidth: 0,
+              flex: "0 1 auto",
             }}
           >
             {backends.map((b) => (

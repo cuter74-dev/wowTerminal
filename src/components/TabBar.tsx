@@ -113,12 +113,14 @@ export function TabBar({
     }
   }, [activeTabId, tabs.length]);
 
-  // (#144) 모바일: + 버튼이 없어(로컬 셸 없음 — 탭은 호스트 접속으로만 생긴다) 탭이
-  // 0개면 빈 띠만 남는다. 인셋 수정으로 이 띠가 드러나 보여, 탭이 없으면 숨긴다.
-  if (isMobile && tabs.length === 0) return null;
-
   // 언마운트 시 진행 중인 관성 애니메이션 정리.
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
+
+  // (#144) 모바일: + 버튼이 없어(로컬 셸 없음 — 탭은 호스트 접속으로만 생긴다) 탭이
+  // 0개면 빈 띠만 남는다. 인셋 수정으로 이 띠가 드러나 보여, 탭이 없으면 숨긴다.
+  // 주의: 반드시 **모든 훅 뒤**에서 반환해야 한다 — 훅 사이에 두면 탭 0→1 전환 때
+  // 훅 개수가 달라져 React가 크래시한다(실측: 접속 시 ErrorBoundary로 전락, #144).
+  if (isMobile && tabs.length === 0) return null;
 
   // 세로 휠을 가로 스크롤로 변환(macOS 오버레이 스크롤바가 숨겨져도 휠로 이동) — 목표값으로
   // requestAnimationFrame 보간해 휠 한 칸의 큰 delta가 뚝뚝 끊기지 않고 부드럽게 흐르게 한다(#124).
