@@ -9,9 +9,9 @@ use std::sync::Arc;
 use ai::registry::AiRegistry;
 use pty::commands::PtyState;
 use secrets::SecretStore;
-#[cfg(desktop)]
+#[cfg(any(desktop, target_os = "android"))]
 use secrets::EncryptedFileStore;
-#[cfg(mobile)]
+#[cfg(target_os = "ios")]
 use secrets::KeyringStore;
 use tauri::Manager;
 use windows::DetachedRegistry;
@@ -115,7 +115,13 @@ pub fn run() {
             // secret 저장 (ssh/ai가 같은 store 공유, 키는 각자 id로 네임스페이스).
             // 데스크탑: OS 키링 대신 머신 키 기반 암호화 파일(EncryptedFileStore) — unsigned
             // 빌드에서 macOS Keychain이 매 실행 권한을 묻는 문제를 피한다.
-            // 모바일(iOS/Android): OS 키체인(KeyringStore) — 샌드박스라 파일 머신키가 부적합.
+            // iOS: OS 키체인(KeyringStore).
+            // Android: keyring 크레이트에 Android 백엔드가 없어 인메모리 mock으로 떨어진다 —
+            // 저장이 성공하는 척만 하고 재시작 시 소실돼 API 키/SSH 비번이 전부 증발했다(#146).
+            // 데스크탑과 같은 암호화 파일을 쓰되, machine-uid도 Android 미지원이라 첫 실행에
+            // 생성한 설치별 랜덤 키 파일을 패스프레이즈로 쓴다. 키 파일이 같은 앱 내부
+            // 저장소에 있으므로 보호 경계는 앱 샌드박스 자체다(root 없는 기기에서 타 앱
+            // 접근 불가) — 데스크탑 머신키 방식과 동등한 트레이드오프.
             #[cfg(desktop)]
             let secret_store: Arc<dyn SecretStore> = Arc::new(
                 EncryptedFileStore::open_or_create(
@@ -124,8 +130,30 @@ pub fn run() {
                 )
                 .expect("open encrypted secret store"),
             );
-            #[cfg(mobile)]
+            #[cfg(target_os = "ios")]
             let secret_store: Arc<dyn SecretStore> = Arc::new(KeyringStore::new("wowterminal"));
+            #[cfg(target_os = "android")]
+            let secret_store: Arc<dyn SecretStore> = {
+                let key_path = config_dir.join("secret.key");
+                let passphrase = match std::fs::read_to_string(&key_path) {
+                    Ok(s) if !s.trim().is_empty() => s,
+                    _ => {
+                        use rand::RngCore;
+                        let mut buf = [0u8; 32];
+                        rand::thread_rng().fill_bytes(&mut buf);
+                        let hex: String = buf.iter().map(|b| format!("{b:02x}")).collect();
+                        let _ = std::fs::write(&key_path, &hex);
+                        hex
+                    }
+                };
+                Arc::new(
+                    EncryptedFileStore::open_or_create(
+                        config_dir.join("secrets.enc"),
+                        passphrase.trim(),
+                    )
+                    .expect("open encrypted secret store"),
+                )
+            };
 
             // AI backends.toml 로드 후 registry에 등록.
             let mut ai_state = ai::commands::build_state(config_dir.join("backends.toml"));

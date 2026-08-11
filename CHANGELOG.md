@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Android**: secrets (LLM API keys, saved SSH passwords/passphrases) silently failed to persist — the keyring crate has no Android backend and fell through to an in-memory mock, so saves "succeeded" but requests went out unauthorized and everything vanished on restart. Android now uses the same encrypted-file store as desktop, keyed by a per-install random secret created in the app's private storage (the protection boundary is the app sandbox, matching desktop's machine-key trade-off). iOS keeps the real keychain. (#146)
+
 ### Added
 - LLM backend setup: the API key field has a show/hide (👁) toggle, so the actual characters can be checked while typing or pasting. It stays masked by default and the toggle only affects display. (#145)
 - **Android**: fixed the app UI overlapping the system status bar (edge-to-edge insets), restored the real app icon, hid the empty tab bar on mobile, made the crash screen readable with a Reload button, and let the AI panel header wrap so long backend names no longer push the controls off-screen. (#144)
