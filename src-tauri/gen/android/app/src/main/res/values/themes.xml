@@ -1,0 +1,8 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.wowterminal" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Customize your theme here. -->
+        <!-- (#144) edge-to-edge 인셋 패딩 영역(시스템 바 뒤)이 앱 배경과 이어지게. -->
+        <item name="android:windowBackground">#FF1F1F23</item>
+    </style>
+</resources>

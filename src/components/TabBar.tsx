@@ -113,6 +113,10 @@ export function TabBar({
     }
   }, [activeTabId, tabs.length]);
 
+  // (#144) 모바일: + 버튼이 없어(로컬 셸 없음 — 탭은 호스트 접속으로만 생긴다) 탭이
+  // 0개면 빈 띠만 남는다. 인셋 수정으로 이 띠가 드러나 보여, 탭이 없으면 숨긴다.
+  if (isMobile && tabs.length === 0) return null;
+
   // 언마운트 시 진행 중인 관성 애니메이션 정리.
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
 
