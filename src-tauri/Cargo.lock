@@ -7668,7 +7668,7 @@ dependencies = [
 
 [[package]]
 name = "wowterminal"
-version = "0.20.12"
+version = "0.20.13"
 dependencies = [
  "aes-gcm 0.10.3",
  "anyhow",

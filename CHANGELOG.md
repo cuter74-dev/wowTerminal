@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.13] — 2026-08-12
+
 ### Added
 - File browser: default download folder setting (Settings → General; blank = OS Downloads). The local panel opens there, and downloads save straight into the current local panel folder without a dialog — navigate the panel to change the destination, or use the new context-menu item "Download to…" to pick a one-off folder. (#148)
 
@@ -519,7 +521,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.12...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.13...HEAD
+[0.20.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.12...v0.20.13
 [0.20.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.11...v0.20.12
 [0.20.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.10...v0.20.11
 [0.20.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.9...v0.20.10
