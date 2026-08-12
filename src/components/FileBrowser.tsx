@@ -3,7 +3,12 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { open as openDialog } from "@tauri-apps/plugin-dialog";
+import {
+  downloadDir as osDownloadDir,
+  homeDir as osHomeDir,
+} from "@tauri-apps/api/path";
 import { LangDict, useT } from "../i18n";
+import { loadSettings } from "../settings";
 import { FileEntry, Listing, SearchHit } from "../types";
 
 const STR: LangDict<{
@@ -38,6 +43,7 @@ const STR: LangDict<{
     uploadTitle: string;
     ctxPreview: string;
     ctxDownload: string;
+    ctxDownloadTo: string;
     ctxRename: string;
     ctxProps: string;
     ctxDelete: string;
@@ -112,6 +118,7 @@ const STR: LangDict<{
     uploadTitle: "Upload local → remote",
     ctxPreview: "Preview",
     ctxDownload: "← Download",
+    ctxDownloadTo: "← Download to…",
     ctxRename: "Rename",
     ctxProps: "Properties/Permissions",
     ctxDelete: "Delete",
@@ -186,6 +193,7 @@ const STR: LangDict<{
     uploadTitle: "로컬 → 원격 업로드",
     ctxPreview: "미리보기",
     ctxDownload: "← 다운로드",
+    ctxDownloadTo: "← 폴더 지정 다운로드…",
     ctxRename: "이름 변경",
     ctxProps: "속성/권한",
     ctxDelete: "삭제",
@@ -260,6 +268,7 @@ const STR: LangDict<{
     uploadTitle: "Subir local → remoto",
     ctxPreview: "Vista previa",
     ctxDownload: "← Descargar",
+    ctxDownloadTo: "← Descargar en…",
     ctxRename: "Renombrar",
     ctxProps: "Propiedades/Permisos",
     ctxDelete: "Eliminar",
@@ -334,6 +343,7 @@ const STR: LangDict<{
     uploadTitle: "上传 本地 → 远程",
     ctxPreview: "预览",
     ctxDownload: "← 下载",
+    ctxDownloadTo: "← 下载到…",
     ctxRename: "重命名",
     ctxProps: "属性/权限",
     ctxDelete: "删除",
@@ -408,6 +418,7 @@ const STR: LangDict<{
     uploadTitle: "アップロード ローカル → リモート",
     ctxPreview: "プレビュー",
     ctxDownload: "← ダウンロード",
+    ctxDownloadTo: "← 保存先を指定…",
     ctxRename: "名前変更",
     ctxProps: "プロパティ/権限",
     ctxDelete: "削除",
@@ -482,6 +493,7 @@ const STR: LangDict<{
     uploadTitle: "Загрузить локально → удалённо",
     ctxPreview: "Предпросмотр",
     ctxDownload: "← Скачать",
+    ctxDownloadTo: "← Скачать в…",
     ctxRename: "Переименовать",
     ctxProps: "Свойства/Права",
     ctxDelete: "Удалить",
@@ -556,6 +568,7 @@ const STR: LangDict<{
     uploadTitle: "Envoyer local → distant",
     ctxPreview: "Aperçu",
     ctxDownload: "← Télécharger",
+    ctxDownloadTo: "← Télécharger vers…",
     ctxRename: "Renommer",
     ctxProps: "Propriétés/Permissions",
     ctxDelete: "Supprimer",
@@ -630,6 +643,7 @@ const STR: LangDict<{
     uploadTitle: "Hochladen Lokal → Remote",
     ctxPreview: "Vorschau",
     ctxDownload: "← Herunterladen",
+    ctxDownloadTo: "← Herunterladen nach…",
     ctxRename: "Umbenennen",
     ctxProps: "Eigenschaften/Berechtigungen",
     ctxDelete: "Löschen",
@@ -704,6 +718,7 @@ const STR: LangDict<{
     uploadTitle: "Tải lên cục bộ → từ xa",
     ctxPreview: "Xem trước",
     ctxDownload: "← Tải xuống",
+    ctxDownloadTo: "← Tải xuống vào…",
     ctxRename: "Đổi tên",
     ctxProps: "Thuộc tính/Quyền",
     ctxDelete: "Xóa",
@@ -778,6 +793,7 @@ const STR: LangDict<{
     uploadTitle: "Unggah lokal → jarak jauh",
     ctxPreview: "Pratinjau",
     ctxDownload: "← Unduh",
+    ctxDownloadTo: "← Unduh ke…",
     ctxRename: "Ganti nama",
     ctxProps: "Properti/Izin",
     ctxDelete: "Hapus",
@@ -852,6 +868,7 @@ const STR: LangDict<{
     uploadTitle: "अपलोड लोकल → रिमोट",
     ctxPreview: "पूर्वावलोकन",
     ctxDownload: "← डाउनलोड",
+    ctxDownloadTo: "← यहाँ डाउनलोड करें…",
     ctxRename: "नाम बदलें",
     ctxProps: "गुण/अनुमतियां",
     ctxDelete: "हटाएं",
@@ -1318,7 +1335,16 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
   );
 
   useEffect(() => {
-    void loadLocal();
+    // 로컬 패널은 기본 다운로드 폴더에서 시작한다(#148). 못 얻거나 목록을 못 읽으면
+    // (경로 오타·권한 등) 종전처럼 홈에서 시작.
+    void (async () => {
+      try {
+        const dir = await resolveDownloadDir();
+        await invoke<Listing>("local_list_dir", { path: dir }).then(setLocal);
+      } catch {
+        void loadLocal();
+      }
+    })();
     // 셸 cwd가 있으면 그 경로에서 원격 패널 시작 (없으면 SSH 기본 홈).
     void loadRemote(initialRemotePath || undefined);
     return () => {
@@ -1508,8 +1534,22 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
       .catch((e) => updateTransfer(id, { status: "error", error: String(e) }));
   }
 
-  // 선택된 원격 항목(들)을 다운로드 — 저장 폴더를 한 번 고르고 모두 그 안에 저장(#135).
-  async function doDownload(primary?: FileEntry) {
+  // 기본 다운로드 폴더 (#148): 설정값(비우면 OS 다운로드 폴더). `~`는 홈으로 확장해
+  // 절대 경로로 만든다 — Rust sftp_download는 경로를 그대로 쓰므로 여기서 해소한다.
+  async function resolveDownloadDir(): Promise<string> {
+    const configured = loadSettings().general.downloadDir.trim();
+    if (!configured) return await osDownloadDir();
+    if (configured === "~" || configured.startsWith("~/")) {
+      const home = (await osHomeDir()).replace(/[/\\]+$/, "");
+      return configured === "~" ? home : home + "/" + configured.slice(2);
+    }
+    return configured;
+  }
+
+  // 선택된 원격 항목(들)을 다운로드 — 기본 다운로드 폴더로 바로 저장(#148).
+  // askDir=true면(컨텍스트 메뉴 "폴더 지정 다운로드…") 저장 폴더를 직접 고른다 —
+  // 다이얼로그의 시작 위치는 기본 다운로드 폴더.
+  async function doDownload(primary?: FileEntry, askDir = false) {
     if (!remote) return;
     const names =
       remoteSelSet.size > 0
@@ -1521,13 +1561,26 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
             : [];
     const entries = sortEntries(remote, remoteSort).filter((e) => names.includes(e.name));
     if (!entries.length) return;
-    // WKWebView는 앱→OS 드래그 아웃을 지원하지 않으므로, 저장할 폴더를 직접 고른다.
-    const dir = await openDialog({
-      directory: true,
-      multiple: false,
-      defaultPath: local?.cwd,
-    });
-    if (typeof dir !== "string") return;
+    // 저장 위치는 **현재 로컬 패널 폴더**(#148 — 패널이 기본 다운로드 폴더에서 시작하므로
+    // 안 움직이면 기본 폴더, 사용자가 이동했으면 그 위치). 패널이 아직 안 떴으면 기본
+    // 다운로드 폴더, 그것도 없으면 폴더 선택으로 폴백.
+    let dir = local?.cwd ?? "";
+    if (!dir) {
+      try {
+        dir = await resolveDownloadDir();
+      } catch {
+        dir = "";
+      }
+    }
+    if (askDir || !dir) {
+      const picked = await openDialog({
+        directory: true,
+        multiple: false,
+        defaultPath: dir || undefined,
+      });
+      if (typeof picked !== "string") return;
+      dir = picked;
+    }
     // 저장 폴더의 목록을 읽어 이름 충돌을 먼저 해소한다. 목록을 못 읽으면(권한 등) 충돌 검사
     // 없이 진행 — 전송이 실패하면 큐에 에러로 남는다.
     let dest: Listing | null = null;
@@ -1987,6 +2040,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
                 : void previewLocal(menu.entry)
             }
             onDownload={() => void doDownload(menu.entry)}
+            onDownloadTo={() => void doDownload(menu.entry, true)}
             onUpload={() => void doUpload(menu.entry)}
             onRename={() => void renameRemote(menu.entry)}
             onDelete={() => void deleteRemoteEntry(menu.entry)}
@@ -2085,6 +2139,7 @@ function ContextMenu({
   onDismiss,
   onPreview,
   onDownload,
+  onDownloadTo,
   onUpload,
   onRename,
   onDelete,
@@ -2097,6 +2152,7 @@ function ContextMenu({
   onDismiss: () => void;
   onPreview: () => void;
   onDownload: () => void;
+  onDownloadTo: () => void;
   onUpload: () => void;
   onRename: () => void;
   onDelete: () => void;
@@ -2120,6 +2176,7 @@ function ContextMenu({
   if (side === "remote") {
     items.push({ label: t.ctxPreview, action: onPreview, disabled: entry.is_dir });
     items.push({ label: t.ctxDownload, action: onDownload });
+    items.push({ label: t.ctxDownloadTo, action: onDownloadTo });
     items.push({ label: t.ctxRename, action: onRename });
     items.push({ label: t.ctxProps, action: onProps });
     items.push({ label: t.ctxDelete, action: onDelete });

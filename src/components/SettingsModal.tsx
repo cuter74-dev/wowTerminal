@@ -61,6 +61,7 @@ const STR: LangDict<{
     logging: string;
     logDir: string;
     startDir: string;
+    downloadDir: string;
     chooseDir: string;
     applyNote: string;
     readonlyNote: string;
@@ -114,6 +115,7 @@ const STR: LangDict<{
     logging: "Session logging (save output to file)",
     logDir: "Log folder (blank = ~/wowterminal-logs)",
     startDir: "New terminal start folder (blank = home)",
+    downloadDir: "Default download folder (blank = OS Downloads)",
     chooseDir: "Choose…",
     applyNote: "Applied to all terminals immediately.",
     readonlyNote: "v1 is read-only. Custom key bindings later.",
@@ -169,6 +171,7 @@ const STR: LangDict<{
     logging: "세션 로깅 (출력을 파일로 저장)",
     logDir: "로그 폴더 (비우면 ~/wowterminal-logs)",
     startDir: "새 터미널 시작 폴더 (비우면 홈)",
+    downloadDir: "기본 다운로드 폴더 (비우면 OS 다운로드 폴더)",
     chooseDir: "선택…",
     applyNote: "변경 즉시 모든 터미널에 적용됩니다.",
     readonlyNote: "v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.",
@@ -224,6 +227,7 @@ const STR: LangDict<{
     logging: "Registro de sesión (guardar salida en archivo)",
     logDir: "Carpeta de registros (vacío = ~/wowterminal-logs)",
     startDir: "Carpeta inicial de nuevos terminales (vacío = inicio)",
+    downloadDir: "Carpeta de descargas predeterminada (vacío = Descargas del SO)",
     chooseDir: "Elegir…",
     applyNote: "Aplicado a todas las terminales de inmediato.",
     readonlyNote: "v1 es de solo lectura. Atajos personalizados más adelante.",
@@ -279,6 +283,7 @@ const STR: LangDict<{
     logging: "会话日志（输出保存到文件）",
     logDir: "日志文件夹（留空 = ~/wowterminal-logs）",
     startDir: "新终端起始文件夹（留空 = 主目录）",
+    downloadDir: "默认下载文件夹（留空 = 系统下载文件夹）",
     chooseDir: "选择…",
     applyNote: "立即应用到所有终端。",
     readonlyNote: "v1 为只读。自定义按键绑定稍后推出。",
@@ -334,6 +339,7 @@ const STR: LangDict<{
     logging: "セッションログ（出力をファイルに保存）",
     logDir: "ログフォルダ（空欄 = ~/wowterminal-logs）",
     startDir: "新しいターミナルの開始フォルダ（空欄 = ホーム）",
+    downloadDir: "既定のダウンロードフォルダ（空欄 = OSのダウンロード）",
     chooseDir: "選択…",
     applyNote: "すべてのターミナルに即座に適用されます。",
     readonlyNote: "v1 は読み取り専用です。カスタムキーバインドは後日。",
@@ -389,6 +395,7 @@ const STR: LangDict<{
     logging: "Логирование сессии (вывод в файл)",
     logDir: "Папка логов (пусто = ~/wowterminal-logs)",
     startDir: "Начальная папка новых терминалов (пусто = домашняя)",
+    downloadDir: "Папка загрузок по умолчанию (пусто = системная «Загрузки»)",
     chooseDir: "Выбрать…",
     applyNote: "Применяется ко всем терминалам мгновенно.",
     readonlyNote: "v1 только для чтения. Пользовательские сочетания клавиш позже.",
@@ -444,6 +451,7 @@ const STR: LangDict<{
     logging: "Journalisation de session (sortie vers fichier)",
     logDir: "Dossier des journaux (vide = ~/wowterminal-logs)",
     startDir: "Dossier de départ des nouveaux terminaux (vide = accueil)",
+    downloadDir: "Dossier de téléchargement par défaut (vide = Téléchargements du système)",
     chooseDir: "Choisir…",
     applyNote: "Appliqué immédiatement à tous les terminaux.",
     readonlyNote: "v1 est en lecture seule. Raccourcis personnalisés plus tard.",
@@ -499,6 +507,7 @@ const STR: LangDict<{
     logging: "Sitzungsprotokoll (Ausgabe in Datei)",
     logDir: "Log-Ordner (leer = ~/wowterminal-logs)",
     startDir: "Startordner neuer Terminals (leer = Home)",
+    downloadDir: "Standard-Download-Ordner (leer = System-Downloads)",
     chooseDir: "Wählen…",
     applyNote: "Wird sofort auf alle Terminals angewendet.",
     readonlyNote: "v1 ist schreibgeschützt. Benutzerdefinierte Tastenbelegungen später.",
@@ -554,6 +563,7 @@ const STR: LangDict<{
     logging: "Ghi log phiên (lưu đầu ra ra tệp)",
     logDir: "Thư mục log (trống = ~/wowterminal-logs)",
     startDir: "Thư mục bắt đầu của terminal mới (trống = home)",
+    downloadDir: "Thư mục tải xuống mặc định (trống = thư mục Tải xuống của hệ điều hành)",
     chooseDir: "Chọn…",
     applyNote: "Áp dụng ngay cho tất cả các terminal.",
     readonlyNote: "v1 chỉ đọc. Tùy chỉnh phím tắt sẽ có sau.",
@@ -609,6 +619,7 @@ const STR: LangDict<{
     logging: "Log sesi (simpan output ke berkas)",
     logDir: "Folder log (kosong = ~/wowterminal-logs)",
     startDir: "Folder awal terminal baru (kosong = home)",
+    downloadDir: "Folder unduhan bawaan (kosong = folder Unduhan OS)",
     chooseDir: "Pilih…",
     applyNote: "Diterapkan ke semua terminal segera.",
     readonlyNote: "v1 hanya-baca. Pengikatan tombol khusus nanti.",
@@ -664,6 +675,7 @@ const STR: LangDict<{
     logging: "सत्र लॉगिंग (आउटपुट फ़ाइल में सहेजें)",
     logDir: "लॉग फ़ोल्डर (खाली = ~/wowterminal-logs)",
     startDir: "नए टर्मिनल का प्रारंभ फ़ोल्डर (खाली = होम)",
+    downloadDir: "डिफ़ॉल्ट डाउनलोड फ़ोल्डर (खाली = OS डाउनलोड)",
     chooseDir: "चुनें…",
     applyNote: "सभी टर्मिनलों पर तुरंत लागू।",
     readonlyNote: "v1 केवल-पढ़ने के लिए है। कस्टम की बाइंडिंग बाद में।",
@@ -918,6 +930,37 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
               <div style={{ color: "#789", fontSize: 11, marginTop: -4 }}>
                 {t.aiContextLinesHint}
               </div>
+              <Row label={t.downloadDir}>
+                <div style={{ display: "flex", gap: 6, flex: 1 }}>
+                  <input
+                    type="text"
+                    value={settings.general.downloadDir}
+                    placeholder="~/Downloads"
+                    onChange={(e) => patchGeneral({ downloadDir: e.target.value })}
+                    style={{ ...inputStyle, flex: 1 }}
+                  />
+                  <button
+                    onClick={async () => {
+                      const dir = await open({
+                        directory: true,
+                        multiple: false,
+                      });
+                      if (typeof dir === "string") patchGeneral({ downloadDir: dir });
+                    }}
+                    style={{
+                      background: "#2a2a2e",
+                      border: "1px solid #444",
+                      color: "#ddd",
+                      borderRadius: 4,
+                      padding: "0 10px",
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    {t.chooseDir}
+                  </button>
+                </div>
+              </Row>
 
               {/* About (S-068) */}
               <div

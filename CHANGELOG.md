@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- File browser: default download folder setting (Settings → General; blank = OS Downloads). The local panel opens there, and downloads save straight into the current local panel folder without a dialog — navigate the panel to change the destination, or use the new context-menu item "Download to…" to pick a one-off folder. (#148)
+
 ### Fixed
 - **macOS Korean input**: mixing scripts on one line (Hangul↔English/digits) sometimes erased the previous on-screen character when Hangul typing resumed. The first jamo pressed inside the 80 ms native-grace window after a `compositionend` was passed to the native path, which sends nothing on 229-only WebViews, so it landed in the textarea unsent; the mirror then adopted it as its "already sent" baseline (#97 paste rule) and the next composition rewind's backspace deleted the wrong character. Unsent IME insertions are now flagged and transmitted instead of baselined. Root-caused from captured diagnostics rings. (#147)
 
