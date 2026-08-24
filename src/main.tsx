@@ -1,6 +1,7 @@
 import ReactDOM from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import App from "./App";
+import { isMobile } from "./platform";
 
 // 에러·크래시 추적(GlitchTip = Sentry 호환). DSN은 공개 수집 키라 임베드해도 안전(비밀 아님).
 // VITE_GLITCHTIP_DSN 환경변수로 덮어쓰거나, 빈 값으로 두면 추적을 끈다(opt-out).
@@ -21,6 +22,11 @@ if (GLITCHTIP_DSN) {
       tags: { component: "frontend", build: `${__BUILD_CHANNEL__}.${__BUILD_REV__}` },
     },
   });
+}
+
+// 모바일(iOS/Android): 내부 스크롤 영역의 스크롤바 상시 표시용 클래스 (#149 — App.css 참고).
+if (isMobile) {
+  document.body.classList.add("plat-mobile");
 }
 
 // 플랫폼별 CSS 분기용 클래스 (예: macOS 전용 IME 미러의 composition-view 숨김 — App.css 참고).

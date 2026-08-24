@@ -16,6 +16,26 @@ body,
   overscroll-behavior: none;
 }
 
+/* 모바일: 내부 스크롤 영역의 스크롤바 상시 표시 (#149) — Android WebView는 내부 overflow
+   요소의 오버레이 스크롤바를 그리지 않아(Chromium #40226034) 목록이 스크롤 가능한지 보이지
+   않고 잡을 수도 없다. 커스텀 웹킷 스크롤바는 WebView에서도 그려지므로 이것으로 강제 표시
+   (터치로 잡을 수 있게 8px). plat-mobile 클래스는 main.tsx에서 부여. */
+body.plat-mobile ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+body.plat-mobile ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.28);
+  border-radius: 4px;
+}
+body.plat-mobile ::-webkit-scrollbar-thumb:active {
+  background: rgba(255, 255, 255, 0.5);
+}
+body.plat-mobile ::-webkit-scrollbar-track,
+body.plat-mobile ::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* 키보드 포커스 표시 (#117) — 설정 등 모달에서 Tab으로 이동할 때 어느 컨트롤이 포커스됐는지
    보이게 한다. Tab을 가로채 .focus()로 옮기면 :focus-visible 휴리스틱이 안 걸리므로 :focus를
    쓴다(모달이라 마우스 클릭 시 링이 잠깐 보여도 무방). 모달 컨테이너 자신은 위에서 outline:none. */

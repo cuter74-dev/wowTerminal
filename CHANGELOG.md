@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Mobile**: scrollable lists (file browser, host list, etc.) showed no scrollbar — Android WebView draws no overlay scrollbar for inner scroll areas, so lists did not look scrollable and there was nothing to grab. Mobile builds now always show a slim scrollbar on scrollable areas. (#149)
+
 ## [0.20.13] — 2026-08-12
 
 ### Added
