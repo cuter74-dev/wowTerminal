@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.14] — 2026-08-24
+
 ### Fixed
 - **Mobile**: scrollable lists (file browser, host list, etc.) showed no scrollbar — Android WebView draws no overlay scrollbar for inner scroll areas, so lists did not look scrollable and there was nothing to grab. Mobile builds now always show a slim scrollbar on scrollable areas. (#149)
 
@@ -524,7 +526,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.13...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.14...HEAD
+[0.20.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.13...v0.20.14
 [0.20.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.12...v0.20.13
 [0.20.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.11...v0.20.12
 [0.20.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.10...v0.20.11
