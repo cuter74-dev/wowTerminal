@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.15] — 2026-09-14
+
 ### Added
 - SSH: after a dropped connection, pressing Enter to reconnect now returns the shell to the **last remote directory** you were in instead of `$HOME`. The working directory is tracked while the session is alive (via OSC 7 if your shell emits it, otherwise a debounced `/proc` query after each command — no remote config needed) and a `cd` runs on reconnect. Best-effort: falls back to home if the directory is unknown. (#152)
 
@@ -532,7 +534,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.14...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.15...HEAD
+[0.20.15]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.14...v0.20.15
 [0.20.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.13...v0.20.14
 [0.20.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.12...v0.20.13
 [0.20.12]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.11...v0.20.12
