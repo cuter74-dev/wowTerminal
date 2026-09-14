@@ -7,6 +7,12 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- SSH: after a dropped connection, pressing Enter to reconnect now returns the shell to the **last remote directory** you were in instead of `$HOME`. The working directory is tracked while the session is alive (via OSC 7 if your shell emits it, otherwise a debounced `/proc` query after each command — no remote config needed) and a `cd` runs on reconnect. Best-effort: falls back to home if the directory is unknown. (#152)
+
+### Changed
+- SFTP downloads are much faster on higher-latency links: a large file is now fetched with several concurrent range readers (pipelined SFTP READs) instead of one 64 KB request at a time, the per-request buffer grew to 256 KB, and progress events are throttled so a big transfer no longer floods the UI. Uploads use the larger buffer too. Small files and recursive directory downloads are unchanged. (#151)
+
 ## [0.20.14] — 2026-08-24
 
 ### Fixed

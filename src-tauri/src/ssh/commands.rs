@@ -134,16 +134,40 @@ pub fn build_state(
 
     let known_hosts = Arc::new(KnownHostsStore::new(known_hosts_path));
 
+    // 진행 이벤트 throttle(#151): 병렬 다운로드는 256KB마다 progress를 호출해 초당 수백~수천
+    // 건이 될 수 있다 — 매 건을 webview로 emit하면 IPC/UI가 병목이 된다. transfer_id별로
+    // 40ms 간격으로만 emit하되, 시작(0)과 완료(>=total)는 항상 보낸다.
     let progress_handle = app.clone();
+    let last_emit: Arc<std::sync::Mutex<std::collections::HashMap<String, std::time::Instant>>> =
+        Arc::new(std::sync::Mutex::new(std::collections::HashMap::new()));
     let progress: ProgressSink = Arc::new(move |transfer_id, transferred, total| {
-        let _ = progress_handle.emit(
-            "sftp:progress",
-            SftpProgress {
-                transfer_id,
-                transferred,
-                total,
-            },
-        );
+        let now = std::time::Instant::now();
+        let should_emit = {
+            let mut m = last_emit.lock().unwrap();
+            let final_or_start = transferred == 0 || transferred >= total;
+            let due = final_or_start
+                || m.get(&transfer_id).map_or(true, |t| {
+                    now.duration_since(*t) >= std::time::Duration::from_millis(40)
+                });
+            if due {
+                if transferred >= total {
+                    m.remove(&transfer_id);
+                } else {
+                    m.insert(transfer_id.clone(), now);
+                }
+            }
+            due
+        };
+        if should_emit {
+            let _ = progress_handle.emit(
+                "sftp:progress",
+                SftpProgress {
+                    transfer_id,
+                    transferred,
+                    total,
+                },
+            );
+        }
     });
 
     // 세션 종료 알림 (#96) — pty와 같은 `session:closed` 이벤트를 공유한다.

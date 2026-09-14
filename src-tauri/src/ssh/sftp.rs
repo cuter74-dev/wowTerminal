@@ -61,6 +61,24 @@ fn is_safe_component(name: &str) -> bool {
     }
 }
 
+/// size 바이트를 최대 workers개의 **연속·비중첩** 구간 [start,end)으로 나눈다. 병렬 다운로드가
+/// 각 구간을 별도 File 핸들로 스트리밍한다. 구간들은 정확히 [0,size) 전체를 덮는다(#151).
+fn split_ranges(size: u64, workers: u64) -> Vec<(u64, u64)> {
+    if size == 0 {
+        return Vec::new();
+    }
+    let w = workers.max(1);
+    let part = ((size + w - 1) / w).max(1);
+    let mut ranges = Vec::new();
+    let mut start = 0u64;
+    while start < size {
+        let end = (start + part).min(size);
+        ranges.push((start, end));
+        start = end;
+    }
+    ranges
+}
+
 pub struct SftpManager {
     conns: Mutex<HashMap<String, Arc<SftpConn>>>,
     known_hosts: Arc<KnownHostsStore>,
@@ -243,22 +261,120 @@ impl SftpManager {
             let total: u64 = files.iter().map(|f| f.2).sum();
             let mut done: u64 = 0;
             (self.progress)(transfer_id.to_string(), 0, total);
-            for (rp, lp, _sz) in files {
+            for (rp, lp, sz) in files {
                 done += self
-                    .stream_download(&conn, &rp, &lp, transfer_id, done, total)
+                    .stream_download(&conn, &rp, &lp, transfer_id, done, total, sz)
                     .await?;
             }
             Ok(done)
         } else {
             let total = meta.size.unwrap_or(0);
             (self.progress)(transfer_id.to_string(), 0, total);
-            self.stream_download(&conn, remote, local, transfer_id, 0, total)
+            self.stream_download(&conn, remote, local, transfer_id, 0, total, total)
                 .await
         }
     }
 
     /// 단일 원격 파일을 로컬로 스트리밍. 진행은 (base + 파일내 누적) / total 로 보고.
+    ///
+    /// 파일이 충분히 크면 **연속 구간 N개를 동시에** 내려받아 SFTP READ를 파이프라인한다.
+    /// russh_sftp의 File AsyncRead는 한 번에 요청이 하나뿐(순차)이라, 고지연 링크에서
+    /// 처리량이 read_len/RTT로 묶인다(#151). 파일을 구간으로 나눠 각 구간을 별도 File
+    /// 핸들로 스트리밍하면 동시에 N개의 READ가 떠서 파이프가 찬다. 작은/크기 미상 파일은
+    /// 구간 분할 이득이 없으므로(미상이면 나눌 수도 없다) 순차 스트리밍으로 폴백한다.
     async fn stream_download(
+        &self,
+        conn: &Arc<SftpConn>,
+        remote: &str,
+        local: &str,
+        transfer_id: &str,
+        base: u64,
+        total: u64,
+        size: u64,
+    ) -> Result<u64, SshError> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        use tokio::io::{AsyncReadExt, AsyncSeekExt, AsyncWriteExt};
+
+        const WORKERS: u64 = 8;
+        const CHUNK: usize = 256 * 1024;
+        const MIN_PARALLEL: u64 = 512 * 1024;
+
+        if size < MIN_PARALLEL {
+            return self
+                .stream_download_seq(conn, remote, local, transfer_id, base, total)
+                .await;
+        }
+
+        // 로컬 파일을 미리 size로 확장(각 워커가 자기 구간에만 순차 기록하므로 겹치지 않는다).
+        let out = tokio::fs::File::create(local)
+            .await
+            .map_err(|e| SshError::Io(format!("create {local}: {e}")))?;
+        out.set_len(size)
+            .await
+            .map_err(|e| SshError::Io(format!("alloc {local}: {e}")))?;
+        drop(out);
+
+        // WORKERS개 연속 구간으로 분할(겹침 없이 [0,size) 전체를 덮는다).
+        let ranges = split_ranges(size, WORKERS);
+
+        let done = Arc::new(AtomicU64::new(0));
+        let mut handles = Vec::with_capacity(ranges.len());
+        for (rstart, rend) in ranges {
+            let conn = conn.clone();
+            let remote = remote.to_string();
+            let local = local.to_string();
+            let done = done.clone();
+            let progress = self.progress.clone();
+            let tid = transfer_id.to_string();
+            handles.push(tokio::spawn(async move {
+                let mut rf = conn
+                    .sftp
+                    .open(&remote)
+                    .await
+                    .map_err(|e| SshError::Channel(format!("open {remote}: {e}")))?;
+                rf.seek(std::io::SeekFrom::Start(rstart))
+                    .await
+                    .map_err(|e| SshError::Io(format!("seek {remote}: {e}")))?;
+                let mut lf = tokio::fs::OpenOptions::new()
+                    .write(true)
+                    .open(&local)
+                    .await
+                    .map_err(|e| SshError::Io(format!("open {local}: {e}")))?;
+                lf.seek(std::io::SeekFrom::Start(rstart))
+                    .await
+                    .map_err(|e| SshError::Io(format!("seek {local}: {e}")))?;
+                let mut buf = vec![0u8; CHUNK];
+                let mut pos = rstart;
+                while pos < rend {
+                    let want = ((rend - pos) as usize).min(CHUNK);
+                    let n = rf
+                        .read(&mut buf[..want])
+                        .await
+                        .map_err(|e| SshError::Io(format!("read {remote}: {e}")))?;
+                    if n == 0 {
+                        break; // 예기치 못한 EOF(원격 파일 축소 등) — 이 구간 종료.
+                    }
+                    lf.write_all(&buf[..n])
+                        .await
+                        .map_err(|e| SshError::Io(format!("write {local}: {e}")))?;
+                    pos += n as u64;
+                    let total_done = done.fetch_add(n as u64, Ordering::Relaxed) + n as u64;
+                    progress(tid.clone(), base + total_done, total);
+                }
+                let _ = lf.flush().await;
+                Ok::<(), SshError>(())
+            }));
+        }
+
+        for h in handles {
+            h.await
+                .map_err(|e| SshError::Io(format!("download task join: {e}")))??;
+        }
+        Ok(done.load(Ordering::Relaxed))
+    }
+
+    /// 순차 스트리밍 폴백(작은/크기 미상 파일). EOF까지 읽어 크기를 몰라도 안전하다.
+    async fn stream_download_seq(
         &self,
         conn: &Arc<SftpConn>,
         remote: &str,
@@ -276,7 +392,7 @@ impl SftpManager {
         let mut out = tokio::fs::File::create(local)
             .await
             .map_err(|e| SshError::Io(format!("create {local}: {e}")))?;
-        let mut buf = vec![0u8; 64 * 1024];
+        let mut buf = vec![0u8; 256 * 1024];
         let mut done: u64 = 0;
         loop {
             let n = rf
@@ -377,7 +493,8 @@ impl SftpManager {
             .create(remote)
             .await
             .map_err(|e| SshError::Channel(format!("create {remote}: {e}")))?;
-        let mut buf = vec![0u8; 64 * 1024];
+        // russh_sftp File은 쓰기를 파이프라인하므로(write_nowait) 버퍼만 키우면 왕복이 준다.
+        let mut buf = vec![0u8; 256 * 1024];
         let mut done: u64 = 0;
         loop {
             let n = inp
@@ -595,7 +712,49 @@ impl SftpManager {
 
 #[cfg(test)]
 mod tests {
-    use super::is_safe_component;
+    use super::{is_safe_component, split_ranges};
+
+    /// split_ranges는 [0,size)를 겹침 없이 빈틈없이 덮어야 한다(#151 — 병렬 다운로드 무결성).
+    fn assert_covers(size: u64, workers: u64) {
+        let r = split_ranges(size, workers);
+        if size == 0 {
+            assert!(r.is_empty());
+            return;
+        }
+        assert_eq!(r.first().unwrap().0, 0, "first range must start at 0");
+        assert_eq!(r.last().unwrap().1, size, "last range must end at size");
+        assert!(r.len() as u64 <= workers.max(1), "no more than `workers` ranges");
+        let mut prev_end = 0u64;
+        let mut total = 0u64;
+        for (s, e) in &r {
+            assert_eq!(*s, prev_end, "ranges must be contiguous");
+            assert!(*e > *s, "ranges must be non-empty");
+            total += e - s;
+            prev_end = *e;
+        }
+        assert_eq!(total, size, "ranges must cover exactly `size` bytes");
+    }
+
+    #[test]
+    fn split_ranges_covers_without_gaps_or_overlap() {
+        for &size in &[1u64, 2, 7, 8, 9, 1023, 1024, 1025, 100_000, 8 * 1024 * 1024 + 3] {
+            for &workers in &[1u64, 2, 3, 4, 8, 16] {
+                assert_covers(size, workers);
+            }
+        }
+    }
+
+    #[test]
+    fn split_ranges_empty_for_zero_size() {
+        assert!(split_ranges(0, 8).is_empty());
+    }
+
+    #[test]
+    fn split_ranges_at_most_one_range_when_smaller_than_workers() {
+        // size < workers: 각 구간 1바이트, 구간 수는 size개(=workers 이하).
+        let r = split_ranges(3, 8);
+        assert_eq!(r, vec![(0, 1), (1, 2), (2, 3)]);
+    }
 
     #[test]
     fn safe_component_accepts_normal_names() {

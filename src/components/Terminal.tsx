@@ -309,6 +309,11 @@ function commandsFor(
   };
 }
 
+/** POSIX 셸 단일 인용(#152 재접속 cd 주입용). 경로 내 작은따옴표는 '\'' 로 이스케이프. */
+function shQuote(p: string): string {
+  return `'${p.replace(/'/g, `'\\''`)}'`;
+}
+
 interface Props {
   source: TerminalSource;
   /** SSH spawn에서 구조화된 에러를 받으면 호출. 모달 띄우는 용도. */
@@ -480,6 +485,36 @@ export function Terminal({
     let unlistenOutput: UnlistenFn | null = null;
     // OSC 7로 추적하는 셸 현재 작업 디렉토리 (파일 브라우저 시작 위치용).
     let currentCwd: string | null = null;
+    // (#152) 재접속 시 마지막 원격 위치로 복귀하기 위한 캐시. 연결이 끊기면 원격을 조회할 수
+    // 없으므로 살아있는 동안 최신 cwd를 계속 기억해 둔다. 출처는 둘: OSC7(rc 훅이 있으면 즉시),
+    // 그리고 입력이 잦아든 뒤의 백엔드 ssh_remote_cwd(/proc 조회, 훅 불필요). 최신값을 유지한다.
+    let lastKnownCwd: string | null = null;
+    let cwdProbeTimer: ReturnType<typeof setTimeout> | null = null;
+    let cwdProbeInFlight = false;
+    let lastCwdProbe = 0;
+    // 명령 실행(Enter) 후 잠시 뒤 원격 cwd를 한 번 갱신한다. 디바운스+최소 간격으로 과다 조회를
+    // 막는다(상시 폴링 아님). SSH 세션에서만 동작.
+    const scheduleCwdProbe = () => {
+      if (source.kind !== "ssh") return;
+      if (cwdProbeTimer) clearTimeout(cwdProbeTimer);
+      cwdProbeTimer = setTimeout(() => {
+        cwdProbeTimer = null;
+        const sid = sessionId;
+        if (!sid || cwdProbeInFlight) return;
+        const now = Date.now();
+        if (now - lastCwdProbe < 3000) return;
+        lastCwdProbe = now;
+        cwdProbeInFlight = true;
+        void invoke<string | null>("ssh_remote_cwd", { sessionId: sid })
+          .then((d) => {
+            if (d) lastKnownCwd = d;
+          })
+          .catch(() => {})
+          .finally(() => {
+            cwdProbeInFlight = false;
+          });
+      }, 1500);
+    };
     // 셸이 디렉토리 변경 시 `\e]7;file://host/path\a`를 출력하면 여기서 잡는다.
     term.parser.registerOscHandler(7, (payload) => {
       // payload 예: "file:///home/user" 또는 "file://host/home/user"
@@ -490,6 +525,7 @@ export function Terminal({
         } catch {
           currentCwd = m[1];
         }
+        lastKnownCwd = currentCwd; // (#152) OSC7 값이 오면 재접속 복귀용 캐시도 갱신.
       }
       return true; // 처리 완료(false면 xterm 파서가 잔여 처리로 다음 출력을 삼킬 수 있음)
     });
@@ -837,6 +873,9 @@ export function Terminal({
       }
       writeToSession(data);
       broadcastInput(paneId ?? "", data); // 브로드캐스트 ON이면 다른 패널에도.
+      // (#152) 명령 실행(Enter)마다 잠시 뒤 원격 cwd를 한 번 갱신해 재접속 복귀 캐시를 최신화.
+      // 상시 폴링이 아니라 Enter 트리거 + 디바운스라 부하가 거의 없다.
+      if (data.includes("\r")) scheduleCwdProbe();
       imeDiag.onDataChars += data.length; // [진단 #83]
       scheduleImeDiag();
 
@@ -1065,7 +1104,9 @@ export function Terminal({
         sessionDead = false;
         // spawnFresh의 첫 동작이 잔존 모드 해제(대체 화면 탈출 포함)라, 메시지는 그 뒤에
         // 써야 normal 버퍼에 보인다 — TUI(대체 화면) 사용 중 끊긴 경우(#99).
-        void spawnFresh();
+        // (#152) 마지막 원격 위치를 알면 재접속 후 그리로 복귀(SSH 한정, 홈 대신).
+        const restore = source.kind === "ssh" ? lastKnownCwd : null;
+        void spawnFresh(restore);
         term.writeln(tRef.current.reconnecting);
         return false;
       }
@@ -1403,7 +1444,7 @@ export function Terminal({
     let sessionDead = false;
     let unlistenClosed: UnlistenFn | null = null;
 
-    const spawnFresh = async () => {
+    const spawnFresh = async (restoreCwd?: string | null) => {
       // 죽은 세션의 프로그램(tmux/TUI)이 켜둔 DEC 프라이빗 모드는 xterm 인스턴스에 그대로
       // 남는다 — 마우스 트래킹이 잔존하면 새 셸에서 클릭이 "0;90;14M" 같은 시퀀스로
       // 타이핑된다(#99). 버퍼는 지우지 않고 모드만 로컬 해제: 마우스(1000/1002/1003/
@@ -1434,6 +1475,14 @@ export function Terminal({
           rows: term.rows,
         }).catch(() => {});
         onSession?.(sessionId);
+        // (#152) 재접속 복귀: 새 SSH 셸이 stdin을 읽기 시작하면 cd가 소비된다(PTY가 입력을
+        // 버퍼링하므로 프롬프트 전 주입도 안전). 살짝 지연 후 마지막 원격 위치로 이동한다.
+        if (source.kind === "ssh" && restoreCwd) {
+          const target = restoreCwd;
+          setTimeout(() => {
+            writeToSession(`cd ${shQuote(target)}\r`);
+          }, 500);
+        }
       } catch (err) {
         if (source.kind === "ssh" && isSshConnectError(err)) {
           if (err.kind === "host_key_mismatch") {
@@ -1558,6 +1607,7 @@ export function Terminal({
       clearTimeout(fitT1);
       clearTimeout(fitT2);
       clearTimeout(imeDiagTimer); // [진단 #83]
+      if (cwdProbeTimer) clearTimeout(cwdProbeTimer); // (#152)
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();
