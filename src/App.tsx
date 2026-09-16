@@ -557,6 +557,11 @@ function App() {
   const initTmuxByLeaf = useRef<Record<string, string>>(
     RESTORED_SESSION?.initTmux ?? {},
   );
+  // (#153) 복원 스냅샷이 기억한 이전 실행의 세션 id (leafId → sessionId).
+  // Terminal이 spawn 시 attach 힌트로 넘겨, 데몬에 살아있으면 그 세션에 다시 붙는다.
+  const initAttachByLeaf = useRef<Record<string, string>>(
+    RESTORED_SESSION?.initAttach ?? {},
+  );
   // leaf id → attach할 기존 sessionId (분리 윈도우 부트스트랩).
   const [attachSessionByLeaf, setAttachSessionByLeaf] = useState<Record<string, string>>({});
   const [attachScreenByLeaf, setAttachScreenByLeaf] = useState<Record<string, string>>({});
@@ -884,6 +889,10 @@ function App() {
         getCwd: (leafId) => getTerminal(leafId)?.getCwd() ?? null,
         getTmux: (leafId) =>
           tmuxByLeaf.current[leafId] ?? initTmuxByLeaf.current[leafId] ?? null,
+        // (#153) 세션 데몬이 프로세스를 앱 재시작 너머로 살려두므로, 다음 실행에서
+        // 재attach할 수 있게 현재 세션 id를 스냅샷에 남긴다.
+        getSessionId: (leafId) =>
+          sessionByLeaf.current[leafId] ?? initAttachByLeaf.current[leafId] ?? null,
       });
     save();
     const iv = setInterval(save, 15000);
@@ -2168,6 +2177,7 @@ function App() {
                 }}
                 attachSessionByLeaf={attachSessionByLeaf}
                 attachScreenByLeaf={attachScreenByLeaf}
+                restoreAttachByLeaf={initAttachByLeaf.current}
               />
             </div>
           ))}

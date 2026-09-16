@@ -874,6 +874,7 @@ mod tests {
             24,
             "test-session".into(),
             empty_sink(),
+            Arc::new(|_| {}), // ClosedSink — 이 테스트는 종료 알림을 쓰지 않는다.
             store,
             None,
         );

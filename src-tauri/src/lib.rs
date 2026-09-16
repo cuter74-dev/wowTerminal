@@ -1,4 +1,5 @@
 pub mod ai;
+pub mod daemon;
 pub mod pty;
 pub mod secrets;
 pub mod ssh;
@@ -92,8 +93,9 @@ pub fn run() {
             let history = Arc::new(pty::manager::HistoryStore::new(512 * 1024));
             app.manage(pty::commands::HistoryState(Arc::clone(&history)));
 
+            // PtyState 등록은 config_dir 계산 뒤로 미룬다 — 세션 데몬(#153) 소켓 경로가
+            // config_dir 아래이기 때문. 인프로세스 매니저는 데몬 폴백용으로 그대로 만든다.
             let pty_manager = pty::commands::build_manager(&app.handle(), Arc::clone(&history));
-            app.manage(PtyState(pty_manager));
 
             // 설정 디렉토리. 데스크탑·iOS는 dirs::config_dir() 유지 — 기존 설치의 데이터
             // 경로를 바꾸지 않는다(iOS는 샌드박스 HOME 기반이라 dirs가 유효 경로를 반환).
@@ -111,6 +113,17 @@ pub fn run() {
                 .map(|p| p.join("wowterminal"))
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
             let _ = std::fs::create_dir_all(&config_dir);
+
+            // 세션 데몬 (#153): PTY를 UI보다 오래 사는 별도 프로세스가 소유하게 해, 자동
+            // 업데이트의 relaunch()로 앱이 재시작돼도 로컬 셸(Claude Code/Gemini 등)이 계속
+            // 돌게 한다. 연결/스폰 실패 시 daemon=None → 기존 인프로세스 경로로 동작(무회귀).
+            #[cfg(unix)]
+            let daemon = pty::commands::connect_daemon(&app.handle(), &config_dir);
+            app.manage(PtyState {
+                manager: pty_manager,
+                #[cfg(unix)]
+                daemon,
+            });
 
             // secret 저장 (ssh/ai가 같은 store 공유, 키는 각자 id로 네임스페이스).
             // 데스크탑: OS 키링 대신 머신 키 기반 암호화 파일(EncryptedFileStore) — unsigned
@@ -226,6 +239,7 @@ pub fn run() {
             ai::commands::ai_delete_backend,
             pty::commands::pty_spawn,
             pty::commands::session_history,
+            pty::commands::daemon_live_sessions,
             pty::commands::pty_write,
             pty::commands::pty_resize,
             pty::commands::pty_kill,

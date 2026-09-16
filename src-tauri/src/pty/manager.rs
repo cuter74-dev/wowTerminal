@@ -297,6 +297,17 @@ impl PtyManager {
             .expect("sessions mutex poisoned")
             .len()
     }
+
+    /// 살아있는 세션 id 목록 (#153). 데몬이 UI 재시작 후 "어떤 세션이 아직 살아있는지"를
+    /// 알려주는 데 쓴다 — UI는 이 목록과 복원 스냅샷을 대조해 재attach 대상을 고른다.
+    pub fn list_sessions(&self) -> Vec<SessionId> {
+        self.sessions
+            .lock()
+            .expect("sessions mutex poisoned")
+            .keys()
+            .cloned()
+            .collect()
+    }
 }
 
 #[cfg(target_family = "unix")]

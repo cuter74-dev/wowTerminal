@@ -60,3 +60,8 @@ tokio = { version = "1", features = ["full", "macros", "test-util"] }
 # 모바일은 OS 키체인(KeyringStore)을 쓰므로 머신키가 필요 없다.
 [target.'cfg(not(any(target_os = "ios", target_os = "android")))'.dependencies]
 machine-uid = "0.6.0"
+
+# 세션 데몬(#153)을 detached로 띄울 때 setsid(2)가 필요하다 — 앱의 세션/프로세스 그룹에서
+# 분리해야 자동 업데이트의 relaunch()로 앱이 죽어도 데몬이 함께 죽지 않는다.
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"

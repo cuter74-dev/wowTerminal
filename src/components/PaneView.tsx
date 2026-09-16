@@ -90,6 +90,8 @@ interface Props {
   attachSessionByLeaf: Record<string, string>;
   /** leaf id → 분리 직전 화면 스냅샷(ANSI). attach 시 복원. */
   attachScreenByLeaf: Record<string, string>;
+  /** leafId → 이전 실행의 세션 id (#153). 데몬에 살아있으면 재attach된다. */
+  restoreAttachByLeaf?: Record<string, string>;
   path?: number[];
 }
 
@@ -171,6 +173,7 @@ function LeafPane(
           onSession={(sid) => props.onSession(pane.id, sid)}
           attachSessionId={props.attachSessionByLeaf[pane.id]}
           attachScreen={props.attachScreenByLeaf[pane.id]}
+          restoreSessionId={props.restoreAttachByLeaf?.[pane.id]}
         />
       </div>
     </div>

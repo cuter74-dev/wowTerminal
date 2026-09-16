@@ -66,7 +66,7 @@ pub async fn open_detached_window(
     if let Some(sid) = &session_id {
         match &source {
             DetachedSource::Ssh { .. } => ssh_state.manager.mark_detached(sid).await,
-            DetachedSource::Local => pty_state.0.mark_detached(sid),
+            DetachedSource::Local => pty_state.manager.mark_detached(sid),
         }
     }
 
@@ -122,7 +122,7 @@ pub async fn mark_session_detached(
     if kind == "ssh" {
         ssh_state.manager.mark_detached(&session_id).await;
     } else {
-        pty_state.0.mark_detached(&session_id);
+        pty_state.manager.mark_detached(&session_id);
     }
     Ok(())
 }

@@ -2,6 +2,7 @@ import ReactDOM from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import App from "./App";
 import { isMobile } from "./platform";
+import { markAppTeardown } from "./terminalRegistry";
 
 // 에러·크래시 추적(GlitchTip = Sentry 호환). DSN은 공개 수집 키라 임베드해도 안전(비밀 아님).
 // VITE_GLITCHTIP_DSN 환경변수로 덮어쓰거나, 빈 값으로 두면 추적을 끈다(opt-out).
@@ -23,6 +24,13 @@ if (GLITCHTIP_DSN) {
     },
   });
 }
+
+// (#153) 창이 닫히거나 앱이 재시작되면 "앱 종료 중"으로 표시한다. 이 플래그가 서 있으면
+// Terminal 언마운트 정리가 세션 kill을 보내지 않아, 세션이 데몬에 남아 다음 실행에서
+// 다시 attach된다(업데이트로 relaunch되는 경우는 HostList.applyUpdate에서도 표시한다).
+window.addEventListener("beforeunload", () => {
+  markAppTeardown();
+});
 
 // 모바일(iOS/Android): 내부 스크롤 영역의 스크롤바 상시 표시용 클래스 (#149 — App.css 참고).
 if (isMobile) {

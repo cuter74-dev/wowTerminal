@@ -14,6 +14,7 @@ import {
   registerTerminal,
   unregisterTerminal,
   broadcastInput,
+  isAppTeardown,
 } from "../terminalRegistry";
 import { emitCommandDone, emitTitleChange } from "../commandBus";
 import * as Sentry from "@sentry/react";
@@ -278,6 +279,7 @@ function commandsFor(
   source: TerminalSource,
   password?: string,
   defaultCwd?: string,
+  restoreSessionId?: string,
 ): Commands {
   if (source.kind === "local") {
     return {
@@ -287,8 +289,15 @@ function commandsFor(
       killCmd: "pty_kill",
       outputEvent: "pty:output",
       // 세션 복원(#90)의 저장 cwd가 우선, 없으면 설정의 기본 시작 폴더(#91), 없으면 홈.
+      // attach(#153): 이전 실행의 세션 id — 세션 데몬에 아직 살아있으면 새로 스폰하지 않고
+      // 그 세션에 다시 붙는다(반환된 id가 힌트와 같으면 재attach된 것).
       spawnArgs: (cols, rows) => ({
-        args: { cols, rows, cwd: source.cwd ?? (defaultCwd || null) },
+        args: {
+          cols,
+          rows,
+          cwd: source.cwd ?? (defaultCwd || null),
+          attach: restoreSessionId ?? null,
+        },
       }),
     };
   }
@@ -330,6 +339,9 @@ interface Props {
   termSettings: TerminalSettings;
   /** spawn 성공 시 sessionId 보고 (세션 인계용 — App이 leafId→sessionId 보관). */
   onSession?: (sessionId: string) => void;
+  /** 이전 실행에서 이 leaf가 쓰던 세션 id (#153). 세션 데몬에 아직 살아있으면
+   *  새 spawn 대신 그 세션에 재attach되고 스크롤백이 재생된다. */
+  restoreSessionId?: string;
   /** 세션 인계: 있으면 새 spawn 대신 이 기존 sessionId에 attach (listen + write/resize). */
   attachSessionId?: string;
   /** 세션 인계: 분리 직전 원본 화면 스냅샷(ANSI). attach 시 먼저 복원해 이전 화면을 보존. */
@@ -338,6 +350,7 @@ interface Props {
 
 export function Terminal({
   source,
+  restoreSessionId,
   onSshError,
   onSshConnected,
   retryNonce = 0,
@@ -480,7 +493,12 @@ export function Terminal({
       fit.fit();
     }
 
-    const cmds = commandsFor(source, password, initialSettings.current.startDir);
+    const cmds = commandsFor(
+      source,
+      password,
+      initialSettings.current.startDir,
+      restoreSessionId,
+    );
     let sessionId: string | null = null;
     let unlistenOutput: UnlistenFn | null = null;
     // OSC 7로 추적하는 셸 현재 작업 디렉토리 (파일 브라우저 시작 위치용).
@@ -1475,6 +1493,16 @@ export function Terminal({
           rows: term.rows,
         }).catch(() => {});
         onSession?.(sessionId);
+        // (#153) 데몬이 힌트로 준 세션을 그대로 돌려줬다 = 새로 스폰한 게 아니라 **살아있던
+        // 세션에 재attach**된 것. 화면은 비워둔 상태이므로 데몬이 보관한 스크롤백을 재생한다.
+        if (restoreSessionId && sessionId === restoreSessionId) {
+          try {
+            const b64 = await invoke<string>("session_history", { sessionId });
+            if (b64) term.write(base64ToBytes(b64));
+          } catch {
+            /* 히스토리 실패는 치명적이지 않다 — 빈 화면에서 계속 */
+          }
+        }
         // (#152) 재접속 복귀: 새 SSH 셸이 stdin을 읽기 시작하면 cd가 소비된다(PTY가 입력을
         // 버퍼링하므로 프롬프트 전 주입도 안전). 살짝 지연 후 마지막 원격 위치로 이동한다.
         if (source.kind === "ssh" && restoreCwd) {
@@ -1615,7 +1643,10 @@ export function Terminal({
       if (unlistenOutput) unlistenOutput();
       if (unlistenClosed) unlistenClosed();
       // kill은 항상 보내되, 인계된 세션은 백엔드 detach_guard가 첫 kill을 무시한다.
-      if (sessionId) {
+      // 단 앱 자체가 종료/업데이트 재시작 중이면 **보내지 않는다**(#153): 세션은 데몬에
+      // 남아 있어야 새로 뜬 UI가 다시 attach할 수 있다. pane/탭을 사용자가 닫은 경우는
+      // 종전처럼 kill이 나간다(의도된 종료).
+      if (sessionId && !isAppTeardown()) {
         void invoke(cmds.killCmd, { sessionId }).catch(() => {});
       }
       term.dispose();

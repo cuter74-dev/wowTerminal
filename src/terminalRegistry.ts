@@ -49,5 +49,19 @@ export function broadcastInput(originId: string, text: string): void {
   });
 }
 
+// --- 앱 종료/업데이트 중 표시 (#153) ---
+// 세션 데몬이 도입되면서 "pane 언마운트 = 세션 kill"이라는 기존 가정이 깨졌다:
+//  - 사용자가 pane/탭을 닫으면 → 의도된 종료이므로 kill 한다(종전과 동일).
+//  - 앱이 업데이트로 relaunch되거나 창이 닫히면 → **kill하면 안 된다**. 세션은 데몬에
+//    남아 있어야 하고, 새로 뜬 UI가 다시 attach한다(그게 이 기능의 전부다).
+// 둘 다 React 언마운트로 보이므로, 앱 종료 경로에서 이 플래그를 세워 구분한다.
+let appTeardown = false;
+export function markAppTeardown(): void {
+  appTeardown = true;
+}
+export function isAppTeardown(): boolean {
+  return appTeardown;
+}
+
 // 세션 인계 보호는 백엔드(SshManager/PtyManager의 detach_guard)에서 처리한다.
 // 원본 창의 kill 명령은 그대로 보내되, 백엔드가 인계된 세션의 첫 kill을 무시한다.

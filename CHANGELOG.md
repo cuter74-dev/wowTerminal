@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- **Sessions now survive an app update/restart** (local shells, phase 1). A background session daemon owns the PTY, so a shell running Claude Code, Gemini or any long job keeps running when the app relaunches to install an update — the new window re-attaches to the same session and replays its scrollback. Closing a pane or tab still ends its session as before. If the daemon cannot start, the app silently falls back to the previous in-process behaviour. SSH sessions follow in a later phase. (#153)
+
 ## [0.20.15] — 2026-09-14
 
 ### Added

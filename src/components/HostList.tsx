@@ -4,6 +4,7 @@ import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { markAppTeardown } from "../terminalRegistry";
 import { Group, SshHost, Tag } from "../types";
 import { isMobile } from "../platform";
 import { HostForm } from "./HostForm";
@@ -364,6 +365,10 @@ export function HostList({
     setUpdating(true);
     try {
       await update.downloadAndInstall();
+      // (#153) 재시작 전에 "앱 종료 중"으로 표시한다 — 이 플래그가 없으면 언마운트 정리에서
+      // 세션 kill이 나가 데몬의 세션(돌고 있는 Claude Code/Gemini 등)까지 죽는다.
+      // 세션은 데몬에 남고, 새로 뜬 UI가 복원 스냅샷의 세션 id로 다시 attach한다.
+      markAppTeardown();
       await relaunch();
     } catch (e) {
       setError(String(e));
