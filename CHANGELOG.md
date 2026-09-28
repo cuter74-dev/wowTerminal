@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.16] — 2026-09-28
+
 ### Added
 - **Sessions now survive an app update/restart** (local shells, phase 1). A background session daemon owns the PTY, so a shell running Claude Code, Gemini or any long job keeps running when the app relaunches to install an update — the new window re-attaches to the same session and replays its scrollback. Closing a pane or tab still ends its session as before. If the daemon cannot start, the app silently falls back to the previous in-process behaviour. SSH sessions follow in a later phase. (#153)
 
@@ -537,7 +539,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.15...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.16...HEAD
+[0.20.16]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.15...v0.20.16
 [0.20.15]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.14...v0.20.15
 [0.20.14]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.13...v0.20.14
 [0.20.13]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.12...v0.20.13

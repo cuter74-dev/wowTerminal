@@ -29,6 +29,13 @@ pub fn connect_daemon(
     use crate::daemon::client::{socket_path, DaemonClient, EventSink};
     use crate::daemon::proto::Event;
 
+    // 모바일(iOS/Android)은 cfg(unix)에 포함되지만 데몬을 쓰지 않는다: 로컬 셸(PTY) 자체가
+    // 없고(#114), 앱이 자기 실행 파일을 별도 프로세스로 띄우는 것도 샌드박스가 막는다.
+    // 시도조차 하지 않고 인프로세스 경로로 간다 — 시작 지연·실패 로그를 만들지 않기 위함.
+    if cfg!(any(target_os = "ios", target_os = "android")) {
+        return None;
+    }
+
     let _ = std::fs::create_dir_all(config_dir);
     let exe = std::env::current_exe().ok()?;
     let socket = socket_path(config_dir);
