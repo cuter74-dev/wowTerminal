@@ -434,6 +434,16 @@ export function Terminal({
       // 이 옵션이 없으면 호출 시 예외가 발생해 출력 파서가 멈춘다(명령 실행 직후 화면이 멈추는
       // 현상). @xterm/xterm 6.0.0이 이를 enforce한다.
       allowProposedApi: true,
+      // ⌥(Option)+드래그로 **마우스 리포팅을 무시하고** 로컬 선택을 강제한다 (#154).
+      // 원격 앱이 마우스 트래킹을 켜면(tmux 마우스 on, vim, htop, Claude Code/Gemini TUI 등)
+      // xterm의 mousedown이 `areMouseEventsActive && !shouldForceSelection(e)`에서 이벤트를
+      // 원격으로 넘겨버려 선택이 아예 시작되지 않는다 → ⌘C도 복사할 게 없다.
+      // shouldForceSelection은 mac에서 `altKey && macOptionClickForcesSelection`인데 이 옵션의
+      // 기본값이 false라, 켜주지 않으면 **macOS에는 빠져나갈 제스처가 하나도 없다**
+      // (Windows/Linux는 shiftKey 분기라 옵션 없이도 Shift+드래그가 동작한다).
+      // Terminal.app·iTerm2와 같은 관례. 마우스 리포팅이 꺼져 있을 땐 이 분기를 타지 않으므로
+      // altClickMovesCursor(⌥+클릭 커서 이동)에는 영향이 없다.
+      macOptionClickForcesSelection: true,
     });
     termRef.current = term;
     const fit = new FitAddon();

@@ -50,6 +50,11 @@ Mouse still works the same — click to select, `▶` or double-click to open.
 
 ## Mouse
 
+- **Select text while an app is using the mouse** (tmux with mouse mode on, vim, htop, Claude
+  Code / Gemini TUIs, …): hold `⌥ Option` (macOS) or `Shift` (Windows/Linux) while dragging.
+  Those apps capture the mouse for their own scrolling and clicking, so a plain drag goes to the
+  app instead of starting a selection; the modifier forces a local selection, which `Ctrl/⌘ + C`
+  or right-click → Copy then copies.
 - **Drag a tab** away from the tab bar to detach it into a new window (the live session and
   screen are handed over).
 - **Drag a panel divider** to resize the host/AI panel; click the arrow chip on a divider to

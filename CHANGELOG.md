@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **macOS**: text printed by a remote (or local) program could not be selected or copied while that program had **mouse reporting** enabled — tmux with mouse mode on, vim, htop, Claude Code / Gemini TUIs, and so on. xterm.js forwards the drag to the application unless the "force selection" modifier is held, and on macOS that modifier (`⌥` Option) is off by default, so there was no way out: no selection started, and `⌘C` / right-click → Copy had nothing to copy. Hold **`⌥` Option while dragging** to select regardless of mouse reporting (the Terminal.app / iTerm2 convention; Windows and Linux already had `Shift` + drag). `⌥` + click to move the cursor is unaffected. (#154)
+
 ## [0.20.16] — 2026-09-28
 
 ### Added
