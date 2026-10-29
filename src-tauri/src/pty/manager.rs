@@ -354,36 +354,43 @@ fn setup_zsh_integration(cmd: &mut CommandBuilder) {
     cmd.env("ZDOTDIR", dir.to_string_lossy().to_string());
 }
 
-/// 로컬 bash에 OSC 133 통합을 주입한다 — `--rcfile`로 사용자 ~/.bashrc를 source한 뒤 훅 추가.
-/// (DEBUG trap=명령 시작 C, PROMPT_COMMAND=종료 D;exit. 프롬프트 사이클당 C 1회 보장.)
+/// 로컬 bash에 주입하는 rcfile — 사용자 ~/.bashrc를 source한 뒤 OSC 133 훅 추가.
+/// (DEBUG trap=명령 시작 C, PROMPT_COMMAND=종료 D;exit. 실행한 명령당 C 1회 보장.)
+const BASH_RC: &str = concat!(
+    // 로그인 셸이 아니어도 macOS Terminal.app과 동일한 PATH가 잡히도록 로그인 프로필을
+    // 먼저 source한다(/etc/profile=path_helper, 사용자 ~/.bash_profile/.profile).
+    "[ -f /etc/profile ] && source /etc/profile\n",
+    "if [ -f ~/.bash_profile ]; then source ~/.bash_profile\n",
+    "elif [ -f ~/.bash_login ]; then source ~/.bash_login\n",
+    "elif [ -f ~/.profile ]; then source ~/.profile\n",
+    "fi\n",
+    "[ -f ~/.bashrc ] && source ~/.bashrc\n",
+    // 가드 __wt_pe=1이면 C를 보내지 않는다. 1로 시작해 첫 프롬프트 전 C를 막고, 리셋은
+    // PROMPT_COMMAND **맨 끝**(__wt_arm)에서 한다(#156). 예전엔 __wt_precmd 안에서 리셋해,
+    // 사용자 PROMPT_COMMAND가 있으면 그 훅의 DEBUG trap이 프롬프트 시점에 C를 보냈다
+    // → 실행시간에 프롬프트 대기시간이 섞이고 장시간 명령 알림이 오발됐다.
+    "__wt_pe=1\n",
+    "__wt_preexec() {\n",
+    "  [ -n \"$COMP_LINE\" ] && return\n",
+    "  [ \"$BASH_COMMAND\" = \"$PROMPT_COMMAND\" ] && return\n",
+    "  [ \"$__wt_pe\" = \"1\" ] && return\n",
+    "  __wt_pe=1\n",
+    "  printf '\\033]133;C\\007'\n",
+    "}\n",
+    "__wt_precmd() { local e=$?; printf '\\033]133;D;%s\\007' \"$e\"; printf '\\033]7;file://%s%s\\007' \"$HOSTNAME\" \"$PWD\"; }\n",
+    "__wt_arm() { __wt_pe=0; }\n",
+    "trap '__wt_preexec' DEBUG\n",
+    "PROMPT_COMMAND=\"__wt_precmd${PROMPT_COMMAND:+; $PROMPT_COMMAND}; __wt_arm\"\n",
+);
+
+/// 로컬 bash에 OSC 133 통합을 주입한다 — [`BASH_RC`]를 `--rcfile`로 넘긴다.
 fn setup_bash_integration(cmd: &mut CommandBuilder) {
     let dir = std::env::temp_dir().join("wowterminal-bash");
     if std::fs::create_dir_all(&dir).is_err() {
         return;
     }
     let rc = dir.join("wt-bashrc.bash");
-    let body = concat!(
-        // 로그인 셸이 아니어도 macOS Terminal.app과 동일한 PATH가 잡히도록 로그인 프로필을
-        // 먼저 source한다(/etc/profile=path_helper, 사용자 ~/.bash_profile/.profile).
-        "[ -f /etc/profile ] && source /etc/profile\n",
-        "if [ -f ~/.bash_profile ]; then source ~/.bash_profile\n",
-        "elif [ -f ~/.bash_login ]; then source ~/.bash_login\n",
-        "elif [ -f ~/.profile ]; then source ~/.profile\n",
-        "fi\n",
-        "[ -f ~/.bashrc ] && source ~/.bashrc\n",
-        "__wt_pe=0\n",
-        "__wt_preexec() {\n",
-        "  [ -n \"$COMP_LINE\" ] && return\n",
-        "  [ \"$BASH_COMMAND\" = \"$PROMPT_COMMAND\" ] && return\n",
-        "  [ \"$__wt_pe\" = \"1\" ] && return\n",
-        "  __wt_pe=1\n",
-        "  printf '\\033]133;C\\007'\n",
-        "}\n",
-        "__wt_precmd() { local e=$?; printf '\\033]133;D;%s\\007' \"$e\"; printf '\\033]7;file://%s%s\\007' \"$HOSTNAME\" \"$PWD\"; __wt_pe=0; }\n",
-        "trap '__wt_preexec' DEBUG\n",
-        "PROMPT_COMMAND=\"__wt_precmd${PROMPT_COMMAND:+; $PROMPT_COMMAND}\"\n",
-    );
-    if std::fs::write(&rc, body).is_err() {
+    if std::fs::write(&rc, BASH_RC).is_err() {
         return;
     }
     cmd.arg("--rcfile");
@@ -482,5 +489,69 @@ mod tests {
         assert_eq!(mgr.session_count(), 1);
         mgr.kill(&id).expect("kill");
         assert_eq!(mgr.session_count(), 0);
+    }
+
+    /// bash OSC 133 (#156): 사용자 PROMPT_COMMAND가 있어도 C(명령 시작)는 **실행한 명령마다
+    /// 정확히 1회**이고, 첫 프롬프트 전이나 프롬프트 표시 시점에는 나가지 않아야 한다.
+    /// (회귀 시 C가 D 직후 프롬프트 시점에 나가 실행시간에 대기시간이 섞였다.)
+    #[test]
+    fn bash_rc_emits_one_start_marker_per_command() {
+        let Ok(bash) = which_bash() else { return }; // bash 없는 환경은 건너뜀
+        let home = tempfile::tempdir().expect("tempdir");
+        std::fs::write(home.path().join(".bashrc"), "PROMPT_COMMAND='true user_hook'\nPS1='$ '\n")
+            .expect("bashrc");
+        let rc = home.path().join("wt-bashrc.bash");
+        std::fs::write(&rc, BASH_RC).expect("rc");
+        // 프롬프트(stderr)와 마커(stdout)의 상대 순서를 보려고 2>&1로 한 스트림에 합친다.
+        let mut child = std::process::Command::new("/bin/sh")
+            .args(["-c", "exec \"$0\" --noprofile --rcfile \"$1\" -i 2>&1", bash])
+            .arg(&rc)
+            .env_clear()
+            .env("HOME", home.path())
+            .env("PATH", "/usr/bin:/bin")
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn bash");
+        child
+            .stdin
+            .take()
+            .unwrap()
+            .write_all(b"true\nfalse\nexit\n")
+            .unwrap();
+        let out = child.wait_with_output().expect("bash output");
+        let text = String::from_utf8_lossy(&out.stdout);
+        // 토큰열: 프롬프트 "$ " → "P", OSC 133 마커 → "C" / "D;<exit>".
+        let mut toks: Vec<String> = Vec::new();
+        let mut rest: &str = &text;
+        loop {
+            let (m, p) = (rest.find("\x1b]133;"), rest.find("$ "));
+            match (m, p) {
+                (Some(m), p) if p.map_or(true, |p| m < p) => {
+                    let body = &rest[m + 6..];
+                    let end = body.find('\x07').unwrap_or(body.len());
+                    toks.push(body[..end].to_string());
+                    rest = &body[end..];
+                }
+                (_, Some(p)) => {
+                    toks.push("P".into());
+                    rest = &rest[p + 2..];
+                }
+                _ => break,
+            }
+        }
+        // 첫 프롬프트 → true → false → exit. C는 항상 프롬프트(P) **뒤**, 명령마다 1회.
+        assert_eq!(
+            toks,
+            ["D;0", "P", "C", "D;0", "P", "C", "D;1", "P", "C"],
+            "raw: {text:?}"
+        );
+    }
+
+    fn which_bash() -> Result<&'static str, ()> {
+        ["/bin/bash", "/usr/bin/bash"]
+            .into_iter()
+            .find(|p| std::path::Path::new(p).exists())
+            .ok_or(())
     }
 }
