@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.20.18] — 2026-10-29
+
 ### Added
 - **Input trace recorder** for reporting typing problems. In the command palette, choose **Record input trace (new tab)**, reproduce the problem (for example, Korean input that comes out wrong), then choose **Stop input trace and save**. The saved file captures exactly which keyboard and input-method events the app received and what it sent to the shell, so the problem can be replayed and fixed precisely. Nothing is sent anywhere automatically, and the new tab warns that everything typed in it is saved, so don't type passwords there. (#158)
 
@@ -557,7 +559,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.17...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.18...HEAD
+[0.20.18]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.17...v0.20.18
 [0.20.17]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.16...v0.20.17
 [0.20.16]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.15...v0.20.16
 [0.20.15]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.14...v0.20.15
