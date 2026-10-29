@@ -20,7 +20,10 @@ it.each(SYNTHETIC_TRACES.map((t) => [t.name, t] as const))(
     expect(traceRecordingActive()).toBe(false);
     expect(recorded!.source).toBe("recorded");
     expect(recorded!.cmpLatched).toBe(source.cmpLatched);
-    expect(recorded!.events.length).toBe(source.events.length);
+    // 하니스의 ta.focus()도 실제 focus 이벤트라 함께 녹화된다(#159부터 focus/blur 녹화).
+    const inputOnly = (evs: { type: string }[]) =>
+      evs.filter((e) => e.type !== "focus" && e.type !== "blur").length;
+    expect(inputOnly(recorded!.events)).toBe(inputOnly(source.events));
     expect(recorded!.expectedPty).toBe(sent);
     // 녹화본을 그대로 재생하면 같은 바이트.
     expect(await replayTrace(recorded!)).toBe(recorded!.expectedPty);

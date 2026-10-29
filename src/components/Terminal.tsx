@@ -539,7 +539,9 @@ export function Terminal({
     term.textarea?.setAttribute("writingsuggestions", "false");
     // 입력 트레이스 녹화(#158): 팔레트로 예약돼 있으면 이 새 터미널에서 시작하고, 입력 내용이
     // 파일로 저장된다는 사실을 화면에 알린다(PTY로는 안 보냄).
-    if (maybeStartTraceRecording(term.textarea)) term.write(tRef.current.traceRecording);
+    // spawnFresh의 term.clear()가 이 줄을 지우므로 거기서 한 번 더 쓴다(실기기 확인).
+    const traceNotice = maybeStartTraceRecording(term.textarea);
+    if (traceNotice) term.write(tRef.current.traceRecording);
     // WebGL 렌더러(GPU 가속). 컨텍스트 손실/실패 시 dispose하면 xterm이 자동으로 DOM
     // 렌더러로 폴백한다. (#83 잔상 수정 시도로 도입했으나 원인은 렌더러가 아니라 위
     // writingsuggestions였다 — 성능 이점이 있어 유지.)
@@ -1568,6 +1570,7 @@ export function Terminal({
       // 재접속 시 이전 화면 잔상 위에 새 세션이 겹쳐 찍히는 문제(#126): 버퍼를 비워 깨끗한
       // 화면에서 시작한다. tmux는 attach가 전체를 다시 그리므로 영향 없다.
       term.clear();
+      if (traceNotice) term.write(tRef.current.traceRecording);
       try {
         sessionId = await invoke<string>(
           cmds.spawnCmd,

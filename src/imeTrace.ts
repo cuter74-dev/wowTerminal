@@ -17,6 +17,9 @@ export const TRACE_EVENT_TYPES = [
   "compositionupdate",
   "compositionend",
   "paste",
+  // 포커스 왕복은 IME 상태를 바꾼다(#159: 돌아오면 textarea가 비워짐) — 재생에도 필요하다.
+  "focus",
+  "blur",
 ] as const;
 
 export interface TraceEvent {
@@ -140,6 +143,8 @@ export function fromTraceEvent(r: TraceEvent): Event {
       getData: (fmt: string) => (fmt === "text/plain" || fmt === "text" ? text : ""),
       types: ["text/plain"],
     });
+  } else if (r.type === "focus" || r.type === "blur") {
+    ev = new FocusEvent(r.type, { bubbles: false });
   } else {
     ev = new Event(r.type, { bubbles: true, cancelable: true });
   }
