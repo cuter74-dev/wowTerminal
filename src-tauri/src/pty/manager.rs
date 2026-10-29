@@ -1,6 +1,6 @@
 //! PTY 세션 매니저.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::io::Write;
 use std::sync::{Arc, Mutex};
 
@@ -45,6 +45,31 @@ pub enum PtyError {
     Backend(String),
 }
 
+/// forwarder가 sink 호출 1회에 합치는 출력 상한 (#157). 이벤트 하나가 너무 커져 웹뷰가 한 번에
+/// 큰 덩어리를 파싱하며 멈추지 않을 정도로 둔다.
+const COALESCE_MAX: usize = 64 * 1024;
+
+/// forwarder 루프 (#157): 청크 하나를 기다렸다가, 그 시점에 **이미 쌓인** 청크를 COALESCE_MAX까지
+/// 붙여 sink를 1회 호출한다. 채널이 닫히면(reader 종료) 남은 것을 다 보낸 뒤 closed를 부른다.
+fn forward_output(
+    rx: &std::sync::mpsc::Receiver<Vec<u8>>,
+    sink: &DataSink,
+    closed: &ClosedSink,
+    id: SessionId,
+) {
+    while let Ok(mut chunk) = rx.recv() {
+        while chunk.len() < COALESCE_MAX {
+            match rx.try_recv() {
+                Ok(more) => chunk.extend_from_slice(&more),
+                Err(_) => break,
+            }
+        }
+        (sink)(id.clone(), chunk);
+    }
+    // 셸 종료/스트림 끊김 — 마지막 출력까지 보낸 **뒤** 프론트에 알린다 (#96).
+    (closed)(id);
+}
+
 /// 데이터 송신 콜백 — Tauri 환경에서는 event emit으로 연결되지만,
 /// 테스트에서는 채널이나 버퍼에 모을 수 있도록 추상화.
 pub type DataSink = Arc<dyn Fn(SessionId, Vec<u8>) + Send + Sync>;
@@ -55,8 +80,12 @@ pub type ClosedSink = Arc<dyn Fn(SessionId) + Send + Sync>;
 
 /// 세션별 출력 ring buffer. 탭 분리(세션 인계) 시 새 창이 이전 스크롤백을 복원하도록
 /// 출력 바이트를 세션마다 상한까지 누적한다. 상한 초과 시 오래된 앞부분부터 버린다.
+///
+/// `VecDeque`라 앞부분 버리기가 O(버린 양)이다 (#157). 예전 `Vec::drain(..excess)`는 상한에
+/// 닿은 뒤 1 KiB 청크마다 ~512 KiB를 memmove했다(10 MB 출력에 83 ms → 0.5 ms). 이 store는
+/// pty·ssh 전 세션이 mutex 하나를 공유하므로 그 시간만큼 다른 세션의 출력도 막혔다.
 pub struct HistoryStore {
-    inner: Mutex<HashMap<SessionId, Vec<u8>>>,
+    inner: Mutex<HashMap<SessionId, VecDeque<u8>>>,
     cap: usize,
 }
 
@@ -71,11 +100,11 @@ impl HistoryStore {
     pub fn append(&self, id: &str, data: &[u8]) {
         let mut g = self.inner.lock().expect("history mutex poisoned");
         let buf = g.entry(id.to_string()).or_default();
-        buf.extend_from_slice(data);
-        if buf.len() > self.cap {
-            let excess = buf.len() - self.cap;
-            buf.drain(..excess);
-        }
+        // 한 번에 cap보다 큰 청크면 꼬리만 남는다 — 넣었다가 버리지 않게 미리 자른다.
+        let data = &data[data.len().saturating_sub(self.cap)..];
+        let excess = (buf.len() + data.len()).saturating_sub(self.cap);
+        buf.drain(..excess);
+        buf.extend(data);
     }
 
     pub fn get(&self, id: &str) -> Vec<u8> {
@@ -83,7 +112,7 @@ impl HistoryStore {
             .lock()
             .expect("history mutex poisoned")
             .get(id)
-            .cloned()
+            .map(|b| b.iter().copied().collect())
             .unwrap_or_default()
     }
 
@@ -226,22 +255,32 @@ impl PtyManager {
             .expect("sessions mutex poisoned")
             .insert(session_id.clone(), session);
 
-        // reader 스레드: master에서 읽은 바이트를 sink로 전달.
-        let sink = Arc::clone(&self.sink);
-        let closed = Arc::clone(&self.closed);
-        let id_for_thread = session_id.clone();
+        // 출력 경로를 reader / forwarder 두 스레드로 나눈다 (#157). macOS 커널은 PTY read 1회를
+        // ~1 KiB로 자르므로(10 MB 출력 = read 1만~7만 회) read마다 sink(히스토리 + base64 + IPC
+        // emit)를 부르면 이벤트가 그만큼 생기고, reader가 sink에 묶여 자식 프로그램도 기다린다.
+        // forwarder는 **이미 쌓인** 청크만 합쳐 보내므로 지연이 늘지 않는다 — 혼자 온 청크(타이핑
+        // 에코)는 즉시 나가고, 합치기는 sink가 밀릴 때만 일어난다. 채널이 bounded라 forwarder가
+        // 밀리면 reader가 막히고 PTY 버퍼가 차서 자식이 기다린다(종전과 같은 역압).
+        let (tx, rx) = std::sync::mpsc::sync_channel::<Vec<u8>>(256);
         std::thread::spawn(move || {
             let mut buf = [0u8; 8192];
             loop {
                 match reader.read(&mut buf) {
                     Ok(0) => break,
-                    Ok(n) => (sink)(id_for_thread.clone(), buf[..n].to_vec()),
+                    Ok(n) => {
+                        if tx.send(buf[..n].to_vec()).is_err() {
+                            break;
+                        }
+                    }
                     Err(_) => break,
                 }
             }
-            // 셸 종료/스트림 끊김 — 프론트에 알린다 (#96).
-            (closed)(id_for_thread);
+            // tx drop → forwarder가 남은 청크를 비운 뒤 종료한다.
         });
+        let sink = Arc::clone(&self.sink);
+        let closed = Arc::clone(&self.closed);
+        let id_for_thread = session_id.clone();
+        std::thread::spawn(move || forward_output(&rx, &sink, &closed, id_for_thread));
 
         Ok(session_id)
     }
@@ -545,6 +584,121 @@ mod tests {
             toks,
             ["D;0", "P", "C", "D;0", "P", "C", "D;1", "P", "C"],
             "raw: {text:?}"
+        );
+    }
+
+    /// HistoryStore 링버퍼 (#157): 상한을 넘으면 오래된 앞부분부터 버리고 마지막 cap 바이트만,
+    /// 순서 그대로 남는다. cap보다 큰 단일 청크도 꼬리만 남는다.
+    #[test]
+    fn history_keeps_last_cap_bytes_in_order() {
+        let h = HistoryStore::new(10);
+        h.append("s", b"abcdef");
+        assert_eq!(h.get("s"), b"abcdef");
+        h.append("s", b"ghijkl");
+        assert_eq!(h.get("s"), b"cdefghijkl");
+        h.append("s", b"0123456789XYZ");
+        assert_eq!(h.get("s"), b"3456789XYZ");
+        assert!(h.get("other").is_empty());
+        h.remove("s");
+        assert!(h.get("s").is_empty());
+    }
+
+    /// forwarder 합치기 규칙 (#157, 결정적): 이미 쌓인 청크는 COALESCE_MAX까지 한 번에, 순서대로.
+    /// 혼자 온 청크는 합칠 것이 없으니 그대로 즉시 나간다(지연 없음).
+    #[test]
+    fn forward_output_merges_queued_chunks_up_to_cap() {
+        let calls: Arc<Mutex<Vec<Vec<u8>>>> = Arc::default();
+        let c = Arc::clone(&calls);
+        let sink: DataSink = Arc::new(move |_, d| c.lock().unwrap().push(d));
+        let closed_n = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let cn = Arc::clone(&closed_n);
+        let closed: ClosedSink = Arc::new(move |_| {
+            cn.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+        });
+
+        // 1 KiB 청크 100개가 이미 쌓여 있음 → 64 KiB + 36 KiB 두 번.
+        let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(1000);
+        let mut expected = Vec::new();
+        for i in 0..100u8 {
+            let chunk = vec![i; 1024];
+            expected.extend_from_slice(&chunk);
+            tx.send(chunk).unwrap();
+        }
+        drop(tx);
+        forward_output(&rx, &sink, &closed, "s".into());
+        let got = calls.lock().unwrap();
+        assert_eq!(
+            got.iter().map(Vec::len).collect::<Vec<_>>(),
+            [COALESCE_MAX, 100 * 1024 - COALESCE_MAX]
+        );
+        assert_eq!(got.concat(), expected);
+        assert_eq!(closed_n.load(std::sync::atomic::Ordering::SeqCst), 1);
+        drop(got);
+
+        // 혼자 온 청크는 그대로 1회.
+        calls.lock().unwrap().clear();
+        let (tx, rx) = mpsc::sync_channel::<Vec<u8>>(4);
+        tx.send(b"a".to_vec()).unwrap();
+        drop(tx);
+        forward_output(&rx, &sink, &closed, "s".into());
+        assert_eq!(*calls.lock().unwrap(), vec![b"a".to_vec()]);
+    }
+
+    /// reader/forwarder 분리 (#157): sink가 느리면 쌓인 청크를 합쳐 호출 수가 크게 줄고,
+    /// 내용은 바이트 단위로 같고 순서도 유지되며, closed는 마지막 데이터 **뒤**에 온다.
+    #[test]
+    fn forwarder_coalesces_output_when_sink_is_slow() {
+        #[derive(Debug, PartialEq)]
+        enum Ev {
+            Data(usize),
+            Closed,
+        }
+        let events: Arc<Mutex<Vec<Ev>>> = Arc::default();
+        let bytes: Arc<Mutex<Vec<u8>>> = Arc::default();
+        let (ev, by) = (Arc::clone(&events), Arc::clone(&bytes));
+        let sink: DataSink = Arc::new(move |_, data| {
+            // 웹뷰 IPC emit 같은 느린 sink를 흉내 낸다.
+            std::thread::sleep(Duration::from_millis(2));
+            ev.lock().unwrap().push(Ev::Data(data.len()));
+            by.lock().unwrap().extend_from_slice(&data);
+        });
+        let ev = Arc::clone(&events);
+        let (done_tx, done_rx) = mpsc::channel();
+        let closed: ClosedSink = Arc::new(move |_| {
+            ev.lock().unwrap().push(Ev::Closed);
+            let _ = done_tx.send(());
+        });
+        let mgr = PtyManager::with_closed(sink, Arc::new(HistoryStore::new(1024)), closed);
+        // 20000줄(약 170 KB)을 한 줄씩 출력. 줄 번호로 순서를 검증한다.
+        let id = mgr
+            .spawn(
+                Some("/bin/sh"),
+                PtyDims { cols: 80, rows: 24 },
+                None,
+            )
+            .expect("spawn");
+        mgr.write(&id, b"stty -echo; i=0; while [ $i -lt 20000 ]; do echo L$i; i=$((i+1)); done; exit\n")
+            .expect("write");
+        done_rx
+            .recv_timeout(Duration::from_secs(30))
+            .expect("closed callback");
+
+        let events = events.lock().unwrap();
+        assert_eq!(events.last(), Some(&Ev::Closed), "closed must come last");
+        let calls = events.iter().filter(|e| matches!(e, Ev::Data(_))).count();
+        let text = String::from_utf8_lossy(&bytes.lock().unwrap()).replace("\r\n", "\n");
+        let lines: Vec<&str> = text.lines().filter(|l| l.starts_with('L')).collect();
+        let expected: Vec<String> = (0..20000).map(|i| format!("L{i}")).collect();
+        assert_eq!(lines, expected, "output must be complete and in order");
+        // 실제 PTY 경로 안전망(정밀 검증은 forward_output 단위 테스트). 실측: 합치기 48회 /
+        // 끄면 405회(M5). 머신 속도에 따라 흔들리므로 임계값은 느슨하게 둔다.
+        assert!(calls < 2000, "expected coalescing, got {calls} sink calls");
+        assert!(
+            events.iter().all(|e| match e {
+                Ev::Data(n) => *n <= COALESCE_MAX + 8192,
+                Ev::Closed => true,
+            }),
+            "a merged chunk exceeded the cap"
         );
     }
 

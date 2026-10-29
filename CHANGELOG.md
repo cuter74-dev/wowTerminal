@@ -7,6 +7,10 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Changed
+- **Faster handling of heavy terminal output.** Session scrollback kept for tab detach/re-attach used to shift up to 512 KiB of memory for every ~1 KiB of output once it was full, under a lock shared by all sessions; it's now a ring buffer (about 170x less work in a 10 MB benchmark). (#157)
+- **Fewer output events for local shells.** macOS hands terminal output over in ~1 KiB pieces, so dumping a large file or log produced tens of thousands of events to the UI. Output already waiting is now merged (up to 64 KiB) before it's sent, with no added delay for typing echo. In a test with a slow consumer this cut deliveries from 405 to 48 for the same output, with byte-identical content. (#157)
+
 ### Fixed
 - **Paste from the right-click menu** ignored the shell's bracketed-paste mode, so multi-line text ran line by line the moment it was pasted. It now goes through the same path as `⌘V` / `Ctrl+V`, arriving as one block you can review before pressing Enter. (#156)
 - **OSC 8 hyperlinks** printed by programs (e.g. `ls --hyperlink`, `gcc`, `delta`) were handed to the webview's default handler without checking the target. They now open in your browser only for `http`, `https` and `mailto` links; other schemes (`file:`, `javascript:`, app URL schemes) are ignored. When a link's visible text doesn't match its real address, you're shown the address and asked before it opens. (#156)
