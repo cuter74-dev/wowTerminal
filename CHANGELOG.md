@@ -8,6 +8,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Fixed
+- **iOS (iPad and iPhone): Korean now composes into syllables in the terminal.** The iOS keyboard builds each syllable by replacing the previous character, which the terminal ignored, so the shell received loose jamo (`ㅎㅏㄴ` instead of `한`). Typing `한글`, deleting within a word, and mixing in numbers now arrive as you see them. (#162)
 - **iPad: Korean (Hangul) typed in the terminal never reached the server** — only spaces and Enter got through. iPadOS identifies itself as a Mac, so the app ran Mac-only input handling on iPad, and that handling discarded the individual Hangul letters the iPad keyboard sends. The app now checks the actual operating system, so iPad uses the same input path as iPhone. (#161)
 
 ## [0.20.18] — 2026-10-29

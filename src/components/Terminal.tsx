@@ -24,7 +24,7 @@ import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { mobileCtrl, ctrlSeq } from "../mobileInput";
 import { LangDict, useT } from "../i18n";
-import { isMacOS } from "../platform";
+import { currentPlatform, isMacOS } from "../platform";
 import { maybeStartTraceRecording, recordTracePty } from "../imeTraceRecorder";
 
 // [진단 #83 — M5 영문 잔상] writingsuggestions=false로도 안 잡혀 재계측. 구조 카운터만
@@ -758,6 +758,12 @@ export function Terminal({
     // 영영 꺼져, 229-only 맥에서 그 순간부터 한글이 깨진다(재시작 전까지 — #83에서 실측).
     // UA가 아니라 실제 OS로 판별한다(#161) — iPadOS는 Mac UA를 보내 iPad가 미러 경로를 탔다.
     const isMacWebView = isMacOS();
+    // iOS(iPad·iPhone) 한글 (#162): iOS 키보드는 composition 이벤트 없이, 자모 keydown(keyCode 0)
+    // 뒤에 deleteContentBackward + insertText("하")로 앞 글자를 **바꿔치기**하며 조합한다(실측).
+    // xterm은 keypress의 자모만 보내고 바꿔치기 input은 무시해 셸에 "ㅎㅏㄴ"이 갔다. textarea
+    // 값 자체는 "한글"로 정확히 쌓이므로 macOS와 같은 미러(textarea diff → \x7f + 새 꼬리)로
+    // 보낸다. 미러를 켜는 신호만 다르다: macOS는 keyCode 229, iOS는 한글 자모 keydown.
+    const isIOSWebView = currentPlatform() === "ios";
     let nativeComposition = false;
     // 조합이 실제 진행 중인 동안(compositionstart~compositionend)만 true. nativeComposition은
     // composition 머신에서 영구 true로 고정되므로 "지금 조합 중"을 별도로 추적한다(#100 중복).
@@ -1048,6 +1054,22 @@ export function Terminal({
     ta?.addEventListener("blur", () => {
       mirrorFocusLost = true;
     });
+    // 미러를 켠다(macOS 229 / iOS 한글 자모 keydown 공통).
+    const engageMirror = () => {
+      if (!imeActive) {
+        // 미러 시작 시 textarea의 기존 내용(예: ⌘V 잔류 — xterm paste 핸들러는
+        // preventDefault하지 않아 전송 후 기본 동작이 같은 텍스트를 textarea에
+        // 남긴다)을 기준선으로 잡는다. 빈 기준선으로 시작하면 그 잔류가 통째로
+        // 다시 전송돼 "붙여넣기가 또 되는" 중복이 생긴다(#97).
+        // 단, 미러 OFF 중 IME가 넣은 미전송 내용(#147)은 기준선으로 삼지 않는다 —
+        // 빈 기준선이면 다음 flush가 textarea 전체를 전송해 떨어뜨린 자모가 복구된다.
+        imeSent = imeUnsynced ? "" : (ta?.value ?? "");
+        imeUnsynced = false;
+      }
+      imeActive = true;
+    };
+    // iOS 키보드가 keydown.key로 주는 한글 호환 자모(ㄱ–ㆎ). 완성 음절은 keydown에 오지 않는다.
+    const IOS_JAMO = /^[\u3131-\u318e]$/;
     // textarea.value(항상 올바른 전체 텍스트)와 이미 보낸 부분(imeSent)의 차이를 계산해,
     // 공통 접두 이후를 백스페이스로 지우고 새 꼬리를 PTY로 보낸다. 셸 라인을 textarea와
     // 일치시킨다. input 이벤트와 compositionend 양쪽에서 호출(둘 다 idempotent).
@@ -1118,7 +1140,7 @@ export function Terminal({
     }
     // 미러는 macOS에서만 켠다. Windows/Linux는 xterm 네이티브 IME가 한글/CJK를 직접 처리하므로
     // 미러 리스너를 등록하지 않는다(미러가 첫 음절 후 stuck되어 입력을 막던 #88을 근본 차단).
-    if (ta && isMacWebView) {
+    if (ta && (isMacWebView || isIOSWebView)) {
       // 캡처 단계로 등록해 xterm의 input 핸들러보다 먼저 실행 → IME 중에는
       // stopImmediatePropagation으로 xterm이 같은 input을 또 보내는 이중 전송을 막는다.
       ta.addEventListener(
@@ -1349,17 +1371,21 @@ export function Terminal({
         // 조합 머신(네이티브 IME가 한글 처리)·진행 중 composition·비-macOS는 네이티브로 넘긴다.
         // 미러는 composition 이벤트가 전혀 없는 229-only macOS에서만 켠다.
         if (!isMacWebView || nativeComposition || compositionMachine) return true;
-        if (!imeActive) {
-          // 미러 시작 시 textarea의 기존 내용(예: ⌘V 잔류 — xterm paste 핸들러는
-          // preventDefault하지 않아 전송 후 기본 동작이 같은 텍스트를 textarea에
-          // 남긴다)을 기준선으로 잡는다. 빈 기준선으로 시작하면 그 잔류가 통째로
-          // 다시 전송돼 "붙여넣기가 또 되는" 중복이 생긴다(#97).
-          // 단, 미러 OFF 중 IME가 넣은 미전송 내용(#147)은 기준선으로 삼지 않는다 —
-          // 빈 기준선이면 다음 flush가 textarea 전체를 전송해 떨어뜨린 자모가 복구된다.
-          imeSent = imeUnsynced ? "" : (ta?.value ?? "");
-          imeUnsynced = false;
-        }
-        imeActive = true;
+        engageMirror();
+        return false;
+      }
+      // iOS: 한글 자모 keydown이 미러를 켠다(#162). 이 keydown은 자모를 넣는 input보다 먼저
+      // 오므로 기준선은 그 자모가 들어가기 전 값이다.
+      if (
+        isIOSWebView &&
+        !imeActive &&
+        e.key.length === 1 &&
+        IOS_JAMO.test(e.key) &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey
+      ) {
+        engageMirror();
         return false;
       }
       // 한글 미러 세션이 시작된 뒤에는 그 줄 전체(공백·영어 포함)를 textarea 미러로
