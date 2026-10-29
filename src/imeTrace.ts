@@ -52,8 +52,11 @@ export interface ImeTrace {
   /** 예: "macOS 26.1 / M5 / 2-Set Korean / wowTerminal 0.20.17". */
   recordedFrom?: string;
   note?: string;
-  /** isMacWebView 판정(미러 경로 선택)이 UA로 결정되므로 함께 기록한다. */
+  /** 녹화 환경의 UA(지문·참고용). */
   userAgent: string;
+  /** 녹화 환경의 OS(plugin-os `platform()`: macos/ios/windows/linux/android). 미러 경로는 UA가
+   *  아니라 이 값으로 결정된다(#161 — iPad는 Mac UA를 보낸다). 없으면 UA에서 추정(옛 트레이스). */
+  platform?: string;
   /** 녹화 시작 시 composition 머신 래치(wt.ime.cmp) 상태 — macOS A형/B형 구분. */
   cmpLatched: boolean;
   events: TraceEvent[];

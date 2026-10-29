@@ -7,7 +7,7 @@ import { vi } from "vitest";
 import { Terminal } from "../components/Terminal";
 import { DEFAULT_SETTINGS } from "../settings";
 import { fromTraceEvent, type ImeTrace } from "../imeTrace";
-import { invokeLog, ptyWrites, resetTauriMock } from "./tauriMock";
+import { invokeLog, osState, ptyWrites, resetTauriMock } from "./tauriMock";
 
 const advance = (ms: number) =>
   act(async () => {
@@ -18,11 +18,15 @@ const advance = (ms: number) =>
 export async function replayTrace(trace: ImeTrace): Promise<string> {
   resetTauriMock();
   localStorage.clear();
-  // isMacWebView(미러 경로 선택)는 마운트 시 UA로 정해진다.
+  // UA는 환경 지문(wt.ime.cmp.fp)과 녹화 정보용으로 그대로 재현한다.
   Object.defineProperty(navigator, "userAgent", {
     value: trace.userAgent,
     configurable: true,
   });
+  // 미러 경로는 실제 OS로 정해진다(#161). platform이 없는 옛 트레이스는 UA에서 추정.
+  osState.platform =
+    trace.platform ??
+    (/Mac/.test(trace.userAgent) ? "macos" : /Windows/.test(trace.userAgent) ? "windows" : "linux");
   if (trace.cmpLatched) {
     // 래치는 환경 지문이 맞아야 신뢰된다(#136) — 녹화 당시 "이미 B형으로 판정된" 상태 재현.
     localStorage.setItem("wt.ime.cmp", "1");

@@ -6,6 +6,7 @@
 // 이미 쓰던 터미널은 IME 상태(미러 활성·기준선·자가치유 카운터 등)가 쌓여 있어, 같은
 // 이벤트라도 새 터미널에선 다르게 처리될 수 있다.
 import { TRACE_EVENT_TYPES, toTraceEvent, type ImeTrace, type TraceEvent } from "./imeTrace";
+import { currentPlatform } from "./platform";
 
 interface Recording {
   ta: HTMLTextAreaElement;
@@ -81,6 +82,7 @@ export function stopTraceRecording(name: string, recordedFrom: string): ImeTrace
     source: "recorded",
     recordedFrom,
     userAgent: navigator.userAgent,
+    platform: currentPlatform() || undefined,
     cmpLatched: r.cmpLatched,
     events: r.events,
     expectedPty: r.pty.join(""),

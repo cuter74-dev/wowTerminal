@@ -4,6 +4,8 @@
 export const SESSION_ID = "test-session";
 
 export const ptyWrites: string[] = [];
+/** plugin-os `platform()`이 돌려줄 값 — 하니스가 트레이스마다 지정한다(#161). */
+export const osState = { platform: "" };
 export const invokeLog: string[] = [];
 
 export function resetTauriMock(): void {

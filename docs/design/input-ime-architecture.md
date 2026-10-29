@@ -17,6 +17,13 @@ selected by `isMacWebView` in `src/components/Terminal.tsx`:
 | Linux | WebKitGTK | xterm native IME (standard composition events) |
 | macOS | WKWebView | **custom IME mirror** (below) |
 
+**Which path runs is decided by the real OS** (`isMacOS()` in `src/platform.ts`, from
+`@tauri-apps/plugin-os`), **not the user agent** (#161). iPadOS WKWebView sends a *desktop Mac*
+UA (`Macintosh; Intel Mac OS X 10_15_7`), so the old `userAgent.includes("Mac")` check put iPad on
+the macOS mirror path. There, the stray-jamo filter (mirror rule 4) dropped every Hangul jamo the
+iPad keyboard sent: measured in the iPad simulator, only the space and Enter reached the shell.
+iOS (iPad and iPhone) now takes the standard path. The UA is only a fallback outside Tauri.
+
 Windows/Linux fire the standard `compositionstart/update/end` sequence and xterm's own
 `CompositionHelper` handles it. The mirror, the `.composition-view` CSS hiding, the stray
 jamo filter, and the keyCode-229 interception are all **macOS-only**; applying any of them

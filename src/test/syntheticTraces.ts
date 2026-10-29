@@ -7,7 +7,7 @@ import { MAC_UA, TraceBuilder } from "./traceBuilder";
 function trace(
   name: string,
   note: string,
-  opts: { cmpLatched?: boolean },
+  opts: { cmpLatched?: boolean; platform?: string },
   build: (b: TraceBuilder) => void,
   expectedLines: string[],
   expectedPty: string,
@@ -20,6 +20,7 @@ function trace(
     source: "synthetic",
     note,
     userAgent: MAC_UA,
+    platform: opts.platform,
     cmpLatched: !!opts.cmpLatched,
     events: b.events,
     expectedLines,
@@ -130,5 +131,20 @@ export const SYNTHETIC_TRACES: ImeTrace[] = [
     },
     ["echo st7-가 x > /tmp/wt-st7.txt"],
     "echo st7-가 x > /tmp/wt-st7.txt\r",
+  ),
+  trace(
+    "T8 iPad (Mac UA, iOS) keeps each Hangul jamo (#161)",
+    "iPadOS WKWebView는 데스크탑 Mac UA를 보낸다. 시뮬레이터 화면 키보드 실측처럼 자모가 하나씩 " +
+      "insertText로 온다. 예전엔 UA로 Mac 판정 → macOS 단독 자모 필터가 전부 버려 한글이 통째로 " +
+      "사라졌다(실측: 셸에 공백과 Enter만 도착). 실제 OS(ios)로 판정하면 자모가 전달된다.",
+    { platform: "ios" },
+    (b) => {
+      for (const j of ["ㅎ", "ㅏ", "ㄴ"]) b.plain(j);
+      b.plain(" ");
+      for (const j of ["ㄱ", "ㅡ", "ㄹ"]) b.plain(j);
+      b.key("Enter", 13);
+    },
+    ["ㅎㅏㄴ ㄱㅡㄹ"],
+    "ㅎㅏㄴ ㄱㅡㄹ\r",
   ),
 ];
