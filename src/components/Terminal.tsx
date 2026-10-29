@@ -736,6 +736,11 @@ export function Terminal({
     // 이 값을 미러 시작 기준선(imeSent)으로 삼으면 "이미 보낸 것"으로 오인돼, 다음 조합
     // 되감기의 \x7f가 화면의 엉뚱한 앞 글자를 지운다(실측 ring: sdfas → \x7f아 → sdfa아).
     let imeUnsynced = false;
+    // (#159) textarea가 포커스를 잃었다 돌아오면 WebKit이 그 내용을 비울 수 있다. 미러 상태
+    // (imeSent)만 남으면 다음 input에서 "빈 값 vs 보낸 값" diff가 이미 친 한글 전체를 \x7f로
+    // 지운다(실기기 녹화: 한글 9자 뒤 ⌘Tab 왕복 → \x7f×10). 포커스를 잃으면 표시해 두고,
+    // 다음 keydown(그 키가 값을 바꾸기 전)에 기준선을 현재 값으로 맞춘다 — 아무것도 보내지 않음.
+    let mirrorFocusLost = false;
     // 최신 WKWebView(예: macOS M-시리즈 최신판)는 표준 composition 이벤트를 정상 발생시킨다.
     // 그런 환경에선 xterm 네이티브 IME가 입력을 처리하므로 커스텀 미러를 꺼야 한다(둘 다
     // 입력을 보내 글자가 중복되는 버그 방지 — 최신 macOS는 영어 입력도 인라인 예측 텍스트로
@@ -1036,6 +1041,9 @@ export function Terminal({
       imeUnsynced = false; // textarea를 비우므로 미전송 잔류도 함께 소멸(#147).
       if (ta) ta.value = "";
     };
+    ta?.addEventListener("blur", () => {
+      mirrorFocusLost = true;
+    });
     // textarea.value(항상 올바른 전체 텍스트)와 이미 보낸 부분(imeSent)의 차이를 계산해,
     // 공통 접두 이후를 백스페이스로 지우고 새 꼬리를 PTY로 보낸다. 셸 라인을 textarea와
     // 일치시킨다. input 이벤트와 compositionend 양쪽에서 호출(둘 다 idempotent).
@@ -1179,6 +1187,11 @@ export function Terminal({
     // Ctrl-R(히스토리 검색) / Tab(인라인 제안 수락) 가로채기.
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+      // (#159) 포커스 왕복 뒤 첫 키: 미러 기준선을 현재 textarea 값으로 재동기화(전송 없음).
+      if (mirrorFocusLost) {
+        mirrorFocusLost = false;
+        if (imeActive && ta) imeSent = ta.value.replace(/\u00a0/g, " ");
+      }
       // 모바일 온스크린 키바의 Ctrl 스티키 (#114): 켜져 있으면 다음 글자 1개를 Ctrl 조합으로
       // 보내고 끈다. 소프트 키보드로 친 영문자가 ⌃C/⌃D 등으로 전송된다.
       if (mobileCtrl.get() && !e.ctrlKey && !e.metaKey && !e.altKey) {
