@@ -7,6 +7,7 @@ import { WebLinksAddon } from "@xterm/addon-web-links";
 import { WebglAddon } from "@xterm/addon-webgl";
 import { invoke } from "@tauri-apps/api/core";
 import { openUrl } from "@tauri-apps/plugin-opener";
+import { confirm } from "@tauri-apps/plugin-dialog";
 import { listen, UnlistenFn } from "@tauri-apps/api/event";
 import "@xterm/xterm/css/xterm.css";
 import { SshConnectError, TerminalSource, isSshConnectError } from "../types";
@@ -51,6 +52,7 @@ const STR: LangDict<{
     noHistoryMatch: string;
     sessionClosed: string;
     reconnecting: string;
+    linkMismatch: (url: string) => string;
   }
 > = {
   en: {
@@ -67,6 +69,7 @@ const STR: LangDict<{
     noHistoryMatch: "No matching history",
     sessionClosed: "\r\n\x1b[33m[disconnected — press Enter to reconnect]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[reconnecting…]\x1b[0m",
+    linkMismatch: (url) => `This link's text does not match where it goes. Open it?\n\n${url}`,
   },
   ko: {
     sessionHandover: "\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m",
@@ -82,6 +85,7 @@ const STR: LangDict<{
     noHistoryMatch: "일치하는 히스토리 없음",
     sessionClosed: "\r\n\x1b[33m[연결이 끊어졌습니다 — Enter 키로 다시 연결]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[다시 연결하는 중…]\x1b[0m",
+    linkMismatch: (url) => `링크에 표시된 텍스트와 실제 주소가 다릅니다. 열까요?\n\n${url}`,
   },
   es: {
     sessionHandover: "\r\n\x1b[36m[sesión transferida — continúa en la nueva ventana]\x1b[0m",
@@ -97,6 +101,7 @@ const STR: LangDict<{
     noHistoryMatch: "No hay coincidencias en el historial",
     sessionClosed: "\r\n\x1b[33m[desconectado — pulsa Enter para reconectar]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[reconectando…]\x1b[0m",
+    linkMismatch: (url) => `El texto de este enlace no coincide con su destino. ¿Abrirlo?\n\n${url}`,
   },
   zh: {
     sessionHandover: "\r\n\x1b[36m[会话已交接 — 在新窗口中继续]\x1b[0m",
@@ -112,6 +117,7 @@ const STR: LangDict<{
     noHistoryMatch: "没有匹配的历史记录",
     sessionClosed: "\r\n\x1b[33m[连接已断开 — 按 Enter 重新连接]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[正在重新连接…]\x1b[0m",
+    linkMismatch: (url) => `此链接显示的文字与实际地址不一致。要打开吗？\n\n${url}`,
   },
   ja: {
     sessionHandover: "\r\n\x1b[36m[セッションを引き継ぎました — 新しいウィンドウで続行]\x1b[0m",
@@ -127,6 +133,7 @@ const STR: LangDict<{
     noHistoryMatch: "一致する履歴がありません",
     sessionClosed: "\r\n\x1b[33m[切断されました — Enter キーで再接続]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[再接続中…]\x1b[0m",
+    linkMismatch: (url) => `このリンクの表示テキストと実際の宛先が一致しません。開きますか？\n\n${url}`,
   },
   ru: {
     sessionHandover: "\r\n\x1b[36m[сессия передана — продолжите в новом окне]\x1b[0m",
@@ -142,6 +149,7 @@ const STR: LangDict<{
     noHistoryMatch: "Нет совпадений в истории",
     sessionClosed: "\r\n\x1b[33m[соединение разорвано — нажмите Enter для переподключения]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[переподключение…]\x1b[0m",
+    linkMismatch: (url) => `Текст ссылки не совпадает с её адресом. Открыть?\n\n${url}`,
   },
   fr: {
     sessionHandover: "\r\n\x1b[36m[session transférée — continuez dans la nouvelle fenêtre]\x1b[0m",
@@ -157,6 +165,7 @@ const STR: LangDict<{
     noHistoryMatch: "Aucune correspondance dans l'historique",
     sessionClosed: "\r\n\x1b[33m[déconnecté — appuyez sur Entrée pour reconnecter]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[reconnexion…]\x1b[0m",
+    linkMismatch: (url) => `Le texte de ce lien ne correspond pas à sa destination. L'ouvrir ?\n\n${url}`,
   },
   de: {
     sessionHandover: "\r\n\x1b[36m[Sitzung übergeben — im neuen Fenster fortfahren]\x1b[0m",
@@ -172,6 +181,7 @@ const STR: LangDict<{
     noHistoryMatch: "Keine passenden Verlaufseinträge",
     sessionClosed: "\r\n\x1b[33m[getrennt — Enter zum erneuten Verbinden]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[verbinde erneut…]\x1b[0m",
+    linkMismatch: (url) => `Der Text dieses Links stimmt nicht mit seinem Ziel überein. Öffnen?\n\n${url}`,
   },
   vi: {
     sessionHandover: "\r\n\x1b[36m[phiên đã được bàn giao — tiếp tục trong cửa sổ mới]\x1b[0m",
@@ -187,6 +197,7 @@ const STR: LangDict<{
     noHistoryMatch: "Không có lịch sử khớp",
     sessionClosed: "\r\n\x1b[33m[mất kết nối — nhấn Enter để kết nối lại]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[đang kết nối lại…]\x1b[0m",
+    linkMismatch: (url) => `Văn bản của liên kết này không khớp với địa chỉ thật. Mở nó?\n\n${url}`,
   },
   id: {
     sessionHandover: "\r\n\x1b[36m[sesi diserahkan — lanjutkan di jendela baru]\x1b[0m",
@@ -202,6 +213,7 @@ const STR: LangDict<{
     noHistoryMatch: "Tidak ada riwayat yang cocok",
     sessionClosed: "\r\n\x1b[33m[terputus — tekan Enter untuk menyambung ulang]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[menyambung ulang…]\x1b[0m",
+    linkMismatch: (url) => `Teks tautan ini tidak cocok dengan tujuannya. Buka?\n\n${url}`,
   },
   hi: {
     sessionHandover: "\r\n\x1b[36m[सत्र सौंप दिया गया — नई विंडो में जारी रखें]\x1b[0m",
@@ -217,6 +229,7 @@ const STR: LangDict<{
     noHistoryMatch: "कोई मेल खाता इतिहास नहीं",
     sessionClosed: "\r\n\x1b[33m[कनेक्शन टूट गया — पुनः जोड़ने के लिए Enter दबाएं]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[पुनः जोड़ रहा है…]\x1b[0m",
+    linkMismatch: (url) => `इस लिंक का टेक्स्ट उसके असली पते से मेल नहीं खाता। खोलें?\n\n${url}`,
   },
 };
 
@@ -251,6 +264,26 @@ function base64ToBytes(b64: string): Uint8Array {
   const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
   return bytes;
+}
+
+// OSC 8 하이퍼링크 (#156). 출력 프로그램이 대상 URL을 마음대로 정하므로 opener 기본 스코프와
+// 같은 웹/메일 스킴만 연다 — file:·javascript:·사용자 정의 스킴(앱 실행) 등은 무시한다.
+const OSC8_SCHEMES = new Set(["http:", "https:", "mailto:"]);
+
+function osc8Allowed(uri: string): boolean {
+  try {
+    return OSC8_SCHEMES.has(new URL(uri).protocol);
+  } catch {
+    return false;
+  }
+}
+
+// 표시 텍스트가 대상 URL 자체(스킴·끝 슬래시 생략 허용)면 기만 링크가 아니다.
+// 아니면(`[문서](https://evil…)` 류) 열기 전에 실제 주소를 보여주고 확인받는다.
+function osc8TextMatches(text: string, uri: string): boolean {
+  const norm = (s: string) =>
+    s.trim().replace(/^[a-z]+:(\/\/)?/i, "").replace(/\/$/, "").toLowerCase();
+  return norm(text) === norm(uri);
 }
 
 function bytesToBase64(bytes: Uint8Array): string {
@@ -444,6 +477,28 @@ export function Terminal({
       // Terminal.app·iTerm2와 같은 관례. 마우스 리포팅이 꺼져 있을 땐 이 분기를 타지 않으므로
       // altClickMovesCursor(⌥+클릭 커서 이동)에는 영향이 없다.
       macOptionClickForcesSelection: true,
+      // OSC 8 하이퍼링크 (#156). 지정하지 않으면 xterm 기본 동작(window.confirm +
+      // window.open)이 스킴 검사 없이 Tauri 웹뷰 안에서 링크를 연다. activate의 두 번째
+      // 인자는 표시 텍스트가 아니라 **대상 URI**라, 표시 텍스트는 range로 버퍼에서 읽는다.
+      linkHandler: {
+        allowNonHttpProtocols: true, // mailto: 전달용 — 실제 허용 여부는 osc8Allowed가 판정
+        activate: (_event, uri, range) => {
+          if (!osc8Allowed(uri)) return;
+          const buf = term.buffer.active;
+          let text = "";
+          for (let y = range.start.y; y <= range.end.y; y++) {
+            const startX = y === range.start.y ? range.start.x - 1 : 0;
+            const endX = y === range.end.y ? range.end.x : undefined;
+            text += buf.getLine(y - 1)?.translateToString(true, startX, endX) ?? "";
+          }
+          const open = () => void openUrl(uri).catch(() => {});
+          if (osc8TextMatches(text, uri)) open();
+          else
+            void confirm(tRef.current.linkMismatch(uri), { kind: "warning" })
+              .then((ok) => ok && open())
+              .catch(() => {});
+        },
+      },
     });
     termRef.current = term;
     const fit = new FitAddon();

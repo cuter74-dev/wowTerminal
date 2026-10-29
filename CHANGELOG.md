@@ -9,6 +9,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ### Fixed
 - **Paste from the right-click menu** ignored the shell's bracketed-paste mode, so multi-line text ran line by line the moment it was pasted. It now goes through the same path as `⌘V` / `Ctrl+V`, arriving as one block you can review before pressing Enter. (#156)
+- **OSC 8 hyperlinks** printed by programs (e.g. `ls --hyperlink`, `gcc`, `delta`) were handed to the webview's default handler without checking the target. They now open in your browser only for `http`, `https` and `mailto` links; other schemes (`file:`, `javascript:`, app URL schemes) are ignored. When a link's visible text doesn't match its real address, you're shown the address and asked before it opens. (#156)
 
 ## [0.20.17] — 2026-10-21
 
