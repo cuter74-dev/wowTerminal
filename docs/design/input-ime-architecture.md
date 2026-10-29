@@ -74,7 +74,14 @@ keyCode 229 only — no composition events at all** (measured on the maintainer'
 4. **Stray jamo filter.** While engaging, xterm sometimes leaks a lone compatibility jamo
    (U+3130–U+318F) through `onData`; single jamo are dropped — on macOS only, since on
    Windows/Linux a lone jamo can be a legitimate native-IME commit.
-5. **`writingsuggestions="false"`** is set on the textarea (xterm only disables
+5. **Focus round-trip re-baseline (#159).** When the helper textarea loses focus and gets
+   it back, WebKit leaves it **empty** (recorded: blur value `안녕 하세요 가나`, focus value
+   `''`). The mirror's `imeSent` used to survive that, so the next `input` diffed the empty
+   textarea against the stale baseline and sent a backspace for every Hangul char already
+   typed (rule 2 doesn't apply to Hangul). `blur` sets `mirrorFocusLost`. The next keydown
+   (before that key changes the value) re-baselines `imeSent` to the current textarea value
+   and sends nothing.
+6. **`writingsuggestions="false"`** is set on the textarea (xterm only disables
    autocorrect/autocapitalize/spellcheck). Helps on most Macs; was not sufficient on the
    #83 machine.
 
@@ -169,6 +176,12 @@ it can only check orderings we already imagined, and most input bugs (#100, #133
 - **Proven to catch regressions:** reverting #140 (composition-commit space), #97 (mirror
   baseline), #100 (composition-machine latch) or #100 (nbsp normalization) each fails
   exactly the matching trace.
+- **Real recordings:** `macos-typeA-2set-focus-roundtrip.json` was recorded on an M5 Max
+  (macOS 26.6.2, Korean 2-Set, Type A). It found #159, and it fails with the #159 fix
+  removed. Traces also record `focus`/`blur`, which change IME state.
+- **Gotcha:** fixtures are read with `fs` at run time, not `import.meta.glob`. vitest 5's
+  on-disk module cache (`node_modules/.vitest-cache`) bakes the glob result into the
+  transformed test module, so a newly added fixture silently didn't run.
 - **Gotcha:** happy-dom ignores some event init fields (`keyCode`, `data`, `isComposing`),
   so `fromTraceEvent` forces them with property getters. In happy-dom a plain `Event` also
   reports `instanceof CompositionEvent`, so trace code classifies events by `type`, never
@@ -187,6 +200,12 @@ it can only check orderings we already imagined, and most input bugs (#100, #133
    recorded `expectedPty` is the *correct* behavior, and add `expectedLines`. If the trace
    captures a bug, fix `expectedPty` to the correct bytes so the test fails until the bug
    is fixed. Then drop the file into `src/test/fixtures/ime/`.
+
+**Driving a real Mac without a person:** synthetic `CGEvent` keystrokes posted to the HID
+tap do go through the OS IME, so real Hangul composition happens. But
+`TISSelectInputSource` called from another process doesn't reach an app that's already
+active. Re-activate the app (focus Finder, then the app) after switching sources, or
+Korean comes out as Latin letters. That focus round-trip is exactly what exposed #159.
 
 Replay verifies our handlers against the events a real WebView delivered. It can't
 reproduce what the OS IME would do with *different* input, and it can't see rendering, so
