@@ -15,3 +15,21 @@ export const isMobile = osPlatform === "ios" || osPlatform === "android";
 export const isIOS = osPlatform === "ios";
 
 export { osPlatform };
+
+/** 지금 실행 중인 OS(plugin-os). 호출 시점에 읽는다 — 테스트가 트레이스마다 플랫폼을 바꿀 수 있게. */
+export function currentPlatform(): string {
+  try {
+    return platform();
+  } catch {
+    return "";
+  }
+}
+
+/** 실제 OS가 macOS인지 (#161). UA로 판별하면 안 된다 — iPadOS WKWebView는 기본으로 데스크탑
+ *  Mac UA(`Macintosh; Intel Mac OS X`)를 보내, iPad가 macOS로 잡혀 macOS 전용 IME 미러 경로를
+ *  탔다. Tauri 밖(브라우저 dev 서버)에서만 UA로 폴백한다. */
+export function isMacOS(): boolean {
+  const p = currentPlatform();
+  if (p) return p === "macos";
+  return typeof navigator !== "undefined" && navigator.userAgent.includes("Mac");
+}

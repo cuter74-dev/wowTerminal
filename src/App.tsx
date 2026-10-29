@@ -31,7 +31,7 @@ import { FileBrowser } from "./components/FileBrowser";
 import { SettingsModal } from "./components/SettingsModal";
 import { SplashScreen } from "./components/SplashScreen";
 import { LangDict, LangProvider, useT } from "./i18n";
-import { isMobile } from "./platform";
+import { isMacOS, isMobile } from "./platform";
 import { armTraceRecording, stopTraceRecording, traceRecordingActive } from "./imeTraceRecorder";
 import { MobileKeyBar } from "./components/MobileKeyBar";
 import { MobileSheet } from "./components/MobileSheet";
@@ -84,7 +84,7 @@ const CURRENT_WINDOW_LABEL = (() => {
   }
 })();
 const IS_DETACHED_WINDOW = CURRENT_WINDOW_LABEL.startsWith("detached-");
-const IS_MAC = navigator.userAgent.includes("Mac");
+const IS_MAC = isMacOS(); // UA가 아니라 실제 OS(#161 — iPad는 Mac UA를 보낸다)
 
 // 세션 복원 (#90): 메인 창은 이전 실행의 탭 레이아웃을 모듈 로드 시 1회 읽는다.
 // (detached 창은 백엔드 registry 인계 흐름을 그대로 쓴다.)

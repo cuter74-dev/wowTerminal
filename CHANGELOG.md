@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **iPad: Korean (Hangul) typed in the terminal never reached the server** — only spaces and Enter got through. iPadOS identifies itself as a Mac, so the app ran Mac-only input handling on iPad, and that handling discarded the individual Hangul letters the iPad keyboard sends. The app now checks the actual operating system, so iPad uses the same input path as iPhone. (#161)
+
 ## [0.20.18] — 2026-10-29
 
 ### Added

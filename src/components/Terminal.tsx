@@ -24,6 +24,7 @@ import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { mobileCtrl, ctrlSeq } from "../mobileInput";
 import { LangDict, useT } from "../i18n";
+import { isMacOS } from "../platform";
 import { maybeStartTraceRecording, recordTracePty } from "../imeTraceRecorder";
 
 // [진단 #83 — M5 영문 잔상] writingsuggestions=false로도 안 잡혀 재계측. 구조 카운터만
@@ -755,7 +756,8 @@ export function Terminal({
     // 직접 처리하므로 미러를 끈다(#88). nativeComposition은 **조합이 진행 중인 동안만** true:
     // 영구 latch로 두면 악센트 길게 누르기/받아쓰기 같은 단발 composition 한 번에 미러가
     // 영영 꺼져, 229-only 맥에서 그 순간부터 한글이 깨진다(재시작 전까지 — #83에서 실측).
-    const isMacWebView = navigator.userAgent.includes("Mac");
+    // UA가 아니라 실제 OS로 판별한다(#161) — iPadOS는 Mac UA를 보내 iPad가 미러 경로를 탔다.
+    const isMacWebView = isMacOS();
     let nativeComposition = false;
     // 조합이 실제 진행 중인 동안(compositionstart~compositionend)만 true. nativeComposition은
     // composition 머신에서 영구 true로 고정되므로 "지금 조합 중"을 별도로 추적한다(#100 중복).

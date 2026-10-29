@@ -1,7 +1,7 @@
 import ReactDOM from "react-dom/client";
 import * as Sentry from "@sentry/react";
 import App from "./App";
-import { isMobile } from "./platform";
+import { isMacOS, isMobile } from "./platform";
 import { markAppTeardown } from "./terminalRegistry";
 
 // 에러·크래시 추적(GlitchTip = Sentry 호환). DSN은 공개 수집 키라 임베드해도 안전(비밀 아님).
@@ -38,7 +38,7 @@ if (isMobile) {
 }
 
 // 플랫폼별 CSS 분기용 클래스 (예: macOS 전용 IME 미러의 composition-view 숨김 — App.css 참고).
-if (navigator.userAgent.includes("Mac")) {
+if (isMacOS()) {
   document.body.classList.add("plat-mac");
   // composition 머신(네이티브 IME)으로 판별된 적이 있으면 composition-view 숨김을 해제한다
   // — 조합 중 음절이 보이도록(#100). Terminal.tsx가 latch 시에도 이 클래스를 부여한다.
