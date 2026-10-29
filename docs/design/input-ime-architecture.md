@@ -146,6 +146,54 @@ left every `/tmp/wt-st*` file correct while Backspace visibly rendered as spaces
 display behavior, read the PTY output bytes (the `echo` diagnostic) — `\b \b` means a real
 erase, bare spaces mean a broken redraw.
 
+## Trace replay tests (#158) — `npm test`
+
+The self-test above drives the real WebView, but its event sequences are **hand-written**:
+it can only check orderings we already imagined, and most input bugs (#100, #133, #140,
+#147) were orderings we hadn't. Replay tests add the missing half, following Orca
+(stablyai/orca, also xterm.js):
+
+- **Harness** (`src/test/imeReplay.tsx`): renders the real `<Terminal>` in happy-dom
+  (vitest) with only Tauri `invoke`/`listen` mocked (`src/test/tauriMock.ts`). For each
+  event it applies the recorded textarea value/selection, then dispatches the event to the
+  helper textarea. Recorded time gaps are replayed on fake timers, so the 80 ms windows and
+  `setTimeout(0)` deferrals behave as they did. The result is the decoded bytes sent via
+  `pty_write`. No production code is involved beyond the real input path itself.
+- **Trace format** (`src/imeTrace.ts`, `ImeTrace`): user agent (selects the macOS mirror
+  path), `cmpLatched` (Type A vs latched Type B), the event list, the exact `expectedPty`
+  bytes, and optional `expectedLines`. `expectedLines` are the lines the shell would run
+  after DEL/CR, which is the human-reviewable meaning of the byte golden.
+- **Fixtures:** `src/test/syntheticTraces.ts` ports self-test T1–T7 (marked
+  `synthetic`). Real recordings go in `src/test/fixtures/ime/*.json` and are picked up
+  automatically.
+- **Proven to catch regressions:** reverting #140 (composition-commit space), #97 (mirror
+  baseline), #100 (composition-machine latch) or #100 (nbsp normalization) each fails
+  exactly the matching trace.
+- **Gotcha:** happy-dom ignores some event init fields (`keyCode`, `data`, `isComposing`),
+  so `fromTraceEvent` forces them with property getters. In happy-dom a plain `Event` also
+  reports `instanceof CompositionEvent`, so trace code classifies events by `type`, never
+  by `instanceof`.
+
+### Recording a real trace
+
+1. Command palette → **Record input trace (new tab)**. A new local tab opens with a
+   yellow notice; recording only covers that fresh tab, because replay starts from a fresh
+   `Terminal` and an old tab carries IME state (mirror baseline, heal counters).
+2. Reproduce the input (e.g. a Korean sentence with deletions). **Everything typed is
+   saved**, so never type secrets.
+3. Command palette → **Stop input trace and save** → choose a file. The JSON holds the
+   events and the bytes actually sent.
+4. Fill in `recordedFrom` (OS version, machine, input method) and a `name`. Check that the
+   recorded `expectedPty` is the *correct* behavior, and add `expectedLines`. If the trace
+   captures a bug, fix `expectedPty` to the correct bytes so the test fails until the bug
+   is fixed. Then drop the file into `src/test/fixtures/ime/`.
+
+Replay verifies our handlers against the events a real WebView delivered. It can't
+reproduce what the OS IME would do with *different* input, and it can't see rendering, so
+the in-app self-test and real-machine checks stay. The recorder test
+(`src/test/imeRecorder.test.tsx`) checks that a recording replays to the same bytes it
+captured.
+
 ## Root cause of the local-shell "Backspace = Space" / Korean-jamo-pileup bug (#109, v0.16.2)
 
 The long-running local-shell input corruption (the symptom behind much of #83/#88/#100 and
