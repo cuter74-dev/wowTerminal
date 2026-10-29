@@ -1697,8 +1697,10 @@ export function Terminal({
     });
   const doPaste = () =>
     ctxAction(() => {
+      // term.paste로 보내야 bracketed-paste 모드와 개행(\n→\r) 정규화가 적용된다 (#156).
+      // PTY에 원문을 직접 쓰면 셸이 bracketed paste를 켜 놨어도 여러 줄이 한 줄씩 즉시 실행된다.
       void navigator.clipboard.readText().then((txt) => {
-        if (txt) sendToSessionRef.current?.(txt);
+        if (txt) termRef.current?.paste(txt);
       });
     });
   const doSelectAll = () => ctxAction(() => termRef.current?.selectAll());

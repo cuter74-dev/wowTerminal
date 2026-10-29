@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Paste from the right-click menu** ignored the shell's bracketed-paste mode, so multi-line text ran line by line the moment it was pasted. It now goes through the same path as `⌘V` / `Ctrl+V`, arriving as one block you can review before pressing Enter. (#156)
+
 ## [0.20.17] — 2026-10-21
 
 ### Fixed
