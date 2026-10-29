@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- **Input trace recorder** for reporting typing problems. In the command palette, choose **Record input trace (new tab)**, reproduce the problem (for example, Korean input that comes out wrong), then choose **Stop input trace and save**. The saved file captures exactly which keyboard and input-method events the app received and what it sent to the shell, so the problem can be replayed and fixed precisely. Nothing is sent anywhere automatically, and the new tab warns that everything typed in it is saved, so don't type passwords there. (#158)
+
 ### Changed
 - **Faster handling of heavy terminal output.** Session scrollback kept for tab detach/re-attach used to shift up to 512 KiB of memory for every ~1 KiB of output once it was full, under a lock shared by all sessions; it's now a ring buffer (about 170x less work in a 10 MB benchmark). (#157)
 - **Fewer output events for local shells.** macOS hands terminal output over in ~1 KiB pieces, so dumping a large file or log produced tens of thousands of events to the UI. Output already waiting is now merged (up to 64 KiB) before it's sent, with no added delay for typing echo. In a test with a slow consumer this cut deliveries from 405 to 48 for the same output, with byte-identical content. (#157)

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { message, save } from "@tauri-apps/plugin-dialog";
+import { writeTextFile } from "@tauri-apps/plugin-fs";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { getCurrentWebview } from "@tauri-apps/api/webview";
 import { getAllWebviewWindows } from "@tauri-apps/api/webviewWindow";
@@ -30,6 +32,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { SplashScreen } from "./components/SplashScreen";
 import { LangDict, LangProvider, useT } from "./i18n";
 import { isMobile } from "./platform";
+import { armTraceRecording, stopTraceRecording, traceRecordingActive } from "./imeTraceRecorder";
 import { MobileKeyBar } from "./components/MobileKeyBar";
 import { MobileSheet } from "./components/MobileSheet";
 import { OnboardingFlow } from "./components/OnboardingFlow";
@@ -475,18 +478,20 @@ const PAL_STR: LangDict<{
   dashboard: string;
   portForward: string;
   tmuxSessions: string;
+  recordTrace: string;
+  stopTrace: string;
 }> = {
-  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet", dashboard: "Session dashboard", portForward: "Port forwarding", tmuxSessions: "tmux sessions" },
-  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫", dashboard: "세션 대시보드", portForward: "포트 포워딩", tmuxSessions: "tmux 세션" },
-  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento", dashboard: "Panel de sesiones", portForward: "Reenvío de puertos", tmuxSessions: "Sesiones tmux" },
-  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段", dashboard: "会话仪表板", portForward: "端口转发", tmuxSessions: "tmux 会话" },
-  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット", dashboard: "セッションダッシュボード", portForward: "ポート転送", tmuxSessions: "tmux セッション" },
-  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет", dashboard: "Панель сессий", portForward: "Проброс портов", tmuxSessions: "Сессии tmux" },
-  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait", dashboard: "Tableau de bord des sessions", portForward: "Redirection de ports", tmuxSessions: "Sessions tmux" },
-  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet", dashboard: "Sitzungs-Dashboard", portForward: "Portweiterleitung", tmuxSessions: "tmux-Sitzungen" },
-  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã", dashboard: "Bảng điều khiển phiên", portForward: "Chuyển tiếp cổng", tmuxSessions: "Phiên tmux" },
-  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan", dashboard: "Dasbor sesi", portForward: "Penerusan porta", tmuxSessions: "Sesi tmux" },
-  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट", dashboard: "सत्र डैशबोर्ड", portForward: "पोर्ट फ़ॉरवर्डिंग", tmuxSessions: "tmux सत्र" },
+  en: { placeholder: "Type a command, host, or recent command…", noResults: "No results", newLocalTab: "New local tab", settings: "Settings", openFiles: "Open file browser", connect: "Connect", run: "run", snippet: "snippet", dashboard: "Session dashboard", portForward: "Port forwarding", tmuxSessions: "tmux sessions", recordTrace: "Record input trace (new tab)", stopTrace: "Stop input trace and save" },
+  ko: { placeholder: "명령·호스트·최근 명령 입력…", noResults: "결과 없음", newLocalTab: "새 로컬 탭", settings: "설정", openFiles: "파일 브라우저 열기", connect: "접속", run: "실행", snippet: "스니펫", dashboard: "세션 대시보드", portForward: "포트 포워딩", tmuxSessions: "tmux 세션", recordTrace: "입력 트레이스 녹화 (새 탭)", stopTrace: "입력 트레이스 중지 및 저장" },
+  es: { placeholder: "Escribe un comando, host o comando reciente…", noResults: "Sin resultados", newLocalTab: "Nueva pestaña local", settings: "Configuración", openFiles: "Abrir explorador de archivos", connect: "Conectar", run: "ejecutar", snippet: "fragmento", dashboard: "Panel de sesiones", portForward: "Reenvío de puertos", tmuxSessions: "Sesiones tmux", recordTrace: "Grabar traza de entrada (nueva pestaña)", stopTrace: "Detener traza de entrada y guardar" },
+  zh: { placeholder: "输入命令、主机或最近命令…", noResults: "无结果", newLocalTab: "新建本地标签页", settings: "设置", openFiles: "打开文件浏览器", connect: "连接", run: "运行", snippet: "片段", dashboard: "会话仪表板", portForward: "端口转发", tmuxSessions: "tmux 会话", recordTrace: "录制输入轨迹（新标签页）", stopTrace: "停止输入轨迹并保存" },
+  ja: { placeholder: "コマンド・ホスト・最近のコマンドを入力…", noResults: "結果なし", newLocalTab: "新しいローカルタブ", settings: "設定", openFiles: "ファイルブラウザを開く", connect: "接続", run: "実行", snippet: "スニペット", dashboard: "セッションダッシュボード", portForward: "ポート転送", tmuxSessions: "tmux セッション", recordTrace: "入力トレースを記録（新しいタブ）", stopTrace: "入力トレースを停止して保存" },
+  ru: { placeholder: "Введите команду, хост или недавнюю команду…", noResults: "Нет результатов", newLocalTab: "Новая локальная вкладка", settings: "Настройки", openFiles: "Открыть файловый браузер", connect: "Подключиться", run: "выполнить", snippet: "сниппет", dashboard: "Панель сессий", portForward: "Проброс портов", tmuxSessions: "Сессии tmux", recordTrace: "Записать трассу ввода (новая вкладка)", stopTrace: "Остановить трассу ввода и сохранить" },
+  fr: { placeholder: "Tapez une commande, un hôte ou une commande récente…", noResults: "Aucun résultat", newLocalTab: "Nouvel onglet local", settings: "Paramètres", openFiles: "Ouvrir l'explorateur de fichiers", connect: "Se connecter", run: "exécuter", snippet: "extrait", dashboard: "Tableau de bord des sessions", portForward: "Redirection de ports", tmuxSessions: "Sessions tmux", recordTrace: "Enregistrer une trace de saisie (nouvel onglet)", stopTrace: "Arrêter la trace de saisie et enregistrer" },
+  de: { placeholder: "Befehl, Host oder letzten Befehl eingeben…", noResults: "Keine Ergebnisse", newLocalTab: "Neuer lokaler Tab", settings: "Einstellungen", openFiles: "Dateibrowser öffnen", connect: "Verbinden", run: "ausführen", snippet: "Snippet", dashboard: "Sitzungs-Dashboard", portForward: "Portweiterleitung", tmuxSessions: "tmux-Sitzungen", recordTrace: "Eingabe-Trace aufzeichnen (neuer Tab)", stopTrace: "Eingabe-Trace beenden und speichern" },
+  vi: { placeholder: "Nhập lệnh, máy chủ hoặc lệnh gần đây…", noResults: "Không có kết quả", newLocalTab: "Tab cục bộ mới", settings: "Cài đặt", openFiles: "Mở trình duyệt tệp", connect: "Kết nối", run: "chạy", snippet: "đoạn mã", dashboard: "Bảng điều khiển phiên", portForward: "Chuyển tiếp cổng", tmuxSessions: "Phiên tmux", recordTrace: "Ghi vết nhập liệu (tab mới)", stopTrace: "Dừng ghi vết nhập liệu và lưu" },
+  id: { placeholder: "Ketik perintah, host, atau perintah terbaru…", noResults: "Tidak ada hasil", newLocalTab: "Tab lokal baru", settings: "Pengaturan", openFiles: "Buka penjelajah berkas", connect: "Hubungkan", run: "jalankan", snippet: "cuplikan", dashboard: "Dasbor sesi", portForward: "Penerusan porta", tmuxSessions: "Sesi tmux", recordTrace: "Rekam jejak input (tab baru)", stopTrace: "Hentikan jejak input dan simpan" },
+  hi: { placeholder: "कमांड, होस्ट या हाल की कमांड टाइप करें…", noResults: "कोई परिणाम नहीं", newLocalTab: "नया लोकल टैब", settings: "सेटिंग्स", openFiles: "फ़ाइल ब्राउज़र खोलें", connect: "कनेक्ट करें", run: "चलाएं", snippet: "स्निपेट", dashboard: "सत्र डैशबोर्ड", portForward: "पोर्ट फ़ॉरवर्डिंग", tmuxSessions: "tmux सत्र", recordTrace: "इनपुट ट्रेस रिकॉर्ड करें (नया टैब)", stopTrace: "इनपुट ट्रेस रोकें और सहेजें" },
 };
 
 function App() {
@@ -1042,6 +1047,29 @@ function App() {
     return rows;
   }, [tabs, sessionStats, activeTabId, labelForHost]);
 
+  // 입력 트레이스 저장(#158): 녹화를 끝내고 JSON을 사용자가 고른 위치에 쓴다. 이 파일을
+  // src/test/fixtures/ime/에 넣으면 리플레이 테스트가 된다(입력 내용이 담기므로 자동 전송 없음).
+  async function saveInputTrace() {
+    const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const trace = stopTraceRecording(
+      `recorded ${stamp}`,
+      `${navigator.platform} / wowTerminal ${__APP_VERSION__} — add OS version and input method`,
+    );
+    if (!trace) return;
+    const json = JSON.stringify(trace, null, 2) + "\n";
+    try {
+      const path = await save({
+        defaultPath: `ime-trace-${stamp}.json`,
+        filters: [{ name: "JSON", extensions: ["json"] }],
+      });
+      if (!path) return;
+      if (isMobile) await writeTextFile(path, json);
+      else await invoke("local_write_text", { path, content: json });
+    } catch (e) {
+      void message(String(e), { kind: "error" });
+    }
+  }
+
   // #57 명령 팔레트 아이템: 액션 + 호스트 접속 + 최근 명령(활성 터미널에 입력).
   const paletteItems: PaletteItem[] = useMemo(() => {
     const out: PaletteItem[] = [
@@ -1050,6 +1078,17 @@ function App() {
       { id: "act-portforward", label: pal.portForward, action: () => setPortForwardOpen(true) },
       { id: "act-tmux", label: pal.tmuxSessions, action: () => setTmuxPickerOpen(true) },
       { id: "act-settings", label: pal.settings, action: () => setShowSettings(true) },
+      // 입력 트레이스 녹화(#158) — IME 회귀 테스트 픽스처를 실기기에서 만든다.
+      traceRecordingActive()
+        ? { id: "act-trace-stop", label: pal.stopTrace, action: () => void saveInputTrace() }
+        : {
+            id: "act-trace-rec",
+            label: pal.recordTrace,
+            action: () => {
+              armTraceRecording();
+              newLocalTab();
+            },
+          },
     ];
     for (const h of hosts) {
       out.push({

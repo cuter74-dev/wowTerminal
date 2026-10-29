@@ -24,6 +24,7 @@ import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { mobileCtrl, ctrlSeq } from "../mobileInput";
 import { LangDict, useT } from "../i18n";
+import { maybeStartTraceRecording, recordTracePty } from "../imeTraceRecorder";
 
 // [진단 #83 — M5 영문 잔상] writingsuggestions=false로도 안 잡혀 재계측. 구조 카운터만
 // (타이핑 내용 없음) 입력 유휴 시 GlitchTip 전송. macOS 한정, 세션당 최대 4회. 해결 후 제거.
@@ -53,6 +54,7 @@ const STR: LangDict<{
     sessionClosed: string;
     reconnecting: string;
     linkMismatch: (url: string) => string;
+    traceRecording: string;
   }
 > = {
   en: {
@@ -70,6 +72,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[disconnected — press Enter to reconnect]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[reconnecting…]\x1b[0m",
     linkMismatch: (url) => `This link's text does not match where it goes. Open it?\n\n${url}`,
+    traceRecording: "\x1b[33m[Recording input trace — everything typed in this tab is saved to a file. Do not type passwords. Stop from the command palette.]\x1b[0m\r\n",
   },
   ko: {
     sessionHandover: "\r\n\x1b[36m[세션 인계됨 — 새 창에서 계속]\x1b[0m",
@@ -86,6 +89,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[연결이 끊어졌습니다 — Enter 키로 다시 연결]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[다시 연결하는 중…]\x1b[0m",
     linkMismatch: (url) => `링크에 표시된 텍스트와 실제 주소가 다릅니다. 열까요?\n\n${url}`,
+    traceRecording: "\x1b[33m[입력 트레이스 녹화 중 — 이 탭에 입력하는 모든 내용이 파일로 저장됩니다. 비밀번호를 입력하지 마세요. 명령 팔레트에서 중지합니다.]\x1b[0m\r\n",
   },
   es: {
     sessionHandover: "\r\n\x1b[36m[sesión transferida — continúa en la nueva ventana]\x1b[0m",
@@ -102,6 +106,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[desconectado — pulsa Enter para reconectar]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[reconectando…]\x1b[0m",
     linkMismatch: (url) => `El texto de este enlace no coincide con su destino. ¿Abrirlo?\n\n${url}`,
+    traceRecording: "\x1b[33m[Grabando traza de entrada: todo lo que escribas en esta pestaña se guarda en un archivo. No escribas contraseñas. Detenla desde la paleta de comandos.]\x1b[0m\r\n",
   },
   zh: {
     sessionHandover: "\r\n\x1b[36m[会话已交接 — 在新窗口中继续]\x1b[0m",
@@ -118,6 +123,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[连接已断开 — 按 Enter 重新连接]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[正在重新连接…]\x1b[0m",
     linkMismatch: (url) => `此链接显示的文字与实际地址不一致。要打开吗？\n\n${url}`,
+    traceRecording: "\x1b[33m[正在录制输入轨迹 — 在此标签页输入的所有内容都会保存到文件。请勿输入密码。在命令面板中停止。]\x1b[0m\r\n",
   },
   ja: {
     sessionHandover: "\r\n\x1b[36m[セッションを引き継ぎました — 新しいウィンドウで続行]\x1b[0m",
@@ -134,6 +140,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[切断されました — Enter キーで再接続]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[再接続中…]\x1b[0m",
     linkMismatch: (url) => `このリンクの表示テキストと実際の宛先が一致しません。開きますか？\n\n${url}`,
+    traceRecording: "\x1b[33m[入力トレースを記録中 — このタブで入力した内容はすべてファイルに保存されます。パスワードは入力しないでください。コマンドパレットから停止します。]\x1b[0m\r\n",
   },
   ru: {
     sessionHandover: "\r\n\x1b[36m[сессия передана — продолжите в новом окне]\x1b[0m",
@@ -150,6 +157,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[соединение разорвано — нажмите Enter для переподключения]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[переподключение…]\x1b[0m",
     linkMismatch: (url) => `Текст ссылки не совпадает с её адресом. Открыть?\n\n${url}`,
+    traceRecording: "\x1b[33m[Идёт запись трассы ввода — всё, что вы вводите в этой вкладке, сохраняется в файл. Не вводите пароли. Остановите через палитру команд.]\x1b[0m\r\n",
   },
   fr: {
     sessionHandover: "\r\n\x1b[36m[session transférée — continuez dans la nouvelle fenêtre]\x1b[0m",
@@ -166,6 +174,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[déconnecté — appuyez sur Entrée pour reconnecter]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[reconnexion…]\x1b[0m",
     linkMismatch: (url) => `Le texte de ce lien ne correspond pas à sa destination. L'ouvrir ?\n\n${url}`,
+    traceRecording: "\x1b[33m[Enregistrement de la trace de saisie — tout ce qui est tapé dans cet onglet est enregistré dans un fichier. Ne tapez pas de mot de passe. Arrêtez depuis la palette de commandes.]\x1b[0m\r\n",
   },
   de: {
     sessionHandover: "\r\n\x1b[36m[Sitzung übergeben — im neuen Fenster fortfahren]\x1b[0m",
@@ -182,6 +191,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[getrennt — Enter zum erneuten Verbinden]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[verbinde erneut…]\x1b[0m",
     linkMismatch: (url) => `Der Text dieses Links stimmt nicht mit seinem Ziel überein. Öffnen?\n\n${url}`,
+    traceRecording: "\x1b[33m[Eingabe-Trace wird aufgezeichnet — alles, was in diesem Tab eingegeben wird, wird in einer Datei gespeichert. Keine Passwörter eingeben. Über die Befehlspalette beenden.]\x1b[0m\r\n",
   },
   vi: {
     sessionHandover: "\r\n\x1b[36m[phiên đã được bàn giao — tiếp tục trong cửa sổ mới]\x1b[0m",
@@ -198,6 +208,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[mất kết nối — nhấn Enter để kết nối lại]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[đang kết nối lại…]\x1b[0m",
     linkMismatch: (url) => `Văn bản của liên kết này không khớp với địa chỉ thật. Mở nó?\n\n${url}`,
+    traceRecording: "\x1b[33m[Đang ghi vết nhập liệu — mọi thứ gõ trong tab này sẽ được lưu vào tệp. Đừng nhập mật khẩu. Dừng từ bảng lệnh.]\x1b[0m\r\n",
   },
   id: {
     sessionHandover: "\r\n\x1b[36m[sesi diserahkan — lanjutkan di jendela baru]\x1b[0m",
@@ -214,6 +225,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[terputus — tekan Enter untuk menyambung ulang]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[menyambung ulang…]\x1b[0m",
     linkMismatch: (url) => `Teks tautan ini tidak cocok dengan tujuannya. Buka?\n\n${url}`,
+    traceRecording: "\x1b[33m[Merekam jejak input — semua yang diketik di tab ini disimpan ke file. Jangan mengetik kata sandi. Hentikan dari palet perintah.]\x1b[0m\r\n",
   },
   hi: {
     sessionHandover: "\r\n\x1b[36m[सत्र सौंप दिया गया — नई विंडो में जारी रखें]\x1b[0m",
@@ -230,6 +242,7 @@ const STR: LangDict<{
     sessionClosed: "\r\n\x1b[33m[कनेक्शन टूट गया — पुनः जोड़ने के लिए Enter दबाएं]\x1b[0m",
     reconnecting: "\r\n\x1b[36m[पुनः जोड़ रहा है…]\x1b[0m",
     linkMismatch: (url) => `इस लिंक का टेक्स्ट उसके असली पते से मेल नहीं खाता। खोलें?\n\n${url}`,
+    traceRecording: "\x1b[33m[इनपुट ट्रेस रिकॉर्ड हो रहा है — इस टैब में टाइप की गई हर चीज़ फ़ाइल में सहेजी जाती है। पासवर्ड न टाइप करें। कमांड पैलेट से रोकें।]\x1b[0m\r\n",
   },
 };
 
@@ -524,6 +537,9 @@ export function Terminal({
     // 라인 재그리기와 얽혀 프롬프트에 실제 잔상 글자를 남긴다(#83 — net은 맞아 명령은 정상
     // 실행). xterm은 autocorrect/autocapitalize/spellcheck만 끄고 이 속성은 모른다.
     term.textarea?.setAttribute("writingsuggestions", "false");
+    // 입력 트레이스 녹화(#158): 팔레트로 예약돼 있으면 이 새 터미널에서 시작하고, 입력 내용이
+    // 파일로 저장된다는 사실을 화면에 알린다(PTY로는 안 보냄).
+    if (maybeStartTraceRecording(term.textarea)) term.write(tRef.current.traceRecording);
     // WebGL 렌더러(GPU 가속). 컨텍스트 손실/실패 시 dispose하면 xterm이 자동으로 DOM
     // 렌더러로 폴백한다. (#83 잔상 수정 시도로 도입했으나 원인은 렌더러가 아니라 위
     // writingsuggestions였다 — 성능 이점이 있어 유지.)
@@ -698,6 +714,7 @@ export function Terminal({
     let writeChain: Promise<unknown> = Promise.resolve();
     const writeToSession = (text: string) => {
       if (!sessionId) return;
+      recordTracePty(term.textarea, text); // #158 — 녹화 중인 터미널만 쌓인다
       // [진단 #100] 보낸 바이트 기록(macOS 한정, 최근 30건).
       if (isMacWebView) {
         if (inputRing.length >= 30) inputRing.shift();
