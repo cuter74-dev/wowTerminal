@@ -36,3 +36,27 @@ it("stop without a recording returns null and clears the arm", () => {
   expect(stopTraceRecording("x", "y")).toBeNull();
   expect(traceRecordingActive()).toBe(false);
 });
+
+// 같은 pane에서 터미널이 다시 만들어지면(SSH 비밀번호 후 재시도 등) 녹화가 새 터미널로 넘어가
+// 처음부터 다시 쌓인다(#162). 다른 pane의 터미널은 이어받지 않는다.
+it("recording follows a terminal recreated in the same pane, restarting from it", async () => {
+  const { maybeStartTraceRecording, releaseTraceRecording, recordTracePty } = await import(
+    "../imeTraceRecorder"
+  );
+  const ta1 = document.createElement("textarea");
+  const ta2 = document.body.appendChild(document.createElement("textarea"));
+  const other = document.createElement("textarea");
+  armTraceRecording();
+  expect(maybeStartTraceRecording(ta1, "pane-a")).toBe(true);
+  recordTracePty(ta1, "old");
+  releaseTraceRecording(ta1);
+  expect(maybeStartTraceRecording(other, "pane-b")).toBe(false); // 다른 pane은 무시
+  expect(maybeStartTraceRecording(ta2, "pane-a")).toBe(true);
+  recordTracePty(ta1, "ignored"); // 폐기된 터미널의 전송은 안 쌓인다
+  recordTracePty(ta2, "new");
+  ta2.dispatchEvent(new InputEvent("input", { data: "x", inputType: "insertText", bubbles: true }));
+  const t = stopTraceRecording("x", "y");
+  expect(t?.expectedPty).toBe("new");
+  expect(t?.events.map((e) => e.type)).toEqual(["input"]);
+  ta2.remove();
+});

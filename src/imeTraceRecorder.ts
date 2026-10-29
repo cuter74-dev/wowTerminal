@@ -9,7 +9,9 @@ import { TRACE_EVENT_TYPES, toTraceEvent, type ImeTrace, type TraceEvent } from 
 import { currentPlatform } from "./platform";
 
 interface Recording {
-  ta: HTMLTextAreaElement;
+  /** 녹화 중인 textarea. 그 터미널이 폐기되면 null — 같은 pane의 다음 터미널이 이어받는다. */
+  ta: HTMLTextAreaElement | null;
+  paneId: string | undefined;
   start: number;
   events: TraceEvent[];
   pty: string[];
@@ -31,15 +33,29 @@ export function armTraceRecording(): void {
   armed = true;
 }
 
-/** Terminal이 xterm을 연 직후 호출한다. 예약돼 있으면 이 textarea에서 녹화를 시작하고 true. */
-export function maybeStartTraceRecording(ta: HTMLTextAreaElement | undefined): boolean {
-  if (!armed || rec || !ta) return false;
+/** Terminal이 xterm을 연 직후 호출한다. 예약돼 있으면 이 textarea에서 녹화를 시작하고 true.
+ *  녹화 중이던 터미널이 같은 pane에서 다시 만들어졌으면(SSH 비밀번호 입력 후 재시도, 재접속 등)
+ *  새 터미널로 넘어가 **처음부터 다시** 녹화한다(#162) — 리플레이는 새 Terminal에서 시작하므로,
+ *  옛 터미널에서 쌓인 이벤트를 이어 붙이면 재생 상태가 녹화와 어긋난다. */
+export function maybeStartTraceRecording(
+  ta: HTMLTextAreaElement | undefined,
+  paneId?: string,
+): boolean {
+  if (!ta) return false;
+  if (rec && !rec.ta && rec.paneId === paneId) {
+    rec.ta = ta;
+    rec.start = Date.now();
+    rec.events.length = 0;
+    rec.pty.length = 0;
+    return true;
+  }
+  if (!armed || rec) return false;
   armed = false;
   const start = Date.now();
   const events: TraceEvent[] = [];
   // 윈도우 캡처 단계에서 본다 — xterm·우리 핸들러보다 먼저, 즉 그들이 본 textarea 값 그대로.
   const onEvent = (e: Event) => {
-    if (e.target === ta) events.push(toTraceEvent(e, ta, Date.now() - start));
+    if (rec?.ta && e.target === rec.ta) events.push(toTraceEvent(e, rec.ta, Date.now() - rec.start));
   };
   for (const type of TRACE_EVENT_TYPES) window.addEventListener(type, onEvent, true);
   let cmpLatched = false;
@@ -53,6 +69,7 @@ export function maybeStartTraceRecording(ta: HTMLTextAreaElement | undefined): b
   }
   rec = {
     ta,
+    paneId,
     start,
     events,
     pty: [],
@@ -62,6 +79,11 @@ export function maybeStartTraceRecording(ta: HTMLTextAreaElement | undefined): b
     },
   };
   return true;
+}
+
+/** Terminal이 폐기될 때 호출한다. 녹화 중인 그 터미널이면 같은 pane의 다음 터미널을 기다린다. */
+export function releaseTraceRecording(ta: HTMLTextAreaElement | undefined): void {
+  if (rec && ta && rec.ta === ta) rec.ta = null;
 }
 
 /** Terminal이 PTY로 보내는 모든 텍스트를 넘긴다. 녹화 중인 그 터미널 것만 쌓는다. */

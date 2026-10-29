@@ -25,7 +25,11 @@ import { addHistory, searchHistory, suggest } from "../commandHistory";
 import { mobileCtrl, ctrlSeq } from "../mobileInput";
 import { LangDict, useT } from "../i18n";
 import { currentPlatform, isMacOS } from "../platform";
-import { maybeStartTraceRecording, recordTracePty } from "../imeTraceRecorder";
+import {
+  maybeStartTraceRecording,
+  recordTracePty,
+  releaseTraceRecording,
+} from "../imeTraceRecorder";
 
 // [진단 #83 — M5 영문 잔상] writingsuggestions=false로도 안 잡혀 재계측. 구조 카운터만
 // (타이핑 내용 없음) 입력 유휴 시 GlitchTip 전송. macOS 한정, 세션당 최대 4회. 해결 후 제거.
@@ -541,7 +545,7 @@ export function Terminal({
     // 입력 트레이스 녹화(#158): 팔레트로 예약돼 있으면 이 새 터미널에서 시작하고, 입력 내용이
     // 파일로 저장된다는 사실을 화면에 알린다(PTY로는 안 보냄).
     // spawnFresh의 term.clear()가 이 줄을 지우므로 거기서 한 번 더 쓴다(실기기 확인).
-    const traceNotice = maybeStartTraceRecording(term.textarea);
+    const traceNotice = maybeStartTraceRecording(term.textarea, paneId);
     if (traceNotice) term.write(tRef.current.traceRecording);
     // WebGL 렌더러(GPU 가속). 컨텍스트 손실/실패 시 dispose하면 xterm이 자동으로 DOM
     // 렌더러로 폴백한다. (#83 잔상 수정 시도로 도입했으나 원인은 렌더러가 아니라 위
@@ -1775,6 +1779,7 @@ export function Terminal({
       if (sessionId && !isAppTeardown()) {
         void invoke(cmds.killCmd, { sessionId }).catch(() => {});
       }
+      releaseTraceRecording(term.textarea); // #162 — 같은 pane에서 다시 만들어지면 이어받게
       term.dispose();
       termRef.current = null;
       fitRef.current = null;
