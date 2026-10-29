@@ -1,0 +1,1582 @@
+{
+ "version": 1,
+ "name": "macOS Type A, 2-Set Korean: typed Hangul survives a focus round-trip (#159)",
+ "source": "recorded",
+ "recordedFrom": "macOS 26.6.2 / Apple M5 Max / Korean 2-Set (no composition events = Type A, mirror path) / wowTerminal 0.20.17 dev build",
+ "note": "Real CGEvent keystrokes through the OS IME. 'echo ' (ABC) → 안녕 하세요 가나다 + 2× Backspace while composing (Korean) → focus leaves to Finder and returns (the textarea comes back empty: blur value '안녕 하세요 가나', focus value '') → ' > ~/out/k1.txt' (ABC) + Enter. Before #159 the mirror diffed the empty textarea against its stale baseline and sent 10× DEL, erasing the Hangul. Shell output confirmed: k1.txt = '안녕 하세요 가나'.",
+ "userAgent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko)",
+ "cmpLatched": false,
+ "expectedLines": [
+  "echo 안녕 하세요 가나 > ~/out/k1.txt"
+ ],
+ "expectedPty": "echo 아안ㄴ녀녕 ㅎ하핫하세셍세요 ㄱ가간가나낟나다ㄷ > ~/out/k1.txt\r",
+ "events": [
+  {
+   "t": 12,
+   "type": "focus",
+   "value": ""
+  },
+  {
+   "t": 21,
+   "type": "keyup",
+   "value": "",
+   "key": "Enter",
+   "code": "Enter",
+   "keyCode": 13
+  },
+  {
+   "t": 11461,
+   "type": "keydown",
+   "value": "",
+   "key": "e",
+   "code": "KeyE",
+   "keyCode": 69
+  },
+  {
+   "t": 11470,
+   "type": "keyup",
+   "value": "",
+   "key": "e",
+   "code": "KeyE",
+   "keyCode": 69
+  },
+  {
+   "t": 11525,
+   "type": "keydown",
+   "value": "",
+   "key": "c",
+   "code": "KeyC",
+   "keyCode": 67
+  },
+  {
+   "t": 11536,
+   "type": "keyup",
+   "value": "",
+   "key": "c",
+   "code": "KeyC",
+   "keyCode": 67
+  },
+  {
+   "t": 11603,
+   "type": "keydown",
+   "value": "",
+   "key": "h",
+   "code": "KeyH",
+   "keyCode": 72
+  },
+  {
+   "t": 11619,
+   "type": "keyup",
+   "value": "",
+   "key": "h",
+   "code": "KeyH",
+   "keyCode": 72
+  },
+  {
+   "t": 11682,
+   "type": "keydown",
+   "value": "",
+   "key": "o",
+   "code": "KeyO",
+   "keyCode": 79
+  },
+  {
+   "t": 11703,
+   "type": "keyup",
+   "value": "",
+   "key": "o",
+   "code": "KeyO",
+   "keyCode": 79
+  },
+  {
+   "t": 11777,
+   "type": "keydown",
+   "value": "",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 11778,
+   "type": "keypress",
+   "value": "",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 11779,
+   "type": "beforeinput",
+   "value": "",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 11780,
+   "type": "input",
+   "value": " ",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 11786,
+   "type": "keyup",
+   "value": " ",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 12456,
+   "type": "blur",
+   "value": " "
+  },
+  {
+   "t": 13337,
+   "type": "focus",
+   "value": ""
+  },
+  {
+   "t": 14221,
+   "type": "keyup",
+   "value": "",
+   "key": "ㅇ",
+   "code": "KeyD",
+   "keyCode": 68
+  },
+  {
+   "t": 14224,
+   "type": "beforeinput",
+   "value": "",
+   "data": "ㅇ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 14225,
+   "type": "input",
+   "value": "ㅇ",
+   "data": "ㅇ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 14225,
+   "type": "keydown",
+   "value": "ㅇ",
+   "key": "ㅇ",
+   "code": "KeyD",
+   "keyCode": 229
+  },
+  {
+   "t": 14290,
+   "type": "beforeinput",
+   "value": "ㅇ",
+   "selStart": 0,
+   "selEnd": 1,
+   "data": "아",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14291,
+   "type": "input",
+   "value": "아",
+   "data": "아",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14292,
+   "type": "keydown",
+   "value": "아",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 229
+  },
+  {
+   "t": 14303,
+   "type": "keyup",
+   "value": "아",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 75
+  },
+  {
+   "t": 14368,
+   "type": "beforeinput",
+   "value": "아",
+   "selStart": 0,
+   "selEnd": 1,
+   "data": "안",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14368,
+   "type": "input",
+   "value": "안",
+   "data": "안",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14369,
+   "type": "keydown",
+   "value": "안",
+   "key": "ㄴ",
+   "code": "KeyS",
+   "keyCode": 229
+  },
+  {
+   "t": 14387,
+   "type": "keyup",
+   "value": "안",
+   "key": "ㄴ",
+   "code": "KeyS",
+   "keyCode": 83
+  },
+  {
+   "t": 14453,
+   "type": "beforeinput",
+   "value": "안",
+   "selStart": 0,
+   "selEnd": 1,
+   "data": "안",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14453,
+   "type": "input",
+   "value": "안",
+   "data": "안",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14454,
+   "type": "beforeinput",
+   "value": "안",
+   "data": "ㄴ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 14454,
+   "type": "input",
+   "value": "안ㄴ",
+   "data": "ㄴ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 14455,
+   "type": "keydown",
+   "value": "안ㄴ",
+   "key": "ㄴ",
+   "code": "KeyS",
+   "keyCode": 229
+  },
+  {
+   "t": 14470,
+   "type": "keyup",
+   "value": "안ㄴ",
+   "key": "ㄴ",
+   "code": "KeyS",
+   "keyCode": 83
+  },
+  {
+   "t": 14536,
+   "type": "beforeinput",
+   "value": "안ㄴ",
+   "selStart": 1,
+   "selEnd": 2,
+   "data": "녀",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14537,
+   "type": "input",
+   "value": "안녀",
+   "data": "녀",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14537,
+   "type": "keydown",
+   "value": "안녀",
+   "key": "ㅕ",
+   "code": "KeyU",
+   "keyCode": 229
+  },
+  {
+   "t": 14554,
+   "type": "keyup",
+   "value": "안녀",
+   "key": "ㅕ",
+   "code": "KeyU",
+   "keyCode": 85
+  },
+  {
+   "t": 14624,
+   "type": "keyup",
+   "value": "안녀",
+   "key": "ㅇ",
+   "code": "KeyD",
+   "keyCode": 68
+  },
+  {
+   "t": 14629,
+   "type": "beforeinput",
+   "value": "안녀",
+   "selStart": 1,
+   "selEnd": 2,
+   "data": "녕",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14629,
+   "type": "input",
+   "value": "안녕",
+   "data": "녕",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14630,
+   "type": "keydown",
+   "value": "안녕",
+   "key": "ㅇ",
+   "code": "KeyD",
+   "keyCode": 229
+  },
+  {
+   "t": 14696,
+   "type": "beforeinput",
+   "value": "안녕",
+   "selStart": 1,
+   "selEnd": 2,
+   "data": "녕",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14696,
+   "type": "input",
+   "value": "안녕",
+   "data": "녕",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14698,
+   "type": "keydown",
+   "value": "안녕",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 14698,
+   "type": "keypress",
+   "value": "안녕",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 14698,
+   "type": "beforeinput",
+   "value": "안녕",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 14698,
+   "type": "input",
+   "value": "안녕 ",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 14721,
+   "type": "keyup",
+   "value": "안녕 ",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 14768,
+   "type": "beforeinput",
+   "value": "안녕 ",
+   "data": "ㅎ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 14768,
+   "type": "input",
+   "value": "안녕 ㅎ",
+   "data": "ㅎ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 14770,
+   "type": "keydown",
+   "value": "안녕 ㅎ",
+   "key": "ㅎ",
+   "code": "KeyG",
+   "keyCode": 229
+  },
+  {
+   "t": 14789,
+   "type": "keyup",
+   "value": "안녕 ㅎ",
+   "key": "ㅎ",
+   "code": "KeyG",
+   "keyCode": 71
+  },
+  {
+   "t": 14850,
+   "type": "beforeinput",
+   "value": "안녕 ㅎ",
+   "selStart": 3,
+   "selEnd": 4,
+   "data": "하",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14851,
+   "type": "input",
+   "value": "안녕 하",
+   "data": "하",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14851,
+   "type": "keydown",
+   "value": "안녕 하",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 229
+  },
+  {
+   "t": 14870,
+   "type": "keyup",
+   "value": "안녕 하",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 75
+  },
+  {
+   "t": 14928,
+   "type": "beforeinput",
+   "value": "안녕 하",
+   "selStart": 3,
+   "selEnd": 4,
+   "data": "핫",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14929,
+   "type": "input",
+   "value": "안녕 핫",
+   "data": "핫",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 14929,
+   "type": "keydown",
+   "value": "안녕 핫",
+   "key": "ㅅ",
+   "code": "KeyT",
+   "keyCode": 229
+  },
+  {
+   "t": 14944,
+   "type": "keyup",
+   "value": "안녕 핫",
+   "key": "ㅅ",
+   "code": "KeyT",
+   "keyCode": 84
+  },
+  {
+   "t": 15002,
+   "type": "beforeinput",
+   "value": "안녕 핫",
+   "selStart": 3,
+   "selEnd": 4,
+   "data": "하",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15002,
+   "type": "input",
+   "value": "안녕 하",
+   "data": "하",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15005,
+   "type": "beforeinput",
+   "value": "안녕 하",
+   "data": "세",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15006,
+   "type": "input",
+   "value": "안녕 하세",
+   "data": "세",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15007,
+   "type": "keydown",
+   "value": "안녕 하세",
+   "key": "ㅔ",
+   "code": "KeyP",
+   "keyCode": 229
+  },
+  {
+   "t": 15020,
+   "type": "keyup",
+   "value": "안녕 하세",
+   "key": "ㅔ",
+   "code": "KeyP",
+   "keyCode": 80
+  },
+  {
+   "t": 15084,
+   "type": "beforeinput",
+   "value": "안녕 하세",
+   "selStart": 4,
+   "selEnd": 5,
+   "data": "셍",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15084,
+   "type": "input",
+   "value": "안녕 하셍",
+   "data": "셍",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15085,
+   "type": "keydown",
+   "value": "안녕 하셍",
+   "key": "ㅇ",
+   "code": "KeyD",
+   "keyCode": 229
+  },
+  {
+   "t": 15103,
+   "type": "keyup",
+   "value": "안녕 하셍",
+   "key": "ㅇ",
+   "code": "KeyD",
+   "keyCode": 68
+  },
+  {
+   "t": 15163,
+   "type": "beforeinput",
+   "value": "안녕 하셍",
+   "selStart": 4,
+   "selEnd": 5,
+   "data": "세",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15164,
+   "type": "input",
+   "value": "안녕 하세",
+   "data": "세",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15166,
+   "type": "beforeinput",
+   "value": "안녕 하세",
+   "data": "요",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15166,
+   "type": "input",
+   "value": "안녕 하세요",
+   "data": "요",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15166,
+   "type": "keydown",
+   "value": "안녕 하세요",
+   "key": "ㅛ",
+   "code": "KeyY",
+   "keyCode": 229
+  },
+  {
+   "t": 15187,
+   "type": "keyup",
+   "value": "안녕 하세요",
+   "key": "ㅛ",
+   "code": "KeyY",
+   "keyCode": 89
+  },
+  {
+   "t": 15246,
+   "type": "beforeinput",
+   "value": "안녕 하세요",
+   "selStart": 5,
+   "selEnd": 6,
+   "data": "요",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15246,
+   "type": "input",
+   "value": "안녕 하세요",
+   "data": "요",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15247,
+   "type": "keydown",
+   "value": "안녕 하세요",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 15247,
+   "type": "keypress",
+   "value": "안녕 하세요",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 15247,
+   "type": "beforeinput",
+   "value": "안녕 하세요",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15248,
+   "type": "input",
+   "value": "안녕 하세요 ",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15270,
+   "type": "keyup",
+   "value": "안녕 하세요 ",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 15327,
+   "type": "beforeinput",
+   "value": "안녕 하세요 ",
+   "data": "ㄱ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15328,
+   "type": "input",
+   "value": "안녕 하세요 ㄱ",
+   "data": "ㄱ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15329,
+   "type": "keydown",
+   "value": "안녕 하세요 ㄱ",
+   "key": "ㄱ",
+   "code": "KeyR",
+   "keyCode": 229
+  },
+  {
+   "t": 15337,
+   "type": "keyup",
+   "value": "안녕 하세요 ㄱ",
+   "key": "ㄱ",
+   "code": "KeyR",
+   "keyCode": 82
+  },
+  {
+   "t": 15404,
+   "type": "beforeinput",
+   "value": "안녕 하세요 ㄱ",
+   "selStart": 7,
+   "selEnd": 8,
+   "data": "가",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15404,
+   "type": "input",
+   "value": "안녕 하세요 가",
+   "data": "가",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15404,
+   "type": "keydown",
+   "value": "안녕 하세요 가",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 229
+  },
+  {
+   "t": 15420,
+   "type": "keyup",
+   "value": "안녕 하세요 가",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 75
+  },
+  {
+   "t": 15485,
+   "type": "beforeinput",
+   "value": "안녕 하세요 가",
+   "selStart": 7,
+   "selEnd": 8,
+   "data": "간",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15485,
+   "type": "input",
+   "value": "안녕 하세요 간",
+   "data": "간",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15486,
+   "type": "keydown",
+   "value": "안녕 하세요 간",
+   "key": "ㄴ",
+   "code": "KeyS",
+   "keyCode": 229
+  },
+  {
+   "t": 15503,
+   "type": "keyup",
+   "value": "안녕 하세요 간",
+   "key": "ㄴ",
+   "code": "KeyS",
+   "keyCode": 83
+  },
+  {
+   "t": 15569,
+   "type": "beforeinput",
+   "value": "안녕 하세요 간",
+   "selStart": 7,
+   "selEnd": 8,
+   "data": "가",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15569,
+   "type": "input",
+   "value": "안녕 하세요 가",
+   "data": "가",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15571,
+   "type": "beforeinput",
+   "value": "안녕 하세요 가",
+   "data": "나",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15571,
+   "type": "input",
+   "value": "안녕 하세요 가나",
+   "data": "나",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15572,
+   "type": "keydown",
+   "value": "안녕 하세요 가나",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 229
+  },
+  {
+   "t": 15587,
+   "type": "keyup",
+   "value": "안녕 하세요 가나",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 75
+  },
+  {
+   "t": 15646,
+   "type": "beforeinput",
+   "value": "안녕 하세요 가나",
+   "selStart": 8,
+   "selEnd": 9,
+   "data": "낟",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15647,
+   "type": "input",
+   "value": "안녕 하세요 가낟",
+   "data": "낟",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15647,
+   "type": "keydown",
+   "value": "안녕 하세요 가낟",
+   "key": "ㄷ",
+   "code": "KeyE",
+   "keyCode": 229
+  },
+  {
+   "t": 15671,
+   "type": "keyup",
+   "value": "안녕 하세요 가낟",
+   "key": "ㄷ",
+   "code": "KeyE",
+   "keyCode": 69
+  },
+  {
+   "t": 15736,
+   "type": "beforeinput",
+   "value": "안녕 하세요 가낟",
+   "selStart": 8,
+   "selEnd": 9,
+   "data": "나",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15736,
+   "type": "input",
+   "value": "안녕 하세요 가나",
+   "data": "나",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15738,
+   "type": "beforeinput",
+   "value": "안녕 하세요 가나",
+   "data": "다",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15738,
+   "type": "input",
+   "value": "안녕 하세요 가나다",
+   "data": "다",
+   "inputType": "insertText"
+  },
+  {
+   "t": 15739,
+   "type": "keydown",
+   "value": "안녕 하세요 가나다",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 229
+  },
+  {
+   "t": 15757,
+   "type": "keyup",
+   "value": "안녕 하세요 가나다",
+   "key": "ㅏ",
+   "code": "KeyK",
+   "keyCode": 75
+  },
+  {
+   "t": 15813,
+   "type": "beforeinput",
+   "value": "안녕 하세요 가나다",
+   "selStart": 9,
+   "selEnd": 10,
+   "data": "ㄷ",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15814,
+   "type": "input",
+   "value": "안녕 하세요 가나ㄷ",
+   "data": "ㄷ",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15814,
+   "type": "keydown",
+   "value": "안녕 하세요 가나ㄷ",
+   "key": "Backspace",
+   "code": "Backspace",
+   "keyCode": 229
+  },
+  {
+   "t": 15837,
+   "type": "keyup",
+   "value": "안녕 하세요 가나ㄷ",
+   "key": "Backspace",
+   "code": "Backspace",
+   "keyCode": 8
+  },
+  {
+   "t": 15904,
+   "type": "beforeinput",
+   "value": "안녕 하세요 가나ㄷ",
+   "selStart": 9,
+   "selEnd": 10,
+   "data": "ㄷ",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15905,
+   "type": "input",
+   "value": "안녕 하세요 가나ㄷ",
+   "data": "ㄷ",
+   "inputType": "insertReplacementText"
+  },
+  {
+   "t": 15906,
+   "type": "keydown",
+   "value": "안녕 하세요 가나ㄷ",
+   "key": "Backspace",
+   "code": "Backspace",
+   "keyCode": 8
+  },
+  {
+   "t": 15906,
+   "type": "beforeinput",
+   "value": "안녕 하세요 가나ㄷ",
+   "data": null,
+   "inputType": "deleteContentBackward"
+  },
+  {
+   "t": 15906,
+   "type": "input",
+   "value": "안녕 하세요 가나",
+   "data": null,
+   "inputType": "deleteContentBackward"
+  },
+  {
+   "t": 15908,
+   "type": "keyup",
+   "value": "안녕 하세요 가나",
+   "key": "Backspace",
+   "code": "Backspace",
+   "keyCode": 8
+  },
+  {
+   "t": 16594,
+   "type": "blur",
+   "value": "안녕 하세요 가나"
+  },
+  {
+   "t": 17453,
+   "type": "focus",
+   "value": ""
+  },
+  {
+   "t": 18338,
+   "type": "keydown",
+   "value": "",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 18338,
+   "type": "keypress",
+   "value": "",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 18339,
+   "type": "beforeinput",
+   "value": "",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18339,
+   "type": "input",
+   "value": " ",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18349,
+   "type": "keyup",
+   "value": " ",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 18413,
+   "type": "keydown",
+   "value": " ",
+   "key": ">",
+   "code": "Period",
+   "keyCode": 190,
+   "shift": true
+  },
+  {
+   "t": 18414,
+   "type": "keypress",
+   "value": " ",
+   "key": ">",
+   "code": "Period",
+   "keyCode": 62,
+   "shift": true
+  },
+  {
+   "t": 18414,
+   "type": "beforeinput",
+   "value": " ",
+   "data": ">",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18414,
+   "type": "input",
+   "value": " >",
+   "data": ">",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18432,
+   "type": "keyup",
+   "value": " >",
+   "key": ">",
+   "code": "Period",
+   "keyCode": 190,
+   "shift": true
+  },
+  {
+   "t": 18493,
+   "type": "keydown",
+   "value": " >",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 18493,
+   "type": "keypress",
+   "value": " >",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 18493,
+   "type": "beforeinput",
+   "value": " >",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18493,
+   "type": "input",
+   "value": " > ",
+   "data": " ",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18515,
+   "type": "keyup",
+   "value": " > ",
+   "key": " ",
+   "code": "Space",
+   "keyCode": 32
+  },
+  {
+   "t": 18576,
+   "type": "keydown",
+   "value": " > ",
+   "key": "~",
+   "code": "Backquote",
+   "keyCode": 192,
+   "shift": true
+  },
+  {
+   "t": 18576,
+   "type": "keypress",
+   "value": " > ",
+   "key": "~",
+   "code": "Backquote",
+   "keyCode": 126,
+   "shift": true
+  },
+  {
+   "t": 18576,
+   "type": "beforeinput",
+   "value": " > ",
+   "data": "~",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18576,
+   "type": "input",
+   "value": " > ~",
+   "data": "~",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18599,
+   "type": "keyup",
+   "value": " > ~",
+   "key": "~",
+   "code": "Backquote",
+   "keyCode": 192,
+   "shift": true
+  },
+  {
+   "t": 18657,
+   "type": "keydown",
+   "value": " > ~",
+   "key": "/",
+   "code": "Slash",
+   "keyCode": 191
+  },
+  {
+   "t": 18657,
+   "type": "keypress",
+   "value": " > ~",
+   "key": "/",
+   "code": "Slash",
+   "keyCode": 47
+  },
+  {
+   "t": 18657,
+   "type": "beforeinput",
+   "value": " > ~",
+   "data": "/",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18658,
+   "type": "input",
+   "value": " > ~/",
+   "data": "/",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18682,
+   "type": "keyup",
+   "value": " > ~/",
+   "key": "/",
+   "code": "Slash",
+   "keyCode": 191
+  },
+  {
+   "t": 18744,
+   "type": "keydown",
+   "value": " > ~/",
+   "key": "o",
+   "code": "KeyO",
+   "keyCode": 79
+  },
+  {
+   "t": 18744,
+   "type": "keypress",
+   "value": " > ~/",
+   "key": "o",
+   "code": "KeyO",
+   "keyCode": 111
+  },
+  {
+   "t": 18744,
+   "type": "beforeinput",
+   "value": " > ~/",
+   "data": "o",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18744,
+   "type": "input",
+   "value": " > ~/o",
+   "data": "o",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18766,
+   "type": "keyup",
+   "value": " > ~/o",
+   "key": "o",
+   "code": "KeyO",
+   "keyCode": 79
+  },
+  {
+   "t": 18822,
+   "type": "keydown",
+   "value": " > ~/o",
+   "key": "u",
+   "code": "KeyU",
+   "keyCode": 85
+  },
+  {
+   "t": 18823,
+   "type": "keypress",
+   "value": " > ~/o",
+   "key": "u",
+   "code": "KeyU",
+   "keyCode": 117
+  },
+  {
+   "t": 18823,
+   "type": "beforeinput",
+   "value": " > ~/o",
+   "data": "u",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18823,
+   "type": "input",
+   "value": " > ~/ou",
+   "data": "u",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18849,
+   "type": "keyup",
+   "value": " > ~/ou",
+   "key": "u",
+   "code": "KeyU",
+   "keyCode": 85
+  },
+  {
+   "t": 18901,
+   "type": "keydown",
+   "value": " > ~/ou",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 84
+  },
+  {
+   "t": 18901,
+   "type": "keypress",
+   "value": " > ~/ou",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 116
+  },
+  {
+   "t": 18902,
+   "type": "beforeinput",
+   "value": " > ~/ou",
+   "data": "t",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18902,
+   "type": "input",
+   "value": " > ~/out",
+   "data": "t",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18932,
+   "type": "keyup",
+   "value": " > ~/out",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 84
+  },
+  {
+   "t": 18987,
+   "type": "keydown",
+   "value": " > ~/out",
+   "key": "/",
+   "code": "Slash",
+   "keyCode": 191
+  },
+  {
+   "t": 18987,
+   "type": "keypress",
+   "value": " > ~/out",
+   "key": "/",
+   "code": "Slash",
+   "keyCode": 47
+  },
+  {
+   "t": 18987,
+   "type": "beforeinput",
+   "value": " > ~/out",
+   "data": "/",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18987,
+   "type": "input",
+   "value": " > ~/out/",
+   "data": "/",
+   "inputType": "insertText"
+  },
+  {
+   "t": 18999,
+   "type": "keyup",
+   "value": " > ~/out/",
+   "key": "/",
+   "code": "Slash",
+   "keyCode": 191
+  },
+  {
+   "t": 19070,
+   "type": "keydown",
+   "value": " > ~/out/",
+   "key": "k",
+   "code": "KeyK",
+   "keyCode": 75
+  },
+  {
+   "t": 19070,
+   "type": "keypress",
+   "value": " > ~/out/",
+   "key": "k",
+   "code": "KeyK",
+   "keyCode": 107
+  },
+  {
+   "t": 19070,
+   "type": "beforeinput",
+   "value": " > ~/out/",
+   "data": "k",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19070,
+   "type": "input",
+   "value": " > ~/out/k",
+   "data": "k",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19082,
+   "type": "keyup",
+   "value": " > ~/out/k",
+   "key": "k",
+   "code": "KeyK",
+   "keyCode": 75
+  },
+  {
+   "t": 19152,
+   "type": "keydown",
+   "value": " > ~/out/k",
+   "key": "1",
+   "code": "Digit1",
+   "keyCode": 49
+  },
+  {
+   "t": 19152,
+   "type": "keypress",
+   "value": " > ~/out/k",
+   "key": "1",
+   "code": "Digit1",
+   "keyCode": 49
+  },
+  {
+   "t": 19153,
+   "type": "beforeinput",
+   "value": " > ~/out/k",
+   "data": "1",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19153,
+   "type": "input",
+   "value": " > ~/out/k1",
+   "data": "1",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19166,
+   "type": "keyup",
+   "value": " > ~/out/k1",
+   "key": "1",
+   "code": "Digit1",
+   "keyCode": 49
+  },
+  {
+   "t": 19236,
+   "type": "keydown",
+   "value": " > ~/out/k1",
+   "key": ".",
+   "code": "Period",
+   "keyCode": 190
+  },
+  {
+   "t": 19236,
+   "type": "keypress",
+   "value": " > ~/out/k1",
+   "key": ".",
+   "code": "Period",
+   "keyCode": 46
+  },
+  {
+   "t": 19237,
+   "type": "beforeinput",
+   "value": " > ~/out/k1",
+   "data": ".",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19237,
+   "type": "input",
+   "value": " > ~/out/k1.",
+   "data": ".",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19249,
+   "type": "keyup",
+   "value": " > ~/out/k1.",
+   "key": ".",
+   "code": "Period",
+   "keyCode": 190
+  },
+  {
+   "t": 19307,
+   "type": "keydown",
+   "value": " > ~/out/k1.",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 84
+  },
+  {
+   "t": 19307,
+   "type": "keypress",
+   "value": " > ~/out/k1.",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 116
+  },
+  {
+   "t": 19307,
+   "type": "beforeinput",
+   "value": " > ~/out/k1.",
+   "data": "t",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19307,
+   "type": "input",
+   "value": " > ~/out/k1.t",
+   "data": "t",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19332,
+   "type": "keyup",
+   "value": " > ~/out/k1.t",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 84
+  },
+  {
+   "t": 19386,
+   "type": "keydown",
+   "value": " > ~/out/k1.t",
+   "key": "x",
+   "code": "KeyX",
+   "keyCode": 88
+  },
+  {
+   "t": 19386,
+   "type": "keypress",
+   "value": " > ~/out/k1.t",
+   "key": "x",
+   "code": "KeyX",
+   "keyCode": 120
+  },
+  {
+   "t": 19386,
+   "type": "beforeinput",
+   "value": " > ~/out/k1.t",
+   "data": "x",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19386,
+   "type": "input",
+   "value": " > ~/out/k1.tx",
+   "data": "x",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19415,
+   "type": "keyup",
+   "value": " > ~/out/k1.tx",
+   "key": "x",
+   "code": "KeyX",
+   "keyCode": 88
+  },
+  {
+   "t": 19466,
+   "type": "keydown",
+   "value": " > ~/out/k1.tx",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 84
+  },
+  {
+   "t": 19467,
+   "type": "keypress",
+   "value": " > ~/out/k1.tx",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 116
+  },
+  {
+   "t": 19467,
+   "type": "beforeinput",
+   "value": " > ~/out/k1.tx",
+   "data": "t",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19467,
+   "type": "input",
+   "value": " > ~/out/k1.txt",
+   "data": "t",
+   "inputType": "insertText"
+  },
+  {
+   "t": 19482,
+   "type": "keyup",
+   "value": " > ~/out/k1.txt",
+   "key": "t",
+   "code": "KeyT",
+   "keyCode": 84
+  },
+  {
+   "t": 19853,
+   "type": "keydown",
+   "value": " > ~/out/k1.txt",
+   "key": "Enter",
+   "code": "Enter",
+   "keyCode": 13
+  },
+  {
+   "t": 19882,
+   "type": "keyup",
+   "value": "",
+   "key": "Enter",
+   "code": "Enter",
+   "keyCode": 13
+  },
+  {
+   "t": 28625,
+   "type": "keydown",
+   "value": "",
+   "key": "k",
+   "code": "KeyK",
+   "keyCode": 75,
+   "meta": true
+  },
+  {
+   "t": 28636,
+   "type": "blur",
+   "value": ""
+  }
+ ]
+}
