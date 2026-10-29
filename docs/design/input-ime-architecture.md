@@ -22,7 +22,23 @@ selected by `isMacWebView` in `src/components/Terminal.tsx`:
 UA (`Macintosh; Intel Mac OS X 10_15_7`), so the old `userAgent.includes("Mac")` check put iPad on
 the macOS mirror path. There, the stray-jamo filter (mirror rule 4) dropped every Hangul jamo the
 iPad keyboard sent: measured in the iPad simulator, only the space and Enter reached the shell.
-iOS (iPad and iPhone) now takes the standard path. The UA is only a fallback outside Tauri.
+iOS (iPad and iPhone) no longer takes the macOS path. The UA is only a fallback outside Tauri.
+
+### iOS uses the mirror too, engaged differently (#162)
+
+Recorded on the iPad simulator (on-screen 2-Set Korean keyboard): **iOS composes Hangul with no
+composition events.** Each jamo key is `keydown` (key = the jamo, keyCode 0) → `keypress` → then,
+when it combines with the previous character, `deleteContentBackward` + `insertText("하")`
+**replacing** that character. The textarea value builds up correctly (`한` → `한ㄱ` → `한그` →
+`한글`). xterm, though, sends the keypress jamo and ignores the replacement input events, so the
+shell received `ㅎㅏㄴㄱㅡㄹ`. iOS therefore uses the same textarea mirror as macOS (diff → `\x7f` +
+new tail). Only the engage signal differs: macOS uses keyCode 229, and iOS uses a keydown whose
+`key` is a single compatibility jamo (U+3131–U+318E). Everything else (baseline rules #97/#147,
+`onData` suppression while engaged, the printable/Backspace handling, Enter/arrow reset) is shared.
+Verified in the real app: `한글 입력` + ⌫ → shell line `한글 입려`; `한글` + `12` (number layer) →
+`한글 12`. Fixture: `ios-ipad-2set-onscreen.json`. **Not yet verified:** physical devices, iPhone,
+and iPad *hardware* keyboards. The Simulator translates Mac keystrokes through the Mac layout, so
+it can't represent a hardware keyboard.
 
 Windows/Linux fire the standard `compositionstart/update/end` sequence and xterm's own
 `CompositionHelper` handles it. The mirror, the `.composition-view` CSS hiding, the stray
@@ -196,7 +212,10 @@ it can only check orderings we already imagined, and most input bugs (#100, #133
 
 ### Recording a real trace
 
-1. Command palette → **Record input trace (new tab)**. A new local tab opens with a
+1. Command palette → **Record input trace (new tab)**. On mobile (no local tabs), the next
+   terminal that opens is recorded. If that terminal is recreated in the same pane (an SSH
+   password retry, reconnect), the recording moves to the new one and **restarts**, because replay
+   starts from a fresh `Terminal`. A new local tab opens with a
    yellow notice; recording only covers that fresh tab, because replay starts from a fresh
    `Terminal` and an old tab carries IME state (mirror baseline, heal counters).
 2. Reproduce the input (e.g. a Korean sentence with deletions). **Everything typed is
