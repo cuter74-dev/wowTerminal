@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.1] — 2026-10-30
+
 ### Fixed
 - **The Files panel opened at your home folder instead of the folder you were working in** — for example inside tmux, or while Claude Code was running. Each terminal tab now has its own tree, which starts at the folder that tab is working in (the tmux pane's folder, or the running program's or shell's folder). It follows the terminal until you move the tree yourself, and **⌂ Working folder** brings it back. (#168)
 - **Files dropped onto an SSH terminal always went to the home folder on servers with OpenSSH 9.8 or later**, because the remote folder lookup didn't recognize the newer `sshd-session` process. Dropped files now go to the folder the terminal is working in, including inside tmux, locally and over SSH. (#168)
@@ -593,7 +595,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.1...HEAD
+[0.21.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.19...v0.21.0
 [0.20.19]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.18...v0.20.19
 [0.20.18]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.17...v0.20.18
