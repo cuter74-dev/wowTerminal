@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU32, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 
 use tokio::net::UnixStream;
@@ -23,6 +23,11 @@ pub struct DaemonClient {
     tx: mpsc::Sender<Envelope>,
     pending: Pending,
     next_id: AtomicU64,
+    /// hello로 알게 된 데몬 프로토콜 버전(0 = 아직 모름). 구버전 데몬에는 모르는 요청을
+    /// 보내지 않기 위해 쓴다(#160 — 업데이트 직후엔 구버전 데몬이 살아 있을 수 있다).
+    protocol: AtomicU32,
+    /// 소켓 상대(데몬) 프로세스 id. 종료 요청을 모르는 구버전 데몬을 교체할 때 쓴다.
+    peer_pid: Option<i32>,
 }
 
 impl DaemonClient {
@@ -47,7 +52,14 @@ impl DaemonClient {
         None
     }
 
+    /// 테스트용: 이미 연결된 스트림으로 클라이언트를 만든다.
+    #[cfg(test)]
+    pub fn from_stream_for_test(stream: UnixStream, events: EventSink) -> Self {
+        Self::attach(stream, events)
+    }
+
     fn attach(stream: UnixStream, events: EventSink) -> Self {
+        let peer_pid = stream.peer_cred().ok().and_then(|c| c.pid());
         let (mut rd, mut wr) = stream.into_split();
         let pending: Pending = Arc::new(Mutex::new(HashMap::new()));
         let (tx, mut rx) = mpsc::channel::<Envelope>(1024);
@@ -88,7 +100,13 @@ impl DaemonClient {
             }
         });
 
-        Self { tx, pending, next_id: AtomicU64::new(1) }
+        Self {
+            tx,
+            pending,
+            next_id: AtomicU64::new(1),
+            protocol: AtomicU32::new(0),
+            peer_pid,
+        }
     }
 
     pub async fn call(&self, req: Req) -> Result<serde_json::Value, String> {
@@ -105,10 +123,83 @@ impl DaemonClient {
         }
     }
 
-    /// 핸드셰이크. 데몬 버전을 로그로 남긴다(버전 스큐 진단용).
+    /// 핸드셰이크. 데몬 버전을 로그로 남기고(버전 스큐 진단용) 프로토콜 버전을 기억한다.
     pub async fn hello(&self) -> Result<serde_json::Value, String> {
-        self.call(Req::Hello { protocol: super::PROTOCOL_VERSION }).await
+        let v = self.call(Req::Hello { protocol: super::PROTOCOL_VERSION }).await?;
+        let p = v.get("protocol").and_then(|p| p.as_u64()).unwrap_or(1) as u32;
+        self.protocol.store(p, Ordering::Relaxed);
+        Ok(v)
     }
+
+    /// 데몬의 프로토콜 버전(hello 이후 유효).
+    pub fn protocol(&self) -> u32 {
+        self.protocol.load(Ordering::Relaxed)
+    }
+}
+
+impl DaemonClient {
+    /// 데몬에 붙되, **세션이 하나도 없는 구버전 데몬이면 교체**한다(#160).
+    ///
+    /// 업데이트 직후엔 이전 버전 앱이 띄운 데몬이 살아 있다. 그 데몬은 새 기능(SSH 세션 소유 등)을
+    /// 모르고, 유휴 종료도 "세션 0 + 클라이언트 0"이라 앱이 붙어 있는 한 영영 오지 않는다. 그래서
+    /// 세션이 없으면 내려보내고 현재 버전 데몬을 띄운다. **세션이 남아 있으면 그대로 쓴다** — 그
+    /// 세션(실행 중인 로컬 셸)을 지키는 게 데몬의 존재 이유이고, 새 기능은 그 세션들이 끝난 뒤 켜진다.
+    /// 교체 중 무엇이든 실패하면 그 자리에 있는 데몬에 붙는다(무회귀).
+    pub async fn connect_current(exe: &Path, socket: &Path, events: EventSink) -> Option<Self> {
+        let c = Self::connect_or_spawn(exe, socket, events.clone()).await?;
+        c.hello().await.ok()?;
+        if c.protocol() >= super::PROTOCOL_VERSION {
+            return Some(c);
+        }
+        let idle = c
+            .call(Req::ListSessions)
+            .await
+            .ok()
+            .and_then(|v| v.as_array().map(|a| a.is_empty()))
+            .unwrap_or(false);
+        if !idle {
+            eprintln!("[daemon] older daemon (protocol {}) has live sessions — keeping it", c.protocol());
+            return Some(c);
+        }
+        let retired = if c.protocol() >= 2 {
+            matches!(c.call(Req::Shutdown).await, Ok(serde_json::Value::Bool(true)))
+        } else {
+            // v1에는 종료 요청이 없다 — 소켓 상대 pid가 **이 소켓을 쓰는 우리 데몬**일 때만 종료한다.
+            c.peer_pid.is_some_and(|pid| terminate_if_our_daemon(pid, socket))
+        };
+        if !retired {
+            return Some(c);
+        }
+        drop(c);
+        // 옛 데몬이 소켓을 놓을 때까지 기다린 뒤(최대 ~3초) 새로 띄운다.
+        for _ in 0..60 {
+            if UnixStream::connect(socket).await.is_err() {
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+        }
+        let fresh = Self::connect_or_spawn(exe, socket, events).await?;
+        fresh.hello().await.ok()?;
+        eprintln!("[daemon] replaced an idle older daemon (now protocol {})", fresh.protocol());
+        Some(fresh)
+    }
+}
+
+/// `pid`가 이 소켓으로 띄운 우리 데몬이면 SIGTERM을 보낸다. 명령줄로 확인한다 — 소켓 상대가
+/// 엉뚱한 프로세스일 가능성(재사용된 pid 등)에 대비해 확인 없이는 절대 죽이지 않는다.
+fn terminate_if_our_daemon(pid: i32, socket: &Path) -> bool {
+    let Ok(out) = std::process::Command::new("ps")
+        .args(["-o", "command=", "-p", &pid.to_string()])
+        .output()
+    else {
+        return false;
+    };
+    let cmd = String::from_utf8_lossy(&out.stdout);
+    let ours = cmd.contains("--daemon") && cmd.contains(&*socket.to_string_lossy());
+    if !ours {
+        return false;
+    }
+    unsafe { libc::kill(pid, libc::SIGTERM) == 0 }
 }
 
 /// 데몬을 **detached**로 띄운다. 앱의 프로세스 그룹/세션에서 떼어내야
@@ -139,4 +230,86 @@ fn spawn_detached(exe: &Path, socket: &Path) -> std::io::Result<()> {
 /// UI가 스폰 시 `--socket`으로 넘겨준다).
 pub fn socket_path(config_dir: &Path) -> PathBuf {
     config_dir.join("daemon.sock")
+}
+
+/// 구버전 데몬 교체 e2e (#160) — 기본 무시. 실제 구버전(프로토콜 1) 바이너리와 현재 빌드가 필요하다:
+/// `WT_TEST_V1_EXE=<구버전 wowterminal> WT_TEST_V2_EXE=<현재 target/debug/wowterminal> \
+///  cargo test --lib retire -- --ignored --nocapture`
+#[cfg(test)]
+mod retire_e2e {
+    use super::*;
+
+    fn spawn_v1(sock: &Path) -> std::process::Child {
+        let exe = std::env::var("WT_TEST_V1_EXE").expect("WT_TEST_V1_EXE");
+        std::process::Command::new(exe)
+            .args(["--daemon", "--socket"])
+            .arg(sock)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .expect("spawn v1 daemon")
+    }
+
+    async fn wait_socket(sock: &Path) {
+        for _ in 0..100 {
+            if UnixStream::connect(sock).await.is_ok() {
+                return;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(30)).await;
+        }
+        panic!("socket never came up");
+    }
+
+    fn alive(pid: u32) -> bool {
+        unsafe { libc::kill(pid as i32, 0) == 0 }
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn idle_v1_daemon_is_replaced_by_current() {
+        let v2 = PathBuf::from(std::env::var("WT_TEST_V2_EXE").expect("WT_TEST_V2_EXE"));
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("d.sock");
+        let mut v1 = spawn_v1(&sock);
+        wait_socket(&sock).await;
+        let c = DaemonClient::connect_current(&v2, &sock, Arc::new(|_| {})).await.expect("connect");
+        println!("protocol after connect_current: {}", c.protocol());
+        assert_eq!(c.protocol(), super::super::PROTOCOL_VERSION, "idle v1 must be replaced");
+        let _ = v1.wait(); // SIGTERM으로 종료돼 있어야 한다(좀비 회수)
+        assert!(!alive(v1.id()), "old daemon process must be gone");
+        // 새 데몬은 세션이 없으니 종료 요청으로 정리.
+        assert_eq!(c.call(Req::Shutdown).await.unwrap(), serde_json::Value::Bool(true));
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn v1_daemon_with_sessions_is_kept() {
+        let v2 = PathBuf::from(std::env::var("WT_TEST_V2_EXE").expect("WT_TEST_V2_EXE"));
+        let dir = tempfile::tempdir().unwrap();
+        let sock = dir.path().join("d.sock");
+        let mut v1 = spawn_v1(&sock);
+        wait_socket(&sock).await;
+        // 구버전 데몬에 로컬 셸 하나를 띄운다(= 업데이트 전부터 돌던 셸).
+        let pre = DaemonClient::connect_or_spawn(&v2, &sock, Arc::new(|_| {})).await.unwrap();
+        pre.hello().await.unwrap();
+        let sid = pre
+            .call(Req::PtySpawn {
+                program: Some("/bin/sh".into()),
+                cols: Some(80),
+                rows: Some(24),
+                cwd: None,
+                attach: None,
+            })
+            .await
+            .unwrap();
+        let c = DaemonClient::connect_current(&v2, &sock, Arc::new(|_| {})).await.expect("connect");
+        println!("protocol with a live v1 session: {}", c.protocol());
+        assert_eq!(c.protocol(), 1, "v1 with live sessions must be kept");
+        assert!(alive(v1.id()), "old daemon must keep running");
+        let live = c.call(Req::ListSessions).await.unwrap();
+        assert!(live.as_array().unwrap().contains(&sid), "the pre-update shell survives");
+        let _ = c.call(Req::PtyKill { session_id: sid.as_str().unwrap().into() }).await;
+        let _ = v1.kill();
+        let _ = v1.wait();
+    }
 }

@@ -116,11 +116,27 @@ impl SshManager {
         rows: u16,
         jump: Option<JumpSpec>,
     ) -> Result<SessionId, SshError> {
+        self.connect_addr(&host.host, host.port, &host.user, auth, cols, rows, jump)
+            .await
+    }
+
+    /// 주소만으로 접속한다(#160). 세션 데몬은 호스트 저장소를 열지 않고 UI가 보낸 주소·인증으로 붙는다.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn connect_addr(
+        &self,
+        host: &str,
+        port: u16,
+        user: &str,
+        auth: ResolvedAuth,
+        cols: u16,
+        rows: u16,
+        jump: Option<JumpSpec>,
+    ) -> Result<SessionId, SshError> {
         let session_id: SessionId = uuid::Uuid::new_v4().to_string();
         let session = SshSession::connect(
-            &host.host,
-            host.port,
-            &host.user,
+            host,
+            port,
+            user,
             auth,
             cols,
             rows,
@@ -173,6 +189,11 @@ impl SshManager {
         };
         self.history.remove(id);
         session.close().await
+    }
+
+    /// 살아있는 세션 id 목록 (#160). 데몬이 재attach 대상·유휴 판단에 쓴다.
+    pub async fn list_sessions(&self) -> Vec<SessionId> {
+        self.sessions.lock().await.keys().cloned().collect()
     }
 
     pub async fn session_count(&self) -> usize {

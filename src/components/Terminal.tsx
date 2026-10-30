@@ -364,6 +364,8 @@ function commandsFor(
         cols,
         rows,
         ...(password !== undefined ? { password } : {}),
+        // 재attach 힌트(#160): 세션 데몬에 이 SSH 세션이 살아 있으면 새로 접속하지 않는다.
+        attach: restoreSessionId ?? null,
       },
     }),
   };

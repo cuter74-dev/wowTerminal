@@ -14,7 +14,7 @@ use super::groups::GroupStore;
 use super::keys::{self, KeyStore};
 use super::known_hosts::{KnownHostEntry, KnownHostsStore};
 use super::manager::{SshError, SshManager};
-use super::session::{ResolvedAuth, SessionId};
+use super::session::{ResolvedAuth, SessionId, WireAuth, WireJump};
 use super::sftp::{FileEntry, ProgressSink, SearchHit, SftpManager};
 use super::store::HostStore;
 use super::tags::TagStore;
@@ -24,7 +24,7 @@ use super::types::{Group, SshAuthMethod, SshHost, SshKeyEntry, Tag};
 /// 프론트엔드가 패턴 매칭으로 구분할 수 있도록 직렬화된 에러.
 /// 단순 `String` 대신 이 enum을 쓰면 UI가 HostKeyMismatch / FirstContact를
 /// 정확히 감지해 별도 모달을 띄울 수 있다.
-#[derive(Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum SshConnectError {
     HostKeyMismatch {
@@ -109,6 +109,10 @@ pub struct SshState {
     /// 시크릿 저장소 핸들. 앱 시작 시 사용자 패스프레이즈로 열린 핸들이 들어간다.
     /// v1에서는 일단 옵션으로 두고, 없으면 password/key auth는 사용 불가.
     pub secrets: Option<Arc<dyn SecretStore>>,
+    /// SSH 세션을 소유하는 세션 데몬(#160). 프로토콜 v2 이상일 때만 들어간다 — 그러면 SSH 셸이
+    /// 앱 업데이트·재시작에도 끊기지 않는다. None이면 종전처럼 인프로세스.
+    #[cfg(unix)]
+    pub daemon: Option<Arc<crate::daemon::client::DaemonClient>>,
 }
 
 pub fn build_state(
@@ -194,6 +198,8 @@ pub fn build_state(
         keys: KeyStore::new(keys_path),
         known_hosts,
         secrets: None,
+        #[cfg(unix)]
+        daemon: None,
     }
 }
 
@@ -234,6 +240,10 @@ pub struct SshConnectArgs {
     pub rows: Option<u16>,
     /// PasswordPrompt 인증 시 사용자가 모달에서 입력한 password. 메모리에서만 사용, 저장 안 함.
     pub password: Option<String>,
+    /// 재attach 힌트 (#160): 이전 실행의 세션 id. 세션 데몬에 아직 살아있으면 새로 접속하지
+    /// 않고(인증·비밀번호 프롬프트 없이) 그 세션을 그대로 돌려준다.
+    #[serde(default)]
+    pub attach: Option<String>,
 }
 
 #[tauri::command]
@@ -248,7 +258,24 @@ pub async fn ssh_connect(
     let cols = args.cols.unwrap_or(80);
     let rows = args.rows.unwrap_or(24);
 
-    let auth = resolve_auth(
+    // 재attach (#160): 데몬에 이 세션이 살아 있으면 인증 없이 그대로 붙는다 — 업데이트로 앱이
+    // 재시작돼도 원격 셸이 끊기지 않은 경우다. 새 창 크기로 맞춰 준다.
+    #[cfg(unix)]
+    if let (Some(d), Some(id)) = (&state.daemon, &args.attach) {
+        if let Ok(v) = d.call(crate::daemon::proto::Req::ListSessions).await {
+            let alive = v
+                .as_array()
+                .is_some_and(|a| a.iter().any(|x| x.as_str() == Some(id.as_str())));
+            if alive {
+                let _ = d
+                    .call(crate::daemon::proto::Req::SshResize { session_id: id.clone(), cols, rows })
+                    .await;
+                return Ok(id.clone());
+            }
+        }
+    }
+
+    let auth = resolve_wire_auth(
         &host.auth,
         state.secrets.as_deref(),
         args.password.as_deref(),
@@ -266,7 +293,7 @@ pub async fn ssh_connect(
                 .store
                 .get(jid)
                 .map_err(|e| SshConnectError::from_string(e.to_string()))?;
-            let jauth = resolve_auth(
+            let jauth = resolve_wire_auth(
                 &jhost.auth,
                 state.secrets.as_deref(),
                 None,
@@ -275,7 +302,7 @@ pub async fn ssh_connect(
                 &jhost.user,
             )
             .map_err(SshConnectError::from)?;
-            Some(super::session::JumpSpec {
+            Some(WireJump {
                 host: jhost.host,
                 port: jhost.port,
                 user: jhost.user,
@@ -285,6 +312,34 @@ pub async fn ssh_connect(
         _ => None,
     };
 
+    // 세션 데몬이 있으면 데몬이 연결을 소유한다(#160). 호스트 키 확인 같은 대화형 흐름은
+    // 데몬이 구조화된 오류로 돌려주므로 프론트는 종전과 똑같이 모달 → 재시도한다.
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        let v = d
+            .call(crate::daemon::proto::Req::SshConnect {
+                host: host.host.clone(),
+                port: host.port,
+                user: host.user.clone(),
+                auth,
+                cols,
+                rows,
+                jump,
+            })
+            .await
+            .map_err(SshConnectError::from_string)?;
+        if let Some(id) = v.get("ok").and_then(|x| x.as_str()) {
+            return Ok(id.to_string());
+        }
+        return Err(v
+            .get("err")
+            .cloned()
+            .and_then(|e| serde_json::from_value(e).ok())
+            .unwrap_or_else(|| SshConnectError::from_string(format!("daemon: {v}"))));
+    }
+
+    let auth = auth.into_resolved().map_err(SshConnectError::from)?;
+    let jump = jump.map(WireJump::into_spec).transpose().map_err(SshConnectError::from)?;
     state
         .manager
         .connect(&host, auth, cols, rows, jump)
@@ -298,6 +353,11 @@ pub async fn ssh_write(
     data_b64: String,
     state: State<'_, SshState>,
 ) -> Result<(), String> {
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        d.call(crate::daemon::proto::Req::SshWrite { session_id, data_b64 }).await?;
+        return Ok(());
+    }
     let bytes = B64.decode(data_b64.as_bytes()).map_err(|e| e.to_string())?;
     state
         .manager
@@ -312,6 +372,14 @@ pub async fn ssh_remote_cwd(
     session_id: String,
     state: State<'_, SshState>,
 ) -> Result<Option<String>, String> {
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        let v = d
+            .call(crate::daemon::proto::Req::SshRemoteCwd { session_id })
+            .await
+            .unwrap_or_default();
+        return Ok(serde_json::from_value(v).unwrap_or(None));
+    }
     Ok(state.manager.remote_cwd(&session_id).await)
 }
 
@@ -321,6 +389,14 @@ pub async fn ssh_tmux_sessions(
     session_id: String,
     state: State<'_, SshState>,
 ) -> Result<Option<Vec<super::types::TmuxSessionInfo>>, String> {
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        let v = d
+            .call(crate::daemon::proto::Req::SshTmuxSessions { session_id })
+            .await
+            .unwrap_or_default();
+        return Ok(serde_json::from_value(v).unwrap_or(None));
+    }
     Ok(state.manager.tmux_sessions(&session_id).await)
 }
 
@@ -331,6 +407,14 @@ pub async fn ssh_probe_system(
     session_id: String,
     state: State<'_, SshState>,
 ) -> Result<Option<String>, String> {
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        let v = d
+            .call(crate::daemon::proto::Req::SshProbeSystem { session_id })
+            .await
+            .unwrap_or_default();
+        return Ok(serde_json::from_value(v).unwrap_or(None));
+    }
     Ok(state.manager.probe_system(&session_id).await)
 }
 
@@ -341,6 +425,11 @@ pub async fn ssh_resize(
     rows: u16,
     state: State<'_, SshState>,
 ) -> Result<(), String> {
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        d.call(crate::daemon::proto::Req::SshResize { session_id, cols, rows }).await?;
+        return Ok(());
+    }
     state
         .manager
         .resize(&session_id, cols, rows)
@@ -350,6 +439,11 @@ pub async fn ssh_resize(
 
 #[tauri::command]
 pub async fn ssh_kill(session_id: String, state: State<'_, SshState>) -> Result<(), String> {
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        d.call(crate::daemon::proto::Req::SshKill { session_id }).await?;
+        return Ok(());
+    }
     state
         .manager
         .kill(&session_id)
@@ -365,28 +459,43 @@ fn resolve_auth(
     port: u16,
     user: &str,
 ) -> Result<ResolvedAuth, SshError> {
+    resolve_wire_auth(method, secrets, prompted_password, host, port, user)?.into_resolved()
+}
+
+/// 인증 재료를 꺼낸다(#160): 시크릿 저장소 조회와 비밀번호 프롬프트 판정은 UI 프로세스가 한다.
+/// 결과는 인프로세스 경로(`into_resolved`)와 세션 데몬 전송에 공통으로 쓴다.
+fn resolve_wire_auth(
+    method: &SshAuthMethod,
+    secrets: Option<&dyn SecretStore>,
+    prompted_password: Option<&str>,
+    host: &str,
+    port: u16,
+    user: &str,
+) -> Result<WireAuth, SshError> {
+    let utf8 = |b: &[u8], what: &str| {
+        std::str::from_utf8(b)
+            .map(str::to_string)
+            .map_err(|_| SshError::Auth(format!("{what} is not UTF-8")))
+    };
+    let required = || SshError::PasswordRequired {
+        host: host.to_string(),
+        port,
+        user: user.to_string(),
+    };
     match method {
         SshAuthMethod::Password { secret_id } => {
             // 저장된 비밀번호를 우선 사용. 없으면(예: secret 저장소 이전 후) 모달 입력으로 폴백.
             if let Some(store) = secrets {
                 if let Ok(pw) = store.load(secret_id) {
-                    return ResolvedAuth::from_method(method, Some(pw.as_slice()), None, None);
+                    return Ok(WireAuth::Password { password: utf8(pw.as_slice(), "password")? });
                 }
             }
-            let pw = prompted_password.ok_or_else(|| SshError::PasswordRequired {
-                host: host.to_string(),
-                port,
-                user: user.to_string(),
-            })?;
-            Ok(ResolvedAuth::Password(pw.to_string()))
+            let pw = prompted_password.ok_or_else(required)?;
+            Ok(WireAuth::Password { password: pw.to_string() })
         }
         SshAuthMethod::PasswordPrompt => {
-            let pw = prompted_password.ok_or_else(|| SshError::PasswordRequired {
-                host: host.to_string(),
-                port,
-                user: user.to_string(),
-            })?;
-            Ok(ResolvedAuth::Password(pw.to_string()))
+            let pw = prompted_password.ok_or_else(required)?;
+            Ok(WireAuth::Password { password: pw.to_string() })
         }
         SshAuthMethod::PrivateKey {
             key_id,
@@ -394,19 +503,19 @@ fn resolve_auth(
         } => {
             let store = secrets.ok_or_else(|| SshError::Auth("secret store not unlocked".into()))?;
             let key_pem = store.load(key_id).map_err(|e| SshError::Auth(e.to_string()))?;
-            let passphrase = if let Some(pid) = passphrase_secret_id {
-                Some(store.load(pid).map_err(|e| SshError::Auth(e.to_string()))?)
-            } else {
-                None
+            let passphrase = match passphrase_secret_id {
+                Some(pid) => Some(utf8(
+                    store.load(pid).map_err(|e| SshError::Auth(e.to_string()))?.as_slice(),
+                    "passphrase",
+                )?),
+                None => None,
             };
-            ResolvedAuth::from_method(
-                method,
-                None,
-                Some(key_pem.as_slice()),
-                passphrase.as_ref().map(|p| p.as_slice()),
-            )
+            Ok(WireAuth::PrivateKey {
+                pem: utf8(key_pem.as_slice(), "private key")?,
+                passphrase,
+            })
         }
-        SshAuthMethod::Agent => ResolvedAuth::from_method(method, None, None, None),
+        SshAuthMethod::Agent => Ok(WireAuth::Agent),
     }
 }
 

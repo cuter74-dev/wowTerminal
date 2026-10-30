@@ -225,6 +225,16 @@ pub fn run() {
                 Arc::clone(&history),
             );
             ssh_state.secrets = Some(secret_store.clone());
+            // SSH 세션도 데몬이 소유한다(#160) — 단, 데몬이 SSH를 아는 v2 이상일 때만. 업데이트
+            // 직후 살아 있는 구버전(v1) 데몬이면 SSH는 종전처럼 인프로세스로 둔다.
+            #[cfg(unix)]
+            {
+                ssh_state.daemon = app
+                    .state::<PtyState>()
+                    .daemon
+                    .clone()
+                    .filter(|d| d.protocol() >= 2);
+            }
             app.manage(ssh_state);
             Ok(())
         })

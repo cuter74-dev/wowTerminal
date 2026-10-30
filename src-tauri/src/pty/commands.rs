@@ -48,18 +48,20 @@ pub fn connect_daemon(
         Event::SessionClosed { session_id } => {
             let _ = handle.emit("session:closed", SessionClosed { session_id });
         }
+        // #160: 데몬이 소유한 SSH 세션 출력 — 인프로세스 때와 같은 `ssh:output` 계약.
+        Event::SshOutput { session_id, data_b64 } => {
+            let _ = handle.emit("ssh:output", PtyOutput { session_id, data_b64 });
+        }
     });
 
-    let client = tauri::async_runtime::block_on(DaemonClient::connect_or_spawn(
+    // 세션 없는 구버전 데몬은 현재 버전으로 교체한다(#160) — 그래야 업데이트 후 SSH 세션 유지가 켜진다.
+    let Some(client) = tauri::async_runtime::block_on(DaemonClient::connect_current(
         &exe, &socket, sink,
-    ))?;
-    match tauri::async_runtime::block_on(client.hello()) {
-        Ok(info) => eprintln!("[daemon] connected: {info}"),
-        Err(e) => {
-            eprintln!("[daemon] handshake failed: {e} — falling back to in-process sessions");
-            return None;
-        }
-    }
+    )) else {
+        eprintln!("[daemon] unavailable — falling back to in-process sessions");
+        return None;
+    };
+    eprintln!("[daemon] connected (protocol {})", client.protocol());
     Some(Arc::new(client))
 }
 

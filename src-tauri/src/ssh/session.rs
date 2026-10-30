@@ -647,6 +647,70 @@ impl std::fmt::Debug for ResolvedAuth {
     }
 }
 
+/// OpenSSH 개인키(PEM) 해석 — 패스프레이즈가 있으면 복호화. 인프로세스·데몬 경로 공용.
+fn decode_private_key(pem: &[u8], passphrase: Option<&[u8]>) -> Result<PrivateKey, SshError> {
+    let pem_str =
+        std::str::from_utf8(pem).map_err(|_| SshError::Auth("private key is not UTF-8".into()))?;
+    if let Some(pass) = passphrase {
+        let pass_str = std::str::from_utf8(pass)
+            .map_err(|_| SshError::Auth("passphrase is not UTF-8".into()))?;
+        PrivateKey::from_openssh(pem_str)
+            .and_then(|k| k.decrypt(pass_str.as_bytes()))
+            .map_err(|e| SshError::Auth(format!("key decrypt: {e}")))
+    } else {
+        PrivateKey::from_openssh(pem_str).map_err(|e| SshError::Auth(format!("key parse: {e}")))
+    }
+}
+
+/// 세션 데몬으로 보내는 **해석된 인증 재료** (#160). 시크릿 저장소는 UI 프로세스만 열고,
+/// 데몬에는 이미 꺼낸 비밀번호/키 원문을 로컬 소켓(같은 사용자만 접속 가능)으로 넘긴다 —
+/// 데몬이 시크릿 파일을 따로 열면 UI가 그 사이 저장한 값과 어긋날 수 있기 때문이다.
+/// 디스크에는 쓰지 않는다. `Debug`는 값을 가린다.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(tag = "kind", rename_all = "snake_case")]
+pub enum WireAuth {
+    Password { password: String },
+    PrivateKey { pem: String, passphrase: Option<String> },
+    Agent,
+}
+
+impl std::fmt::Debug for WireAuth {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            WireAuth::Password { .. } => f.write_str("WireAuth::Password(<redacted>)"),
+            WireAuth::PrivateKey { .. } => f.write_str("WireAuth::PrivateKey(<redacted>)"),
+            WireAuth::Agent => f.write_str("WireAuth::Agent"),
+        }
+    }
+}
+
+impl WireAuth {
+    pub fn into_resolved(self) -> Result<ResolvedAuth, SshError> {
+        match self {
+            WireAuth::Password { password } => Ok(ResolvedAuth::Password(password)),
+            WireAuth::PrivateKey { pem, passphrase } => Ok(ResolvedAuth::PrivateKey(
+                decode_private_key(pem.as_bytes(), passphrase.as_deref().map(str::as_bytes))?,
+            )),
+            WireAuth::Agent => Ok(ResolvedAuth::Agent),
+        }
+    }
+}
+
+/// 데몬으로 보내는 점프 호스트(ProxyJump) 명세.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct WireJump {
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub auth: WireAuth,
+}
+
+impl WireJump {
+    pub fn into_spec(self) -> Result<JumpSpec, SshError> {
+        Ok(JumpSpec { host: self.host, port: self.port, user: self.user, auth: self.auth.into_resolved()? })
+    }
+}
+
 impl ResolvedAuth {
     pub fn from_method(
         method: &SshAuthMethod,
@@ -663,19 +727,7 @@ impl ResolvedAuth {
             }
             SshAuthMethod::PrivateKey { .. } => {
                 let pem = key_pem.ok_or_else(|| SshError::Auth("missing private key secret".into()))?;
-                let pem_str = std::str::from_utf8(pem)
-                    .map_err(|_| SshError::Auth("private key is not UTF-8".into()))?;
-                let key = if let Some(pass) = key_passphrase {
-                    let pass_str = std::str::from_utf8(pass)
-                        .map_err(|_| SshError::Auth("passphrase is not UTF-8".into()))?;
-                    PrivateKey::from_openssh(pem_str)
-                        .and_then(|k| k.decrypt(pass_str.as_bytes()))
-                        .map_err(|e| SshError::Auth(format!("key decrypt: {e}")))?
-                } else {
-                    PrivateKey::from_openssh(pem_str)
-                        .map_err(|e| SshError::Auth(format!("key parse: {e}")))?
-                };
-                Ok(ResolvedAuth::PrivateKey(key))
+                Ok(ResolvedAuth::PrivateKey(decode_private_key(pem, key_passphrase)?))
             }
             SshAuthMethod::Agent => Ok(ResolvedAuth::Agent),
             SshAuthMethod::PasswordPrompt => Err(SshError::Auth(

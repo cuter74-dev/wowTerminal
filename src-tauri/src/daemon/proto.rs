@@ -38,8 +38,33 @@ pub enum Req {
     PtyKill { session_id: String },
     /// 세션 누적 출력(스크롤백) base64 — 재attach 시 재생용.
     SessionHistory { session_id: String },
-    /// 살아있는 세션 id 목록 — UI 재시작 후 재attach 대상 판별.
+    /// 살아있는 세션 id 목록 — UI 재시작 후 재attach 대상 판별. (v2부터 SSH 세션 포함)
     ListSessions,
+    // ── v2 (#160) ─────────────────────────────────────────────────────────────
+    /// SSH 접속. 인증은 UI가 해석해 보낸다(데몬은 시크릿 저장소를 열지 않는다). 응답 값은
+    /// `{"ok": 세션id}` 또는 `{"err": SshConnectError}` — 호스트 키 확인 같은 대화형 흐름을
+    /// UI가 그대로 처리하도록 구조화된 오류를 돌려준다.
+    SshConnect {
+        host: String,
+        port: u16,
+        user: String,
+        auth: crate::ssh::session::WireAuth,
+        cols: u16,
+        rows: u16,
+        #[serde(default)]
+        jump: Option<crate::ssh::session::WireJump>,
+    },
+    SshWrite { session_id: String, data_b64: String },
+    SshResize { session_id: String, cols: u16, rows: u16 },
+    SshKill { session_id: String },
+    SshRemoteCwd { session_id: String },
+    SshTmuxSessions { session_id: String },
+    SshProbeSystem { session_id: String },
+    /// 세션을 다른 창으로 인계 중 — 직후 kill 1회를 무시한다(pty·ssh 공통).
+    MarkDetached { session_id: String },
+    /// 세션이 하나도 없으면 데몬을 종료한다(다음 버전 UI가 구버전 데몬을 교체할 때 쓴다).
+    /// 응답 값: 종료하면 true, 세션이 남아 있으면 false.
+    Shutdown,
 }
 
 /// 데몬 → 클라이언트 메시지. `t` 태그로 응답/이벤트 구분.
@@ -81,6 +106,8 @@ impl ReplyResult {
 pub enum Event {
     PtyOutput { session_id: String, data_b64: String },
     SessionClosed { session_id: String },
+    /// v2 (#160): SSH 세션 출력 — UI가 `ssh:output`으로 다시 emit한다.
+    SshOutput { session_id: String, data_b64: String },
 }
 
 /// 요청 봉투 — id로 응답을 매칭한다.

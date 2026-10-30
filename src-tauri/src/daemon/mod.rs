@@ -19,4 +19,10 @@ pub mod server;
 
 /// 프로토콜 버전. **append-only로만 올린다** — 앱이 업데이트돼도 구버전 데몬이 살아있는 채
 /// 새 UI가 붙는 것이 이 기능의 핵심이라, 기존 메시지의 의미를 바꾸면 안 된다.
-pub const PROTOCOL_VERSION: u32 = 1;
+///
+/// - 1: 로컬 PTY (#153)
+/// - 2: SSH 세션(SshConnect/Write/Resize/Kill/RemoteCwd/TmuxSessions/ProbeSystem), 세션 인계
+///   보호(MarkDetached), 종료 요청(Shutdown), 이벤트 SshOutput (#160). UI는 hello 응답의 버전이
+///   2 미만이면 이 요청들을 보내지 않는다 — 구버전 데몬은 모르는 op에 엉뚱한 id로 답해
+///   요청이 영영 응답을 못 받기 때문이다.
+pub const PROTOCOL_VERSION: u32 = 2;
