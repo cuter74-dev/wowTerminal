@@ -45,6 +45,7 @@ import {
   openDoc,
   restoreDocTabs,
   setUnsavedPrompt,
+  parentPath,
   useFileDocs,
 } from "./fileDocs";
 import { downloadRemote } from "./downloads";
@@ -975,6 +976,35 @@ function App() {
   // 이상 걸린 명령이면 데스크톱 알림 + 탭 배지. 최신 tabs/activeTabId는 ref로 읽는다.
   const tabsRef = useRef(tabs);
   tabsRef.current = tabs;
+  /**
+   * 패널(leaf)의 실제 작업 폴더(#168): 백엔드가 tmux 창 → 전면 프로그램 → 셸 순으로 찾고
+   * (로컬 pty_cwd, SSH ssh_remote_cwd), 모르면 셸의 OSC 7, 그것도 없으면 null(홈).
+   * tmux 안에서는 OSC 7이 바깥 셸의 옛 폴더일 수 있어 백엔드 조회를 먼저 쓴다.
+   * ref만 읽으므로 의존성 없는 effect(드롭 처리)에서도 최신 상태로 동작한다.
+   */
+  const resolveLeafCwd = useCallback(async (leafId: string): Promise<string | null> => {
+    let source: TerminalSource | null = null;
+    for (const t of tabsRef.current) {
+      const l = findLeaf(t.root, leafId);
+      if (l && l.kind === "leaf") {
+        source = l.source;
+        break;
+      }
+    }
+    // 새 탭은 셸이 뜨기 전일 수 있다 — 세션 id가 생길 때까지 잠깐(최대 3초) 기다린다.
+    let sid = sessionByLeaf.current[leafId];
+    for (let i = 0; !sid && source && i < 30; i++) {
+      await new Promise((r) => setTimeout(r, 100));
+      sid = sessionByLeaf.current[leafId];
+    }
+    let p: string | null = null;
+    if (source && sid) {
+      p = await invoke<string | null>(source.kind === "ssh" ? "ssh_remote_cwd" : "pty_cwd", {
+        sessionId: sid,
+      }).catch(() => null);
+    }
+    return p || getTerminal(leafId)?.getCwd() || null;
+  }, []);
   const activeTabIdRef = useRef(activeTabId);
   activeTabIdRef.current = activeTabId;
   // 탭바에서 ←/→로 탭을 전환할 때(#125) 자동 터미널 포커스를 한 번 건너뛰게 하는 플래그.
@@ -1205,13 +1235,29 @@ function App() {
     focusedSource && focusedSource.kind === "ssh" ? focusedSource.hostId : null;
   const isLocalActive = focusedSource?.kind === "local";
 
-  // 파일 패널이 따라갈 호스트: 파일 탭이 활성이면 그 파일의 호스트, 아니면 활성 터미널의 호스트.
+  // 파일 패널이 보여 줄 대상(#168): 터미널 패널마다 따로(트리·기준 폴더). 기준 폴더는 그 패널의
+  // 작업 폴더. 파일 탭이 활성이면 같은 호스트일 때 마지막 터미널 패널의 트리를 그대로 두고,
+  // 다른 호스트면 그 파일이 있는 폴더에서 연다.
+  type FileTarget = { key: string; hostId: string | null; resolveBase: () => Promise<string | null> };
   const activeFileDoc = activeFileId ? fileDocs.find((d) => d.id === activeFileId) ?? null : null;
-  const fileTarget: { hostId: string | null } | null = activeFileDoc
-    ? { hostId: activeFileDoc.hostId }
-    : focusedSource
-      ? { hostId: focusedSource.kind === "ssh" ? focusedSource.hostId : null }
-      : null;
+  const lastPaneTargetRef = useRef<FileTarget | null>(null);
+  const paneTarget: FileTarget | null = focusedLeaf
+    ? {
+        key: `pane:${focusedLeaf.id}`,
+        hostId: focusedLeaf.source.kind === "ssh" ? focusedLeaf.source.hostId : null,
+        resolveBase: () => resolveLeafCwd(focusedLeaf.id),
+      }
+    : null;
+  if (!activeFileDoc && paneTarget) lastPaneTargetRef.current = paneTarget;
+  const fileTarget: FileTarget | null = activeFileDoc
+    ? lastPaneTargetRef.current && lastPaneTargetRef.current.hostId === activeFileDoc.hostId
+      ? lastPaneTargetRef.current
+      : {
+          key: `file:${activeFileDoc.hostId ?? "local"}`,
+          hostId: activeFileDoc.hostId,
+          resolveBase: async () => parentPath(activeFileDoc.opened?.real_path ?? activeFileDoc.path),
+        }
+    : paneTarget;
 
   function activateFile(id: string) {
     setActiveFileId(id);
@@ -1235,18 +1281,6 @@ function App() {
       const next = rest[Math.min(idx, rest.length - 1)];
       setActiveFileId(next ? next.id : null);
     }
-  }
-  /** 패널의 "터미널 위치로": OSC 7 → (SSH) /proc 조회. */
-  async function terminalCwd(): Promise<string | null> {
-    const paneId = activeTab?.focusedPaneId;
-    if (!paneId) return null;
-    const osc7 = getTerminal(paneId)?.getCwd();
-    if (osc7) return osc7;
-    const sid = sessionByLeaf.current[paneId];
-    if (focusedSource?.kind === "ssh" && sid) {
-      return invoke<string | null>("ssh_remote_cwd", { sessionId: sid }).catch(() => null);
-    }
-    return null;
   }
   // 미저장 확인 창 등록, 링크로 연 탭이 기존 탭과 같을 때·일괄 저장이 멈췄을 때 탭 이동.
   useEffect(() => {
@@ -1350,28 +1384,18 @@ function App() {
         if (isOverFilePanel(p.position.x / scale, p.position.y / scale)) return;
         const leaf = focusedLeafRef.current;
         if (!leaf) return;
-        const reg = getTerminal(leaf.id);
-        if (!reg) return;
-        const cwd = reg.getCwd();
+        if (!getTerminal(leaf.id)) return;
+        // 넣을 폴더 = 이 패널의 작업 폴더(#168: tmux 창·실행 중 프로그램·셸, 없으면 OSC 7).
+        // 여러 파일을 놓아도 한 번만 조회한다.
+        const cwdP = resolveLeafCwd(leaf.id);
         for (const path of p.paths ?? []) {
           const name = baseName(path);
           if (leaf.source.kind === "ssh") {
-            // SSH: 원격 현재 폴더로 SFTP 업로드. cwd 결정 우선순위:
-            //  1) OSC 7로 추적한 cwd (원격 rc에 훅을 넣은 경우 즉시).
-            //  2) ssh_remote_cwd — 별도 exec 채널에서 /proc로 원격 셸 cwd 조회(Linux 원격,
-            //     주입·화면 흔적 없음). 비-Linux/실패면 null.
-            //  3) "." (원격 홈) 폴백.
+            // SSH: 원격 작업 폴더로 SFTP 업로드(모르면 "." = 원격 홈).
             const hostId = leaf.source.hostId;
-            const sshSessionId = sessionByLeaf.current[leaf.id];
             void (async () => {
               try {
-                let remoteDir = cwd;
-                if (!remoteDir && sshSessionId) {
-                  remoteDir = await invoke<string | null>("ssh_remote_cwd", {
-                    sessionId: sshSessionId,
-                  }).catch(() => null);
-                }
-                remoteDir = remoteDir || ".";
+                const remoteDir = (await cwdP) || ".";
                 await invoke("sftp_open", { hostId, path: remoteDir });
                 // 충돌 창이 없는 경로라 같은 이름은 덮어쓰지 않고 "이름 (1)"로 올린다(#165).
                 // 알림의 remotePath가 실제로 올라간 이름이다.
@@ -1388,12 +1412,13 @@ function App() {
               }
             })();
           } else {
-            // 로컬: 현재 폴더로 복사. cwd를 모르면(셸 통합 미적용) 알림으로 안내.
-            if (!cwd) {
-              notify(`✗ ${name}: 현재 폴더를 알 수 없습니다(셸에서 명령을 한 번 실행해 주세요)`);
-              continue;
-            }
+            // 로컬: 작업 폴더로 복사. 모르면 알림으로 안내.
             void (async () => {
+              const cwd = await cwdP;
+              if (!cwd) {
+                notify(`✗ ${name}: 현재 폴더를 알 수 없습니다(셸에서 명령을 한 번 실행해 주세요)`);
+                return;
+              }
               try {
                 const dest = await invoke<string>("local_copy_into", {
                   srcPath: path,
@@ -1880,7 +1905,7 @@ function App() {
   }
 
   // 활성 호스트의 파일 브라우저 열기 (#116) — 툴바 버튼과 단축키가 공유한다.
-  // 시작 위치: ① OSC 7 추적값 → ② ssh_remote_cwd → ③ 홈.
+  // 시작 위치: 패널의 작업 폴더(#168 — tmux 창·실행 중 프로그램·셸, 없으면 OSC 7) → 홈.
   function openFilesForActive() {
     if (!activeHostId) return;
     const hostId = activeHostId;
@@ -1891,19 +1916,13 @@ function App() {
         hostLabel: labelForHost(hostId),
         initialRemotePath,
       });
-    const osc7 = paneId ? getTerminal(paneId)?.getCwd() ?? undefined : undefined;
-    if (osc7) {
-      open(osc7);
+    if (!paneId) {
+      open(undefined);
       return;
     }
-    const sid = paneId ? sessionByLeaf.current[paneId] : undefined;
-    if (sid) {
-      void invoke<string | null>("ssh_remote_cwd", { sessionId: sid })
-        .then((p) => open(p ?? undefined))
-        .catch(() => open(undefined));
-    } else {
-      open(undefined);
-    }
+    void resolveLeafCwd(paneId)
+      .then((p) => open(p ?? undefined))
+      .catch(() => open(undefined));
   }
 
   // 키보드 단축키
@@ -2331,7 +2350,6 @@ function App() {
                         visible={leftMode === "files"}
                         hostLabel={labelForHost}
                         activePaneId={activeTab?.focusedPaneId ?? null}
-                        getTerminalCwd={terminalCwd}
                         onOpenFile={openFileTab}
                         onOpenBothSides={(hostId, path) =>
                           setFileBrowser({ hostId, hostLabel: labelForHost(hostId), initialRemotePath: path })

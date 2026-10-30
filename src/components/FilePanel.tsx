@@ -34,6 +34,7 @@ type S = {
   refresh: string;
   toTerminal: string;
   toTerminalUnknown: string;
+  toTerminalTip: string;
   filter: string;
   upload: string;
   download: string;
@@ -71,8 +72,9 @@ const STR: LangDict<S> = {
     noTarget: "Open a server or local tab, and its files show up here.",
     local: "Local",
     refresh: "Refresh",
-    toTerminal: "Terminal folder",
-    toTerminalUnknown: "The terminal hasn't reported its folder (needs shell integration / OSC 7; Linux servers are looked up automatically).",
+    toTerminal: "⌂ Working folder",
+    toTerminalUnknown: "Couldn't find the terminal's working folder (over SSH only Linux servers can be looked up), so the home folder is shown.",
+    toTerminalTip: "Go to the folder this tab is working in (tmux pane, running program or shell) and follow it again",
     filter: "Filter names",
     upload: "Upload",
     download: "Download",
@@ -108,8 +110,9 @@ const STR: LangDict<S> = {
     noTarget: "서버나 로컬 탭을 열면 그 파일이 여기에 보입니다.",
     local: "로컬",
     refresh: "새로고침",
-    toTerminal: "터미널 위치로",
-    toTerminalUnknown: "터미널이 현재 폴더를 알려 주지 않았습니다(셸 통합 OSC 7 필요, Linux 서버는 자동으로 조회).",
+    toTerminal: "⌂ 작업 폴더",
+    toTerminalUnknown: "터미널의 작업 폴더를 찾지 못해 홈 폴더를 보여 줍니다(SSH는 Linux 서버만 조회할 수 있음).",
+    toTerminalTip: "이 탭이 작업 중인 폴더(tmux 창·실행 중 프로그램·셸)로 가고, 다시 터미널을 따라갑니다",
     filter: "이름으로 찾기",
     upload: "업로드",
     download: "다운로드",
@@ -145,8 +148,9 @@ const STR: LangDict<S> = {
     noTarget: "Abre una pestaña de servidor o local y sus archivos aparecerán aquí.",
     local: "Local",
     refresh: "Actualizar",
-    toTerminal: "Carpeta del terminal",
-    toTerminalUnknown: "El terminal no ha indicado su carpeta (requiere integración del shell / OSC 7; en servidores Linux se consulta automáticamente).",
+    toTerminal: "⌂ Carpeta de trabajo",
+    toTerminalUnknown: "No se encontró la carpeta de trabajo del terminal (por SSH solo se pueden consultar servidores Linux), así que se muestra la carpeta personal.",
+    toTerminalTip: "Ir a la carpeta en la que trabaja esta pestaña (panel de tmux, programa en ejecución o shell) y volver a seguirla",
     filter: "Filtrar por nombre",
     upload: "Subir",
     download: "Descargar",
@@ -182,8 +186,9 @@ const STR: LangDict<S> = {
     noTarget: "打开服务器或本地标签页后，其文件会显示在这里。",
     local: "本地",
     refresh: "刷新",
-    toTerminal: "转到终端目录",
-    toTerminalUnknown: "终端尚未报告当前目录（需要 shell 集成 / OSC 7；Linux 服务器会自动查询）。",
+    toTerminal: "⌂ 工作目录",
+    toTerminalUnknown: "未找到终端的工作目录（通过 SSH 仅能查询 Linux 服务器），因此显示主目录。",
+    toTerminalTip: "转到此标签页正在使用的目录（tmux 窗格、运行中的程序或 shell），并重新跟随终端",
     filter: "按名称筛选",
     upload: "上传",
     download: "下载",
@@ -219,8 +224,9 @@ const STR: LangDict<S> = {
     noTarget: "サーバーまたはローカルのタブを開くと、そのファイルがここに表示されます。",
     local: "ローカル",
     refresh: "更新",
-    toTerminal: "ターミナルの場所へ",
-    toTerminalUnknown: "ターミナルが現在のフォルダーを通知していません（シェル統合 / OSC 7 が必要。Linux サーバーは自動で照会）。",
+    toTerminal: "⌂ 作業フォルダー",
+    toTerminalUnknown: "ターミナルの作業フォルダーが見つからないため、ホームフォルダーを表示しています（SSH では Linux サーバーのみ照会できます）。",
+    toTerminalTip: "このタブの作業フォルダー（tmux ペイン・実行中のプログラム・シェル）へ移動し、再びターミナルに追従します",
     filter: "名前で絞り込み",
     upload: "アップロード",
     download: "ダウンロード",
@@ -256,8 +262,9 @@ const STR: LangDict<S> = {
     noTarget: "Откройте вкладку сервера или локальную вкладку — её файлы появятся здесь.",
     local: "Локально",
     refresh: "Обновить",
-    toTerminal: "Папка терминала",
-    toTerminalUnknown: "Терминал не сообщил текущую папку (нужна интеграция оболочки / OSC 7; на Linux-серверах определяется автоматически).",
+    toTerminal: "⌂ Рабочая папка",
+    toTerminalUnknown: "Не удалось определить рабочую папку терминала (по SSH — только на серверах Linux), поэтому показана домашняя папка.",
+    toTerminalTip: "Перейти в папку, где работает эта вкладка (панель tmux, запущенная программа или оболочка), и снова следовать за терминалом",
     filter: "Фильтр по имени",
     upload: "Загрузить",
     download: "Скачать",
@@ -293,8 +300,9 @@ const STR: LangDict<S> = {
     noTarget: "Ouvrez un onglet serveur ou local : ses fichiers s'afficheront ici.",
     local: "Local",
     refresh: "Actualiser",
-    toTerminal: "Dossier du terminal",
-    toTerminalUnknown: "Le terminal n'a pas indiqué son dossier (intégration du shell / OSC 7 requise ; sur les serveurs Linux, il est récupéré automatiquement).",
+    toTerminal: "⌂ Dossier de travail",
+    toTerminalUnknown: "Dossier de travail du terminal introuvable (en SSH, seuls les serveurs Linux peuvent être interrogés) : le dossier personnel est affiché.",
+    toTerminalTip: "Aller au dossier où travaille cet onglet (volet tmux, programme en cours ou shell) et le suivre à nouveau",
     filter: "Filtrer par nom",
     upload: "Téléverser",
     download: "Télécharger",
@@ -330,8 +338,9 @@ const STR: LangDict<S> = {
     noTarget: "Öffnen Sie einen Server- oder lokalen Tab, dann erscheinen hier seine Dateien.",
     local: "Lokal",
     refresh: "Aktualisieren",
-    toTerminal: "Terminal-Ordner",
-    toTerminalUnknown: "Das Terminal hat seinen Ordner nicht gemeldet (Shell-Integration / OSC 7 nötig; bei Linux-Servern wird er automatisch ermittelt).",
+    toTerminal: "⌂ Arbeitsordner",
+    toTerminalUnknown: "Arbeitsordner des Terminals nicht gefunden (per SSH nur bei Linux-Servern möglich), daher wird der Benutzerordner angezeigt.",
+    toTerminalTip: "Zum Ordner wechseln, in dem dieser Tab arbeitet (tmux-Bereich, laufendes Programm oder Shell), und ihm wieder folgen",
     filter: "Nach Namen filtern",
     upload: "Hochladen",
     download: "Herunterladen",
@@ -367,8 +376,9 @@ const STR: LangDict<S> = {
     noTarget: "Mở một tab máy chủ hoặc cục bộ, tệp của nó sẽ hiện ở đây.",
     local: "Cục bộ",
     refresh: "Làm mới",
-    toTerminal: "Thư mục của terminal",
-    toTerminalUnknown: "Terminal chưa báo thư mục hiện tại (cần tích hợp shell / OSC 7; máy chủ Linux được tra tự động).",
+    toTerminal: "⌂ Thư mục làm việc",
+    toTerminalUnknown: "Không tìm thấy thư mục làm việc của terminal (qua SSH chỉ tra được máy chủ Linux) nên đang hiển thị thư mục chính.",
+    toTerminalTip: "Đến thư mục tab này đang làm việc (ô tmux, chương trình đang chạy hoặc shell) và tiếp tục theo terminal",
     filter: "Lọc theo tên",
     upload: "Tải lên",
     download: "Tải xuống",
@@ -404,8 +414,9 @@ const STR: LangDict<S> = {
     noTarget: "Buka tab server atau lokal, berkasnya akan tampil di sini.",
     local: "Lokal",
     refresh: "Muat ulang",
-    toTerminal: "Folder terminal",
-    toTerminalUnknown: "Terminal belum memberi tahu foldernya (perlu integrasi shell / OSC 7; server Linux dicari otomatis).",
+    toTerminal: "⌂ Folder kerja",
+    toTerminalUnknown: "Folder kerja terminal tidak ditemukan (lewat SSH hanya server Linux yang bisa dicari), jadi folder beranda yang ditampilkan.",
+    toTerminalTip: "Buka folder tempat tab ini bekerja (panel tmux, program yang berjalan, atau shell) dan ikuti lagi",
     filter: "Saring nama",
     upload: "Unggah",
     download: "Unduh",
@@ -441,8 +452,9 @@ const STR: LangDict<S> = {
     noTarget: "कोई सर्वर या स्थानीय टैब खोलें, उसकी फ़ाइलें यहाँ दिखेंगी।",
     local: "स्थानीय",
     refresh: "रीफ़्रेश",
-    toTerminal: "टर्मिनल का फ़ोल्डर",
-    toTerminalUnknown: "टर्मिनल ने अपना फ़ोल्डर नहीं बताया (शेल इंटीग्रेशन / OSC 7 चाहिए; Linux सर्वर पर अपने-आप पता किया जाता है)।",
+    toTerminal: "⌂ कार्य फ़ोल्डर",
+    toTerminalUnknown: "टर्मिनल का कार्य फ़ोल्डर नहीं मिला (SSH पर केवल Linux सर्वर देखे जा सकते हैं), इसलिए होम फ़ोल्डर दिखाया गया है।",
+    toTerminalTip: "इस टैब के कार्य फ़ोल्डर (tmux पेन, चल रहा प्रोग्राम या शेल) पर जाएँ और फिर से टर्मिनल का अनुसरण करें",
     filter: "नाम से छाँटें",
     upload: "अपलोड",
     download: "डाउनलोड",
@@ -479,6 +491,12 @@ const STR: LangDict<S> = {
 type Loaded = Listing | "loading" | { error: string };
 type View = {
   root: string | null;
+  /**
+   * 사용자가 패널에서 직접 폴더를 옮겼는지(#168). 옮기지 않았으면 패널은 이 탭의 터미널 작업
+   * 폴더를 따라가고(파일 탭을 열 때·탭을 바꿀 때·명령이 끝날 때), 옮겼으면 그 위치를 지킨다.
+   * "⌂ 작업 폴더"를 누르면 다시 따라간다.
+   */
+  pinned: boolean;
   listings: Record<string, Loaded>;
   expanded: string[];
   selected: string[];
@@ -487,7 +505,7 @@ type View = {
 };
 type Row = { path: string; entry: FileEntry; depth: number } | { path: string; depth: number; pseudo: "loading" | "error"; text?: string };
 
-const EMPTY_VIEW: View = { root: null, listings: {}, expanded: [], selected: [], anchor: null, error: null };
+const EMPTY_VIEW: View = { root: null, pinned: false, listings: {}, expanded: [], selected: [], anchor: null, error: null };
 const ACCENT = "#5b8def";
 
 function sortEntries(es: FileEntry[]): FileEntry[] {
@@ -520,21 +538,23 @@ export function FilePanel({
   visible,
   hostLabel,
   activePaneId,
-  getTerminalCwd,
   onOpenFile,
   onOpenBothSides,
 }: {
-  /** 따라갈 호스트. null이면 탭이 없음. hostId null = 로컬. */
-  target: { hostId: string | null } | null;
+  /**
+   * 보여 줄 대상(#168). 터미널 탭(패널)마다 key가 달라 트리·기준 폴더를 따로 기억한다.
+   * resolveBase = 그 탭의 작업 폴더(tmux 창·실행 중 프로그램·셸), 모르면 null(홈).
+   * null이면 탭이 없음. hostId null = 로컬.
+   */
+  target: { key: string; hostId: string | null; resolveBase: () => Promise<string | null> } | null;
   visible: boolean;
   hostLabel: (hostId: string) => string;
   activePaneId: string | null;
-  getTerminalCwd: () => Promise<string | null>;
   onOpenFile: (hostId: string | null, path: string) => void;
   onOpenBothSides: (hostId: string, path: string) => void;
 }) {
   const t = useT(STR);
-  const key = target ? target.hostId ?? "local" : null;
+  const key = target?.key ?? null;
   const hostId = target?.hostId ?? null;
   const [views, setViews] = useState<Record<string, View>>({});
   const view = (key && views[key]) || EMPTY_VIEW;
@@ -582,7 +602,7 @@ export function FilePanel({
       setView(k, (v) => ({ ...v, error: null }));
       try {
         const l = await listDir(hostId, path);
-        setView(k, () => ({ ...EMPTY_VIEW, root: l.cwd, listings: { [l.cwd]: l } }));
+        setView(k, () => ({ ...EMPTY_VIEW, pinned: true, root: l.cwd, listings: { [l.cwd]: l } }));
       } catch (e) {
         setView(k, (v) => ({ ...v, error: String(e) }));
       }
@@ -590,11 +610,47 @@ export function FilePanel({
     [key, hostId, setView],
   );
 
-  // 처음 보는 호스트면 홈(원격은 SFTP 시작 위치)에서 연다.
-  useEffect(() => {
-    if (visible && key && !views[key]) void goTo(null);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visible, key]);
+  /**
+   * 이 탭의 터미널 작업 폴더를 찾아 연다(#168). 못 찾으면 홈. 찾았으면 true.
+   * 이미 그 폴더를 보고 있으면 펼침·선택을 지킨 채 목록만 새로 읽는다.
+   */
+  const resolveRef = useRef(target?.resolveBase);
+  resolveRef.current = target?.resolveBase;
+  const viewsRef = useRef(views);
+  viewsRef.current = views;
+  const syncToTerminal = useCallback(async (): Promise<boolean> => {
+    if (!key) return false;
+    const k = key;
+    let base: string | null = null;
+    try {
+      base = (await resolveRef.current?.()) ?? null;
+    } catch {
+      base = null;
+    }
+    const open = async (path: string | null) => {
+      const l = await listDir(hostId, path);
+      setView(k, (v) =>
+        v.root === l.cwd
+          ? { ...v, pinned: false, error: null, listings: { ...v.listings, [l.cwd]: l } }
+          : { ...EMPTY_VIEW, root: l.cwd, listings: { [l.cwd]: l } },
+      );
+    };
+    try {
+      await open(base);
+      return !!base;
+    } catch (e) {
+      if (base) {
+        try {
+          await open(null);
+        } catch (e2) {
+          setView(k, (v) => ({ ...v, error: String(e2) }));
+        }
+        return false;
+      }
+      setView(k, (v) => ({ ...v, error: String(e) }));
+      return false;
+    }
+  }, [key, hostId, setView]);
 
   const refresh = useCallback(() => {
     if (!key || !view.root) return;
@@ -602,18 +658,26 @@ export function FilePanel({
     for (const p of view.expanded) void loadInto(key, hostId, p);
   }, [key, hostId, view.root, view.expanded, loadInto]);
 
-  // 패널이 보일 때와 터미널 명령이 끝날 때(OSC 133) 현재 폴더를 다시 읽는다.
+  // 패널이 보일 때·탭을 바꿀 때·터미널 명령이 끝날 때(OSC 133): 직접 옮기지 않은 패널은 터미널
+  // 작업 폴더를 따라가고, 옮긴 패널은 지금 폴더를 다시 읽기만 한다.
   const refreshRef = useRef(refresh);
   refreshRef.current = refresh;
+  const syncRef = useRef(syncToTerminal);
+  syncRef.current = syncToTerminal;
+  const follow = useCallback(() => {
+    const v = key ? viewsRef.current[key] : undefined;
+    if (!v || !v.pinned) void syncRef.current();
+    else refreshRef.current();
+  }, [key]);
   useEffect(() => {
-    if (visible) refreshRef.current();
-  }, [visible, key]);
+    if (visible && key) follow();
+  }, [visible, key, follow]);
   useEffect(
     () =>
       onCommandDone((info) => {
-        if (visible && info.paneId === activePaneId) refreshRef.current();
+        if (visible && info.paneId === activePaneId) follow();
       }),
-    [visible, activePaneId],
+    [visible, activePaneId, follow],
   );
 
   // 전송 진행.
@@ -994,12 +1058,11 @@ export function FilePanel({
             style={{ flex: 1, minWidth: 0, height: 22, background: "#15151a", border: "1px solid #2f2f37", borderRadius: 4, color: "#ddd", fontSize: 11, padding: "0 6px" }}
           />
           <button
-            title={cwdKnown ? t.toTerminal : t.toTerminalUnknown}
+            title={cwdKnown ? t.toTerminalTip : t.toTerminalUnknown}
             onClick={async () => {
-              const cwd = await getTerminalCwd();
-              setCwdKnown(!!cwd);
-              if (cwd) void goTo(cwd);
-              else showToast({ kind: "info", text: t.toTerminalUnknown }, 4000);
+              const ok = await syncToTerminal();
+              setCwdKnown(ok);
+              if (!ok) showToast({ kind: "info", text: t.toTerminalUnknown }, 4000);
             }}
             style={{ height: 22, background: "#22222a", border: "1px solid #2f2f37", borderRadius: 4, color: "#cfd6e0", fontSize: 10, padding: "0 6px", cursor: "pointer", whiteSpace: "nowrap" }}
           >
@@ -1022,7 +1085,7 @@ export function FilePanel({
           <div style={{ padding: 10, fontSize: 12, color: "#e08080", lineHeight: 1.5, wordBreak: "break-word" }}>
             {view.error}
             <div style={{ marginTop: 8 }}>
-              <IconBtn onClick={() => void goTo(view.root)}>{t.retry}</IconBtn>
+              <IconBtn onClick={() => void (view.pinned ? goTo(view.root) : syncToTerminal())}>{t.retry}</IconBtn>
             </div>
           </div>
         ) : !view.root ? (

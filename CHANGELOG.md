@@ -7,6 +7,10 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **The Files panel opened at your home folder instead of the folder you were working in** — for example inside tmux, or while Claude Code was running. Each terminal tab now has its own tree, which starts at the folder that tab is working in (the tmux pane's folder, or the running program's or shell's folder). It follows the terminal until you move the tree yourself, and **⌂ Working folder** brings it back. (#168)
+- **Files dropped onto an SSH terminal always went to the home folder on servers with OpenSSH 9.8 or later**, because the remote folder lookup didn't recognize the newer `sshd-session` process. Dropped files now go to the folder the terminal is working in, including inside tmux, locally and over SSH. (#168)
+
 ## [0.21.0] — 2026-10-30
 
 ### Added
