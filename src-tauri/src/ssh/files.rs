@@ -445,9 +445,17 @@ impl Fs for LocalFs {
         missing_ok(std::fs::symlink_metadata(path))
     }
     async fn realpath(&self, path: &str) -> Result<String, String> {
-        std::fs::canonicalize(path)
-            .map(|p| p.to_string_lossy().into_owned())
-            .map_err(|e| format!("{path}: {e}"))
+        let p = std::fs::canonicalize(path).map_err(|e| format!("{path}: {e}"))?;
+        // Windows canonicalize의 verbatim 접두사(\\?\)는 벗긴다 — local_list_dir(#94)와 같은
+        // 형태로 맞춰야 트리·탭이 같은 파일을 같은 경로로 본다.
+        let raw = p.to_string_lossy().into_owned();
+        Ok(if let Some(rest) = raw.strip_prefix(r"\\?\UNC\") {
+            format!(r"\\{rest}")
+        } else if let Some(rest) = raw.strip_prefix(r"\\?\") {
+            rest.to_string()
+        } else {
+            raw
+        })
     }
     async fn read(&self, path: &str, max: u64) -> Result<Vec<u8>, String> {
         use std::io::Read;

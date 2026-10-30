@@ -20,8 +20,17 @@ function decodeB64(b64: string): string {
   return new TextDecoder().decode(bytes);
 }
 
+/** 테스트가 명령별 응답을 직접 정할 때(#166 fileDocs). null이면 아래 기본 동작. */
+let handler: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null = null;
+export function setInvokeHandler(
+  h: ((cmd: string, args?: Record<string, unknown>) => Promise<unknown>) | null,
+): void {
+  handler = h;
+}
+
 export async function invoke(cmd: string, args?: Record<string, unknown>): Promise<unknown> {
   invokeLog.push(cmd);
+  if (handler) return handler(cmd, args);
   switch (cmd) {
     case "pty_spawn":
       return SESSION_ID;

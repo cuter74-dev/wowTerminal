@@ -5,6 +5,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
 import { markAppTeardown } from "../terminalRegistry";
+import { guardUnsaved } from "../fileDocs";
 import { Group, SshHost, Tag } from "../types";
 import { isMobile } from "../platform";
 import { HostForm } from "./HostForm";
@@ -362,6 +363,8 @@ export function HostList({
 
   async function applyUpdate() {
     if (!update || updating) return;
+    // 저장 안 한 편집 탭이 있으면 먼저 묻는다 — 편집 내용은 디스크에 남지 않아 재시작하면 사라진다(#166).
+    if (!(await guardUnsaved("update"))) return;
     setUpdating(true);
     try {
       await update.downloadAndInstall();

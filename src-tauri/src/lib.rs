@@ -59,6 +59,45 @@ fn init_error_tracking() -> Option<sentry::ClientInitGuard> {
     Some(guard)
 }
 
+#[cfg(desktop)]
+const QUIT_MENU_ID: &str = "wt-quit";
+
+/// 기본 메뉴의 "종료"(⌘Q)를 앱이 가로챌 수 있는 항목으로 바꾼다(#166). 기본 항목은 macOS에서
+/// NSApp terminate로 곧바로 끝나(tao가 applicationShouldTerminate를 다루지 않음) 저장 안 한
+/// 편집 탭을 확인할 틈이 없다. 단축키는 macOS의 ⌘Q만 — Windows·Linux에 Ctrl+Q를 걸면 터미널의
+/// Ctrl+Q(XON 등)를 빼앗는다.
+#[cfg(desktop)]
+fn replace_quit_item<R: tauri::Runtime>(
+    app: &tauri::AppHandle<R>,
+    menu: &tauri::menu::Menu<R>,
+) -> tauri::Result<()> {
+    use tauri::menu::{MenuItem, MenuItemKind};
+    for top in menu.items()? {
+        let MenuItemKind::Submenu(sub) = top else {
+            continue;
+        };
+        for (i, item) in sub.items()?.into_iter().enumerate() {
+            let MenuItemKind::Predefined(p) = &item else {
+                continue;
+            };
+            let text = p.text()?.replace('&', "");
+            if !text.to_lowercase().starts_with("quit") {
+                continue;
+            }
+            #[cfg(target_os = "macos")]
+            let accel = Some("Cmd+Q");
+            #[cfg(not(target_os = "macos"))]
+            let accel: Option<&str> = None;
+            sub.remove_at(i)?;
+            sub.insert(
+                &MenuItem::with_id(app, QUIT_MENU_ID, &text, true, accel)?,
+                i,
+            )?;
+        }
+    }
+    Ok(())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     // rustls(0.23) 프로세스 기본 CryptoProvider를 명시 설치한다. ring·aws-lc-rs가 트리에
@@ -86,7 +125,20 @@ pub fn run() {
             #[cfg(desktop)]
             {
                 let menu = tauri::menu::Menu::default(app.handle())?;
+                replace_quit_item(app.handle(), &menu)?;
                 app.set_menu(menu)?;
+                // 자체 "종료" 항목(#166): 메인 창이 저장 안 한 파일을 확인한 뒤 스스로 종료한다.
+                // 메인 창이 없으면(분리 창만 남음) 확인할 편집 탭도 없으니 바로 종료.
+                app.on_menu_event(|app, event| {
+                    if event.id() == QUIT_MENU_ID {
+                        use tauri::Emitter;
+                        if app.get_webview_window("main").is_some() {
+                            let _ = app.emit_to("main", "wt://quit-requested", ());
+                        } else {
+                            app.exit(0);
+                        }
+                    }
+                });
             }
 
             // 세션 출력 ring buffer (pty/ssh 공유) — 탭 분리 시 스크롤백 복원용.

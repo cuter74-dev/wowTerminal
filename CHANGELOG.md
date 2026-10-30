@@ -8,6 +8,14 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Added
+- **File panel and editor tabs** (desktop). The top of the left panel now switches between **Servers** and **Files**. Files shows the active tab's server (or your Mac) as a folder tree. Click to select, double-click to open in an editor tab, and right-click for download, rename, delete and copy path. The bottom bar has Upload, Download (to your default download folder), New file, New folder and "Both sides" (the previous two-pane browser). You can also drop files from Finder onto the panel to upload them. (#166)
+- **Editing is safe by default.**
+  - Saving writes a temporary copy next to the file and then swaps it in, so a dropped connection never leaves a half-written file. Permissions are kept, and symlinked files are saved through to the real file.
+  - If the file changed on the server since you opened it, saving asks whether to reload the server's version (undo brings yours back), overwrite, or cancel.
+  - Large (over 5 MB), binary, non-UTF-8, mixed-line-ending and read-only files open read-only, with the reason shown.
+  - Closing a tab or the window, quitting, or restarting for an update asks first if a file has unsaved changes. Edited text is never written to disk.
+  - Deleting shows how many files and folders will go and warns that a server has no trash. (#166)
+- File tabs sit to the right of a divider after the terminal tabs and look different: a blue ≡ icon and a blue background, versus a black >_ icon for terminals. Each tab also shows a colored dot for its server and its state (● modified, ◌ saving, ⚠ changed on the server, 🔒 read-only). (#166)
 - **SSH sessions now survive an app update or restart** (macOS and Linux). Like local shells since 0.20.16, an SSH tab's connection is now held by the background session daemon, so a long-running remote command keeps going while the app relaunches to install an update, and the tab reconnects to the same remote shell with its scrollback, without asking for the password again. Closing a tab still ends its session. Right after updating from an older version, this turns on once the old background service is idle (no local shells left running), so running shells are never interrupted. (#160)
 
 ### Fixed
@@ -18,6 +26,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 - **Changing a remote file's permissions in the file browser emptied the file.** The request also asked the server to reset the file's size, owner and timestamps, so on most servers the file was cut to 0 bytes before the permission change failed with "Operation not permitted" (as root it "succeeded" and left an empty, root-owned file). Only the permissions are sent now. (#167)
 
 ### Changed
+- ⌘⇧O (Ctrl+Shift+O) now switches the left panel to Files instead of opening the full-screen file browser. That browser is still available as "Both sides" in the Files panel and from the toolbar. (#166)
 - **iOS now requires iOS 15.0 or later** (was 14.0). From April 2027, the App Store rejects apps that target anything older, so without this change no further iOS updates could ship. Devices that can't run iOS 15 keep the version they already have. (#155)
 
 ## [0.20.19] — 2026-10-29

@@ -1015,7 +1015,7 @@ function joinLocal(cwd: string, name: string): string {
 // --- 이름 충돌 처리(#137) --------------------------------------------------
 
 /** 충돌 모달의 선택 결과. rename이면 name에 사용자가 정한 이름이 들어온다. */
-type ConflictResolution = {
+export type ConflictResolution = {
   action: "overwrite" | "rename" | "skip" | "cancel";
   name?: string;
   applyAll: boolean;
@@ -2905,7 +2905,7 @@ const CONFLICT_STR: LangDict<{
  * 이름 충돌 확인 모달(#137) — 덮어쓰기(폴더면 병합) / 새 이름으로 저장 / 건너뛰기 / 취소.
  * 남은 충돌이 더 있으면 "나머지에도 동일 적용" 체크박스를 노출한다.
  */
-function ConflictModal({
+export function ConflictModal({
   entry,
   existing,
   destLabel,

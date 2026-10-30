@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { Tab } from "../types";
+import { FileDoc, hostColor } from "../fileDocs";
 import { LangDict, useT } from "../i18n";
 import { isMobile } from "../platform";
 
@@ -54,10 +55,45 @@ const STR: LangDict<{
   },
 };
 
-function tabIcon(t: Tab): string {
-  if (t.root.kind === "split") return "⊟";
-  return t.root.source.kind === "ssh" ? "🖥" : "⌨";
+/** 서버 색 점(SC-02 ④). 로컬은 속이 빈 회색 고리. */
+function HostDot({ hostId }: { hostId: string | null }) {
+  const c = hostColor(hostId);
+  return (
+    <span
+      style={{
+        width: 7,
+        height: 7,
+        borderRadius: "50%",
+        flexShrink: 0,
+        boxSizing: "border-box",
+        ...(c ? { background: c } : { border: "1.5px solid #8a8f98" }),
+      }}
+    />
+  );
 }
+
+/** 터미널 탭 표시(SC-02 ①): 검은 ">_" 표. 파일 탭의 파란 "≡"와 모양으로 구분된다. */
+function TermChip({ split }: { split: boolean }) {
+  return (
+    <span
+      style={{
+        fontFamily: "Menlo, Consolas, monospace",
+        fontSize: 9,
+        lineHeight: "13px",
+        padding: "0 3px",
+        borderRadius: 3,
+        background: "#000",
+        color: "#e6e6e6",
+        border: "1px solid #3a3a3a",
+        flexShrink: 0,
+      }}
+    >
+      {split ? "⊟" : ">_"}
+    </span>
+  );
+}
+
+const FILE_ACCENT = "#5b8def";
 
 interface Props {
   tabs: Tab[];
@@ -78,6 +114,13 @@ interface Props {
   onStartRename: (id: string) => void;
   /** 탭에서 pointer down — 드래그 분리 후보 시작 (WKWebView는 HTML5 DnD 불안정 → pointer 기반). */
   onTabPointerDown: (id: string, clientX: number, clientY: number) => void;
+  /** 탭이 보여 주는 호스트(색 점용, null = 로컬). */
+  hostOf?: (t: Tab) => string | null;
+  /** 파일 편집 탭(#166) — 세로 구분선 오른쪽에 모은다(SC-02 ③). */
+  fileTabs?: FileDoc[];
+  activeFileId?: string | null;
+  onActivateFile?: (id: string) => void;
+  onCloseFile?: (id: string) => void;
 }
 
 export function TabBar({
@@ -94,6 +137,11 @@ export function TabBar({
   onRenameCancel,
   onStartRename,
   onTabPointerDown,
+  hostOf,
+  fileTabs = [],
+  activeFileId = null,
+  onActivateFile,
+  onCloseFile,
 }: Props) {
   const tr = useT(STR);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -111,7 +159,7 @@ export function TabBar({
       activeRef.current?.focus();
       navByKeyRef.current = false;
     }
-  }, [activeTabId, tabs.length]);
+  }, [activeTabId, activeFileId, tabs.length, fileTabs.length]);
 
   // 언마운트 시 진행 중인 관성 애니메이션 정리.
   useEffect(() => () => cancelAnimationFrame(rafRef.current), []);
@@ -177,7 +225,7 @@ export function TabBar({
         const active = t.id === activeTabId;
         const editing = t.id === editingTabId;
         const alerted = !!alertedTabIds?.has(t.id);
-        const icon = tabIcon(t);
+        const split = t.root.kind === "split";
         return (
           <div
             key={t.id}
@@ -236,7 +284,8 @@ export function TabBar({
             }}
             title={t.label}
           >
-            <span style={{ fontSize: 12 }}>{icon}</span>
+            <TermChip split={split} />
+            {hostOf && <HostDot hostId={hostOf(t)} />}
             {alerted && (
               <span
                 title="command finished"
@@ -307,7 +356,96 @@ export function TabBar({
           +
         </button>
       )}
+      {fileTabs.length > 0 && (
+        <div style={{ width: 2, alignSelf: "center", height: 20, background: "#4a4f5a", margin: "0 6px", borderRadius: 1, flexShrink: 0 }} />
+      )}
+      {fileTabs.map((d) => {
+        const active = d.id === activeFileId;
+        const ro = d.opened ? !d.opened.editable : false;
+        const warn = !!d.conflict || d.externalChange;
+        const mark = d.saving ? "◌" : warn ? "⚠" : d.dirty ? "●" : ro ? "🔒︎" : "";
+        const markColor = warn ? "#f0a640" : d.dirty || d.saving ? FILE_ACCENT : "#8a93a3";
+        return (
+          <div
+            key={d.id}
+            ref={active ? activeRef : undefined}
+            role="tab"
+            aria-selected={active}
+            tabIndex={active ? 0 : -1}
+            onClick={(e) => {
+              onActivateFile?.(d.id);
+              e.currentTarget.focus();
+            }}
+            onMouseDown={(e) => {
+              // 가운데 버튼 = 닫기(브라우저 탭 관례).
+              if (e.button === 1) {
+                e.preventDefault();
+                onCloseFile?.(d.id);
+              }
+            }}
+            title={(d.hostId ? "" : "local: ") + (d.opened?.real_path ?? d.path)}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              padding: "0 8px 0 10px",
+              cursor: "pointer",
+              borderRight: "1px solid #111",
+              // 파일 탭은 파란 면 + 파란 윗선(SC-02 ②) — 터미널 탭(어두운 면 + 흰 윗선)과 면으로 구분.
+              background: active ? "#22304a" : "#1a2130",
+              color: active ? "#fff" : "#aab6c8",
+              borderTop: active ? `2px solid ${FILE_ACCENT}` : "2px solid transparent",
+              flex: "0 1 auto",
+              minWidth: 88,
+              maxWidth: 220,
+              fontSize: 12,
+              outline: "none",
+            }}
+          >
+            <span style={{ color: FILE_ACCENT, fontSize: 13, lineHeight: 1, flexShrink: 0 }}>≡</span>
+            <HostDot hostId={d.hostId} />
+            <span style={{ flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{d.name}</span>
+            <FileCloseButton
+              mark={mark}
+              markColor={markColor}
+              title={tr.closeTab}
+              onClose={() => onCloseFile?.(d.id)}
+            />
+          </div>
+        );
+      })}
     </div>
+  );
+}
+
+/** 상태 표시(● ◌ ⚠ 🔒) 자리에 마우스를 올리면 닫기 ×로 바뀐다(SC-02 상태 표). */
+function FileCloseButton({ mark, markColor, title, onClose }: { mark: string; markColor: string; title: string; onClose: () => void }) {
+  return (
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        onClose();
+      }}
+      onMouseEnter={(e) => {
+        if (mark) e.currentTarget.textContent = "×";
+      }}
+      onMouseLeave={(e) => {
+        if (mark) e.currentTarget.textContent = mark;
+      }}
+      style={{
+        background: "transparent",
+        border: "none",
+        color: mark ? markColor : "#8a93a3",
+        cursor: "pointer",
+        fontSize: mark ? 11 : 14,
+        padding: "0 2px",
+        lineHeight: 1,
+        minWidth: 14,
+      }}
+      title={title}
+    >
+      {mark || "×"}
+    </button>
   );
 }
 

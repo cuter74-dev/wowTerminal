@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { message, save } from "@tauri-apps/plugin-dialog";
@@ -28,6 +28,29 @@ import { HostList } from "./components/HostList";
 import { AIPanel } from "./components/AIPanel";
 import { PaneView } from "./components/PaneView";
 import { FileBrowser } from "./components/FileBrowser";
+import { FilePanel, isOverFilePanel } from "./components/FilePanel";
+import { LeftPanel, LeftMode, loadLeftMode, saveLeftMode } from "./components/LeftPanel";
+import { UnsavedDialog } from "./components/UnsavedDialog";
+import {
+  FileDoc,
+  UnsavedChoice,
+  UnsavedReason,
+  checkExternal,
+  closeDoc,
+  dirtyDocs,
+  getDocs,
+  guardUnsaved,
+  onDocRedirect,
+  onSaveAllStopped,
+  openDoc,
+  restoreDocTabs,
+  setUnsavedPrompt,
+  useFileDocs,
+} from "./fileDocs";
+import { downloadRemote } from "./downloads";
+import { dismissToast, showToast, useToasts } from "./toastBus";
+import { exit as processExit } from "@tauri-apps/plugin-process";
+import { markAppTeardown } from "./terminalRegistry";
 import { SettingsModal } from "./components/SettingsModal";
 import { SplashScreen } from "./components/SplashScreen";
 import { LangDict, LangProvider, useT } from "./i18n";
@@ -84,6 +107,10 @@ const CURRENT_WINDOW_LABEL = (() => {
   }
 })();
 const IS_DETACHED_WINDOW = CURRENT_WINDOW_LABEL.startsWith("detached-");
+// 편집기(CodeMirror)는 첫 파일 탭을 열 때 불러온다 — 시작 번들을 늘리지 않게(#166).
+const FileEditor = lazy(() =>
+  import("./components/FileEditor").then((m) => ({ default: m.FileEditor })),
+);
 const IS_MAC = isMacOS(); // UA가 아니라 실제 OS(#161 — iPad는 Mac UA를 보낸다)
 
 // 세션 복원 (#90): 메인 창은 이전 실행의 탭 레이아웃을 모듈 로드 시 1회 읽는다.
@@ -598,6 +625,24 @@ function App() {
   const [mobilePanel, setMobilePanel] = useState<"host" | "ai" | null>(
     isMobile ? "host" : null,
   );
+  // ---- 파일 패널·편집 탭 (#166) — 메인 데스크탑 창에서만(분리 창·모바일은 다음 단계) ----
+  const FILES_ENABLED = !isMobile && !IS_DETACHED_WINDOW;
+  const [leftMode, setLeftModeState] = useState<LeftMode>(() =>
+    FILES_ENABLED ? loadLeftMode() : "servers",
+  );
+  const setLeftMode = (m: LeftMode) => {
+    setLeftModeState(m);
+    saveLeftMode(m);
+  };
+  const fileDocs = useFileDocs();
+  /** 활성 파일 탭. null이면 터미널 탭(activeTabId)이 보인다. */
+  const [activeFileId, setActiveFileId] = useState<string | null>(null);
+  const [unsavedAsk, setUnsavedAsk] = useState<{
+    docs: FileDoc[];
+    reason: UnsavedReason;
+    resolve: (c: UnsavedChoice) => void;
+  } | null>(null);
+  const toasts = useToasts();
   // 함수형 업데이트로 최신 settings 기준 토글(단축키 핸들러의 stale 클로저에도 안전).
   function toggleHostPanel() {
     setSettings((prev) => {
@@ -1160,6 +1205,122 @@ function App() {
     focusedSource && focusedSource.kind === "ssh" ? focusedSource.hostId : null;
   const isLocalActive = focusedSource?.kind === "local";
 
+  // 파일 패널이 따라갈 호스트: 파일 탭이 활성이면 그 파일의 호스트, 아니면 활성 터미널의 호스트.
+  const activeFileDoc = activeFileId ? fileDocs.find((d) => d.id === activeFileId) ?? null : null;
+  const fileTarget: { hostId: string | null } | null = activeFileDoc
+    ? { hostId: activeFileDoc.hostId }
+    : focusedSource
+      ? { hostId: focusedSource.kind === "ssh" ? focusedSource.hostId : null }
+      : null;
+
+  function activateFile(id: string) {
+    setActiveFileId(id);
+    void checkExternal(id);
+  }
+  function activateTerminalTab(id: string) {
+    setActiveFileId(null);
+    setActiveTabId(id);
+  }
+  function openFileTab(hostId: string | null, path: string) {
+    activateFile(openDoc(hostId, path));
+  }
+  /** 파일 탭 닫기 — 저장 안 한 변경이 있으면 묻는다(SC-05 ②). */
+  async function closeFileTab(id: string) {
+    if (!(await guardUnsaved("close_tab", [id]))) return;
+    const list = getDocs();
+    const idx = list.findIndex((d) => d.id === id);
+    closeDoc(id);
+    if (activeFileId === id) {
+      const rest = list.filter((d) => d.id !== id);
+      const next = rest[Math.min(idx, rest.length - 1)];
+      setActiveFileId(next ? next.id : null);
+    }
+  }
+  /** 패널의 "터미널 위치로": OSC 7 → (SSH) /proc 조회. */
+  async function terminalCwd(): Promise<string | null> {
+    const paneId = activeTab?.focusedPaneId;
+    if (!paneId) return null;
+    const osc7 = getTerminal(paneId)?.getCwd();
+    if (osc7) return osc7;
+    const sid = sessionByLeaf.current[paneId];
+    if (focusedSource?.kind === "ssh" && sid) {
+      return invoke<string | null>("ssh_remote_cwd", { sessionId: sid }).catch(() => null);
+    }
+    return null;
+  }
+  // 미저장 확인 창 등록, 링크로 연 탭이 기존 탭과 같을 때·일괄 저장이 멈췄을 때 탭 이동.
+  useEffect(() => {
+    if (!FILES_ENABLED) return;
+    setUnsavedPrompt(
+      (docs, reason) =>
+        new Promise<UnsavedChoice>((resolve) =>
+          setUnsavedAsk({
+            docs,
+            reason,
+            resolve: (c) => {
+              setUnsavedAsk(null);
+              resolve(c);
+            },
+          }),
+        ),
+    );
+    const un1 = onDocRedirect((from, to) => setActiveFileId((cur) => (cur === from ? to : cur)));
+    const un2 = onSaveAllStopped((id) => setActiveFileId(id));
+    // 지난 실행의 파일 탭 경로만 복원(내용은 탭을 열 때 서버에서 다시 읽는다).
+    restoreDocTabs();
+    return () => {
+      setUnsavedPrompt(null);
+      un1();
+      un2();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 창 닫기·종료(⌘Q) 전에 저장 안 한 파일을 확인한다(SC-05 ③). ⌘Q는 기본 메뉴의 종료 항목이
+  // 가로챌 수 없어 백엔드가 자체 항목으로 바꾸고 "wt://quit-requested"를 보낸다.
+  useEffect(() => {
+    if (!FILES_ENABLED) return;
+    const me = getCurrentWindow();
+    let unClose: (() => void) | undefined;
+    let unQuit: (() => void) | undefined;
+    let closing = false;
+    void me
+      .onCloseRequested(async (e) => {
+        if (closing || dirtyDocs().length === 0) return;
+        e.preventDefault();
+        if (await guardUnsaved("close_window")) {
+          closing = true;
+          await me.destroy();
+        }
+      })
+      .then((f) => (unClose = f));
+    void listen("wt://quit-requested", async () => {
+      if (!(await guardUnsaved("quit"))) return;
+      // 업데이트 재시작과 같이 "앱 종료 중" 표시 — 언마운트 정리가 데몬 세션을 죽이지 않게.
+      markAppTeardown();
+      await processExit(0);
+    }).then((f) => (unQuit = f));
+    return () => {
+      unClose?.();
+      unQuit?.();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function downloadDocFile(d: FileDoc) {
+    if (!d.hostId) return;
+    const path = d.opened?.real_path ?? d.path;
+    void downloadRemote(d.hostId, path, d.name)
+      .then((local) =>
+        showToast({
+          kind: "ok",
+          text: `↓ ${d.name}`,
+          action: { label: "📂", run: () => void invoke("reveal_in_file_manager", { path: local }) },
+        }),
+      )
+      .catch((e) => showToast({ kind: "error", text: `${d.name}: ${String(e)}` }));
+  }
+
   // 터미널에 OS 파일 드래그-드롭 → 현재 폴더에 넣기 (#81).
   // 로컬 셸: 현재 cwd로 복사. SSH: 원격 cwd(OSC7로 추적, 모르면 홈)로 SFTP 업로드.
   // 넣은 뒤 결과 경로를 입력란에 삽입해 피드백. 파일 브라우저가 열려 있으면 그쪽이 처리.
@@ -1184,6 +1345,9 @@ function App() {
         const p = event.payload;
         if (p.type !== "drop") return;
         if (fileBrowserOpenRef.current) return;
+        // 파일 패널 위에 놓은 것은 패널이 그 폴더로 올린다(#166).
+        const scale = window.devicePixelRatio || 1;
+        if (isOverFilePanel(p.position.x / scale, p.position.y / scale)) return;
         const leaf = focusedLeafRef.current;
         if (!leaf) return;
         const reg = getTerminal(leaf.id);
@@ -1762,7 +1926,9 @@ function App() {
 
       // 사용자 정의 단축키 매칭 (각 바인딩이 수정자까지 self-describe).
       if (matchesBinding(e, kb.renameTab)) {
-        if (activeTabId) {
+        // 파일 트리·편집 탭 안의 F2는 파일 이름 바꾸기다(#166).
+        if ((e.target as HTMLElement | null)?.closest?.("[data-file-ui]")) return;
+        if (activeTabId && !activeFileId) {
           e.preventDefault();
           setEditingTabId(activeTabId);
         }
@@ -1775,7 +1941,8 @@ function App() {
       }
       if (matchesBinding(e, kb.closeTab)) {
         e.preventDefault();
-        if (activeTabId) closeTab(activeTabId);
+        if (activeFileId) void closeFileTab(activeFileId);
+        else if (activeTabId) closeTab(activeTabId);
         return;
       }
       if (matchesBinding(e, kb.splitVertical)) {
@@ -1805,11 +1972,19 @@ function App() {
       }
       if (matchesBinding(e, kb.nextTab) || matchesBinding(e, kb.prevTab)) {
         e.preventDefault();
-        const idx = tabs.findIndex((t) => t.id === activeTabId);
+        // 터미널 탭 다음에 파일 탭(#166) — 한 줄의 순서대로 돈다.
+        const order = [
+          ...tabs.map((t) => ({ file: false, id: t.id })),
+          ...fileDocs.map((d) => ({ file: true, id: d.id })),
+        ];
+        const idx = order.findIndex((o) =>
+          activeFileId ? o.file && o.id === activeFileId : !o.file && o.id === activeTabId,
+        );
         if (idx < 0) return;
         const step = matchesBinding(e, kb.prevTab) ? -1 : 1;
-        const nextIdx = (idx + step + tabs.length) % tabs.length;
-        setActiveTabId(tabs[nextIdx].id);
+        const next = order[(idx + step + order.length) % order.length];
+        if (next.file) activateFile(next.id);
+        else activateTerminalTab(next.id);
         return;
       }
       // 앱 액션 단축키 (#116) — 종전엔 버튼/명령 팔레트로만 열렸다.
@@ -1840,7 +2015,13 @@ function App() {
       }
       if (matchesBinding(e, kb.openFiles)) {
         e.preventDefault();
-        openFilesForActive();
+        // 메인 데스크탑 창: 왼쪽 패널을 [파일]로(#166). 그 밖에는 종전처럼 파일 브라우저.
+        if (FILES_ENABLED) {
+          setLeftMode("files");
+          if (!settings.layout.showHostPanel) toggleHostPanel();
+        } else {
+          openFilesForActive();
+        }
         return;
       }
 
@@ -1863,7 +2044,7 @@ function App() {
         const idx = parseInt(e.key, 10) - 1;
         if (idx < tabs.length) {
           e.preventDefault();
-          setActiveTabId(tabs[idx].id);
+          activateTerminalTab(tabs[idx].id);
         }
       }
     }
@@ -1873,7 +2054,7 @@ function App() {
     window.addEventListener("keydown", onKey, !IS_MAC);
     return () => window.removeEventListener("keydown", onKey, !IS_MAC);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tabs, activeTabId, editingTabId, activeTab, focusedLeaf, settings.keybindings]);
+  }, [tabs, activeTabId, editingTabId, activeTab, focusedLeaf, settings.keybindings, activeFileId, fileDocs, settings.layout.showHostPanel]);
 
   // 탭 드래그 분리: 탭을 창 밖으로 끌어내 떼면 그 위치에 새 창. (창 경계 밖 또는 탭바
   // 아래로 충분히 내려가면 active.) 떼는 지점의 화면 좌표를 새 창 위치로 쓴다.
@@ -2060,14 +2241,22 @@ function App() {
       />
       <TabBar
         tabs={tabs}
-        activeTabId={activeTabId}
+        activeTabId={activeFileId ? null : activeTabId}
         alertedTabIds={tabAlerts}
         editingTabId={editingTabId}
-        onActivate={setActiveTabId}
+        onActivate={activateTerminalTab}
         onActivateByKey={(id) => {
           tabKeyNavRef.current = true;
-          setActiveTabId(id);
+          activateTerminalTab(id);
         }}
+        hostOf={(t) => {
+          const l = findLeaf(t.root, t.focusedPaneId);
+          return l && l.kind === "leaf" && l.source.kind === "ssh" ? l.source.hostId : null;
+        }}
+        fileTabs={FILES_ENABLED ? fileDocs : []}
+        activeFileId={activeFileId}
+        onActivateFile={activateFile}
+        onCloseFile={(id) => void closeFileTab(id)}
         onClose={closeTab}
         onNew={newLocalTab}
         onContextMenu={(tabId, x, y) => setContextMenu({ tabId, x, y })}
@@ -2130,7 +2319,30 @@ function App() {
                 display: "flex",
               }}
             >
-              {hostListEl}
+              {FILES_ENABLED ? (
+                <LeftPanel
+                  mode={leftMode}
+                  onMode={setLeftMode}
+                  servers={hostListEl}
+                  files={
+                    <div data-file-ui style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+                      <FilePanel
+                        target={fileTarget}
+                        visible={leftMode === "files"}
+                        hostLabel={labelForHost}
+                        activePaneId={activeTab?.focusedPaneId ?? null}
+                        getTerminalCwd={terminalCwd}
+                        onOpenFile={openFileTab}
+                        onOpenBothSides={(hostId, path) =>
+                          setFileBrowser({ hostId, hostLabel: labelForHost(hostId), initialRemotePath: path })
+                        }
+                      />
+                    </div>
+                  }
+                />
+              ) : (
+                hostListEl
+              )}
             </div>
             <PanelEdge
               side="host"
@@ -2158,7 +2370,7 @@ function App() {
             position: "relative",
           }}
         >
-          {tabs.length === 0 && (
+          {tabs.length === 0 && !activeFileId && (
             <div
               style={{
                 flex: 1,
@@ -2185,7 +2397,7 @@ function App() {
             <div
               key={tab.id}
               style={{
-                display: tab.id === activeTabId ? "flex" : "none",
+                display: tab.id === activeTabId && !activeFileId ? "flex" : "none",
                 flex: 1,
                 minHeight: 0,
               }}
@@ -2228,6 +2440,20 @@ function App() {
               />
             </div>
           ))}
+          {/* 파일 편집 탭(#166) — 탭마다 편집기를 유지하고 활성 탭만 보인다. */}
+          {FILES_ENABLED &&
+            fileDocs.map((d) => (
+              <div key={d.id} data-file-ui style={{ display: d.id === activeFileId ? "flex" : "none", flex: 1, minHeight: 0 }}>
+                <Suspense fallback={null}>
+                  <FileEditor
+                    id={d.id}
+                    active={d.id === activeFileId}
+                    hostLabel={labelForHost}
+                    onDownload={downloadDocFile}
+                  />
+                </Suspense>
+              </div>
+            ))}
           {/* 모바일 온스크린 키바 — 터미널 탭이 활성일 때 하단에(물리 키보드 대체, #114). */}
           {isMobile && activeTab && (
             <MobileKeyBar
@@ -2290,6 +2516,41 @@ function App() {
         )}
       </div>
 
+      {unsavedAsk && (
+        <UnsavedDialog
+          docs={unsavedAsk.docs}
+          reason={unsavedAsk.reason}
+          hostLabel={labelForHost}
+          onChoose={unsavedAsk.resolve}
+        />
+      )}
+      {toasts.length > 0 && (
+        <div style={{ position: "fixed", right: 16, bottom: 16, zIndex: 1900, display: "flex", flexDirection: "column", gap: 8, maxWidth: 380 }}>
+          {toasts.map((t) => (
+            <div
+              key={t.id}
+              role="status"
+              style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 12px", borderRadius: 8, fontSize: 12, background: "#23232a", border: `1px solid ${t.kind === "error" ? "#7a2e2e" : t.kind === "ok" ? "#2e6b45" : "#3a3a44"}`, color: t.kind === "error" ? "#f2c0c0" : "#e6e6e6", boxShadow: "0 8px 24px rgba(0,0,0,0.45)" }}
+            >
+              <span style={{ flex: 1, wordBreak: "break-word" }}>{t.text}</span>
+              {t.action && (
+                <button
+                  onClick={() => {
+                    t.action!.run();
+                    dismissToast(t.id);
+                  }}
+                  style={{ background: "#2f5fb3", border: "none", borderRadius: 4, color: "#fff", fontSize: 12, padding: "3px 8px", cursor: "pointer", whiteSpace: "nowrap" }}
+                >
+                  {t.action.label}
+                </button>
+              )}
+              <button onClick={() => dismissToast(t.id)} style={{ background: "transparent", border: "none", color: "#8a93a3", cursor: "pointer", fontSize: 14 }}>
+                ×
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
       {fileBrowser && (
         <FileBrowser
           hostId={fileBrowser.hostId}
