@@ -33,7 +33,8 @@
       "icons/icon.ico"
     ],
     "iOS": {
-      "developmentTeam": "924883CCSU"
+      "developmentTeam": "924883CCSU",
+      "minimumSystemVersion": "15.0"
     }
   },
   "plugins": {

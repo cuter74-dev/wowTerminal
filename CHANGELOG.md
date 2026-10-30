@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Changed
+- **iOS now requires iOS 15.0 or later** (was 14.0). From April 2027, the App Store rejects apps that target anything older, so without this change no further iOS updates could ship. Devices that can't run iOS 15 keep the version they already have. (#155)
+
 ## [0.20.19] — 2026-10-29
 
 ### Fixed
