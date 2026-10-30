@@ -30,6 +30,7 @@ keyring = { version = "3", features = ["apple-native", "windows-native", "sync-s
 aes-gcm = "0.10"
 argon2 = "0.5"
 rand = "0.8"
+sha2 = "0.10"
 zeroize = { version = "1", features = ["zeroize_derive"] }
 base64 = "0.22"
 toml = "0.8"

@@ -6,10 +6,11 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use russh_sftp::client::SftpSession;
+use russh_sftp::client::{RawSftpSession, SftpSession};
 use serde::Serialize;
 use tokio::sync::Mutex;
 
+use super::files::{self, Fs as _};
 use super::known_hosts::KnownHostsStore;
 use super::manager::SshError;
 use super::session::{ResolvedAuth, SshSession, TofuHandler};
@@ -36,8 +37,12 @@ pub struct SearchHit {
 
 struct SftpConn {
     sftp: SftpSession,
-    /// 연결 유지용 — drop되면 SSH 세션이 닫힌다.
-    _handle: russh::client::Handle<TofuHandler>,
+    handle: russh::client::Handle<TofuHandler>,
+    /// `posix-rename@openssh.com`을 보낼 두 번째 SFTP 채널(#166). 고수준 SftpSession은 확장
+    /// 요청을 노출하지 않아 처음 저장할 때 따로 연다. 안쪽 None = 서버가 확장을 지원하지 않음.
+    ext: tokio::sync::OnceCell<Option<Arc<RawSftpSession>>>,
+    /// 접속한 사용자의 uid(홈 폴더 소유자로 추정) — 쓰기 가능 추정용.
+    my_uid: tokio::sync::OnceCell<Option<u32>>,
 }
 
 /// 전송 진행 콜백: (transfer_id, transferred_bytes, total_bytes).
@@ -129,7 +134,9 @@ impl SftpManager {
 
         let conn = Arc::new(SftpConn {
             sftp,
-            _handle: handle,
+            handle,
+            ext: tokio::sync::OnceCell::new(),
+            my_uid: tokio::sync::OnceCell::new(),
         });
         self.conns
             .lock()
@@ -179,6 +186,13 @@ impl SftpManager {
             .canonicalize(path)
             .await
             .map_err(|e| SshError::Channel(format!("canonicalize: {e}")))
+    }
+
+    /// 편집 탭 파일 연산용 원격 파일시스템(#166). 연결돼 있어야 한다(sftp_open 이후).
+    pub async fn fs(&self, host_id: &str) -> Result<RemoteFs, SshError> {
+        Ok(RemoteFs {
+            conn: self.conn(host_id).await?,
+        })
     }
 
     async fn conn(&self, host_id: &str) -> Result<Arc<SftpConn>, SshError> {
@@ -813,6 +827,274 @@ mod tests {
     }
 }
 
+/// SFTP 위의 [`files::Fs`] 구현(#166).
+pub struct RemoteFs {
+    conn: Arc<SftpConn>,
+}
+
+fn sftp_code(e: &russh_sftp::client::error::Error) -> Option<russh_sftp::protocol::StatusCode> {
+    match e {
+        russh_sftp::client::error::Error::Status(st) => Some(st.status_code),
+        _ => None,
+    }
+}
+
+fn remote_stat(m: &russh_sftp::protocol::FileAttributes) -> files::Stat {
+    files::Stat {
+        size: m.size.unwrap_or(0),
+        mtime: m.mtime.map(|t| t as i64),
+        mode: m.permissions,
+        uid: m.uid,
+        is_dir: m.is_dir(),
+        is_symlink: m.is_symlink(),
+        nlink: None,
+    }
+}
+
+impl RemoteFs {
+    fn missing_ok(
+        r: Result<russh_sftp::protocol::FileAttributes, russh_sftp::client::error::Error>,
+        path: &str,
+    ) -> Result<Option<files::Stat>, String> {
+        match r {
+            Ok(m) => Ok(Some(remote_stat(&m))),
+            Err(e) if sftp_code(&e) == Some(russh_sftp::protocol::StatusCode::NoSuchFile) => {
+                Ok(None)
+            }
+            Err(e) => Err(format!("{path}: {e}")),
+        }
+    }
+
+    async fn ext(&self) -> Option<Arc<RawSftpSession>> {
+        self.conn
+            .ext
+            .get_or_init(|| async {
+                let ch = self.conn.handle.channel_open_session().await.ok()?;
+                ch.request_subsystem(true, "sftp").await.ok()?;
+                let raw = RawSftpSession::new(ch.into_stream());
+                let v = raw.init().await.ok()?;
+                (v.extensions
+                    .get("posix-rename@openssh.com")
+                    .map(String::as_str)
+                    == Some("1"))
+                .then(|| Arc::new(raw))
+            })
+            .await
+            .clone()
+    }
+
+    async fn my_uid(&self) -> Option<u32> {
+        *self
+            .conn
+            .my_uid
+            .get_or_init(|| async { self.conn.sftp.metadata(".").await.ok().and_then(|m| m.uid) })
+            .await
+    }
+
+    /// 링크를 따라가지 않고 훑는다. (파일·링크 경로들, 폴더 경로들(발견 순), 잘렸는지)
+    async fn walk(&self, root: &str) -> Result<(Vec<String>, Vec<String>, bool), String> {
+        let mut files = Vec::new();
+        let mut dirs = Vec::new();
+        let top = self
+            .lstat(root)
+            .await?
+            .ok_or_else(|| format!("{root}: no such file"))?;
+        if !top.is_dir {
+            files.push(root.to_string());
+            return Ok((files, dirs, false));
+        }
+        let mut stack = vec![(root.trim_end_matches('/').to_string(), 0usize)];
+        while let Some((dir, depth)) = stack.pop() {
+            dirs.push(dir.clone());
+            if (files.len() + dirs.len()) as u64 >= 200_000 || depth >= 64 {
+                return Ok((files, dirs, true));
+            }
+            let entries = self
+                .conn
+                .sftp
+                .read_dir(&dir)
+                .await
+                .map_err(|e| format!("{dir}: {e}"))?;
+            for e in entries {
+                let name = e.file_name();
+                if !is_safe_component(&name) {
+                    continue;
+                }
+                let child = format!("{dir}/{name}");
+                let m = e.metadata();
+                if m.is_dir() && !m.is_symlink() {
+                    stack.push((child, depth + 1));
+                } else {
+                    files.push(child);
+                }
+            }
+        }
+        Ok((files, dirs, false))
+    }
+}
+
+#[async_trait::async_trait]
+impl files::Fs for RemoteFs {
+    async fn stat(&self, path: &str) -> Result<Option<files::Stat>, String> {
+        Self::missing_ok(self.conn.sftp.metadata(path).await, path)
+    }
+    async fn lstat(&self, path: &str) -> Result<Option<files::Stat>, String> {
+        Self::missing_ok(self.conn.sftp.symlink_metadata(path).await, path)
+    }
+    async fn realpath(&self, path: &str) -> Result<String, String> {
+        self.conn
+            .sftp
+            .canonicalize(path)
+            .await
+            .map_err(|e| format!("{path}: {e}"))
+    }
+    async fn read(&self, path: &str, max: u64) -> Result<Vec<u8>, String> {
+        use tokio::io::AsyncReadExt;
+        let f = self
+            .conn
+            .sftp
+            .open(path)
+            .await
+            .map_err(|e| format!("{path}: {e}"))?;
+        let mut buf = Vec::new();
+        f.take(max)
+            .read_to_end(&mut buf)
+            .await
+            .map_err(|e| format!("{path}: {e}"))?;
+        Ok(buf)
+    }
+    async fn writable(&self, _path: &str, st: &files::Stat) -> bool {
+        // SFTP로는 접근 권한을 직접 물을 수 없다(쓰기로 열어 보면 감시 도구에 close_write 이벤트가
+        // 생긴다). 권한 비트로 추정하되 그룹 소속은 알 수 없어 낙관적으로 본다 — 틀리면 저장이
+        // 실패할 뿐 내용은 그대로다(화면 기획서 SC-06).
+        let mode = st.mode.unwrap_or(0o777);
+        let me = self.my_uid().await;
+        if me == Some(0) {
+            return true;
+        }
+        match (st.uid, me) {
+            (Some(owner), Some(me)) if owner == me => mode & 0o200 != 0,
+            (Some(_), Some(_)) => mode & 0o022 != 0,
+            _ => mode & 0o222 != 0,
+        }
+    }
+    async fn create_new(&self, path: &str, data: &[u8]) -> Result<(), files::CreateErr> {
+        use russh_sftp::protocol::{OpenFlags, StatusCode};
+        use tokio::io::AsyncWriteExt;
+        let mut f = self
+            .conn
+            .sftp
+            .open_with_flags(
+                path,
+                OpenFlags::CREATE | OpenFlags::EXCLUDE | OpenFlags::WRITE,
+            )
+            .await
+            .map_err(|e| match sftp_code(&e) {
+                Some(StatusCode::PermissionDenied) => files::CreateErr::Denied,
+                _ => files::CreateErr::Other(format!("{path}: {e}")),
+            })?;
+        let r = async {
+            f.write_all(data).await?;
+            f.flush().await?;
+            let _ = f.sync_all().await;
+            f.shutdown().await
+        }
+        .await;
+        r.map_err(|e| files::CreateErr::Other(format!("{path}: {e}")))
+    }
+    async fn write_truncate(&self, path: &str, data: &[u8]) -> Result<(), String> {
+        use russh_sftp::protocol::OpenFlags;
+        use tokio::io::AsyncWriteExt;
+        let mut f = self
+            .conn
+            .sftp
+            .open_with_flags(path, OpenFlags::WRITE | OpenFlags::TRUNCATE)
+            .await
+            .map_err(|e| format!("{path}: {e}"))?;
+        let r = async {
+            f.write_all(data).await?;
+            f.flush().await?;
+            let _ = f.sync_all().await;
+            f.shutdown().await
+        }
+        .await;
+        r.map_err(|e| format!("{path}: {e}"))
+    }
+    async fn set_mode(&self, path: &str, mode: u32) -> Result<(), String> {
+        let attrs = russh_sftp::protocol::FileAttributes {
+            permissions: Some(mode),
+            ..russh_sftp::protocol::FileAttributes::empty()
+        };
+        self.conn
+            .sftp
+            .set_metadata(path, attrs)
+            .await
+            .map_err(|e| format!("{path}: {e}"))
+    }
+    async fn replace(&self, from: &str, to: &str) -> Result<bool, String> {
+        use russh_sftp::protocol::{Packet, StatusCode};
+        let Some(raw) = self.ext().await else {
+            return Ok(false);
+        };
+        let mut data = Vec::new();
+        for s in [from, to] {
+            data.extend_from_slice(&(s.len() as u32).to_be_bytes());
+            data.extend_from_slice(s.as_bytes());
+        }
+        match raw.extended("posix-rename@openssh.com", data).await {
+            Ok(Packet::Status(st)) if st.status_code == StatusCode::Ok => Ok(true),
+            // 광고해 놓고 거부하는 서버 — 백업 이름을 거치는 교체로 넘어간다.
+            Ok(Packet::Status(st)) if st.status_code == StatusCode::OpUnsupported => Ok(false),
+            Ok(Packet::Status(st)) => Err(format!("{to}: {}", st.error_message)),
+            Ok(_) => Err(format!("{to}: unexpected posix-rename reply")),
+            Err(e) => Err(format!("{to}: {e}")),
+        }
+    }
+    async fn rename(&self, from: &str, to: &str) -> Result<(), String> {
+        self.conn
+            .sftp
+            .rename(from, to)
+            .await
+            .map_err(|e| format!("{to}: {e}"))
+    }
+    async fn remove_file(&self, path: &str) -> Result<(), String> {
+        self.conn
+            .sftp
+            .remove_file(path)
+            .await
+            .map_err(|e| format!("{path}: {e}"))
+    }
+    async fn mkdir(&self, path: &str) -> Result<(), String> {
+        self.conn
+            .sftp
+            .create_dir(path)
+            .await
+            .map_err(|e| format!("{path}: {e}"))
+    }
+    async fn remove_tree(&self, path: &str) -> Result<(u64, u64), String> {
+        let (files, dirs, truncated) = self.walk(path).await?;
+        if truncated {
+            return Err(format!("{path}: too many entries to delete safely"));
+        }
+        for f in &files {
+            self.remove_file(f).await?;
+        }
+        // 발견 순의 역순 = 자식 폴더가 부모보다 먼저.
+        for d in dirs.iter().rev() {
+            self.conn
+                .sftp
+                .remove_dir(d)
+                .await
+                .map_err(|e| format!("{d}: {e}"))?;
+        }
+        Ok((files.len() as u64, dirs.len() as u64))
+    }
+    async fn count_tree(&self, path: &str) -> Result<(u64, u64, bool), String> {
+        let (files, dirs, truncated) = self.walk(path).await?;
+        Ok((files.len() as u64, dirs.len() as u64, truncated))
+    }
+}
+
 /// 실제 SFTP 서버 대상 e2e (#165) — 기본 무시. 아무 비밀번호나 받는 로컬 SFTP 서버를 띄운 뒤
 /// `WT_TEST_SFTP_PORT=<포트> WT_TEST_SFTP_ROOT=<서버 루트> cargo test --lib sftp_e2e -- --ignored`.
 /// 서버 루트는 테스트가 직접 파일을 만들고 확인하는 로컬 디렉터리(서버가 chroot로 내보내는 곳)다.
@@ -920,6 +1202,109 @@ mod e2e {
         let crlf = read("/edit/crlf.txt").await;
         assert!(crlf.editable);
         assert_eq!(crlf.eol, "crlf");
+    }
+
+    /// 편집 탭 저장(#166): 원자적 교체(또는 WT_TEST_SFTP_SWAP=1이면 posix-rename을 거부하는
+    /// 서버에서 백업 이름 교체), 권한 유지, 임시 파일 정리, 충돌 감지, 링크.
+    #[tokio::test]
+    #[ignore]
+    async fn sftp_e2e_editor_save() {
+        use crate::ssh::files::{self, SaveMethod, SaveOutcome};
+        use std::os::unix::fs::PermissionsExt;
+        let (mgr, root, _keep) = connect().await;
+        let swap = std::env::var("WT_TEST_SFTP_SWAP").is_ok();
+        let sub = root.join("edit2");
+        let _ = std::fs::remove_dir_all(&sub);
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("a.conf"), "one\n").unwrap();
+        std::fs::set_permissions(sub.join("a.conf"), std::fs::Permissions::from_mode(0o640))
+            .unwrap();
+        std::os::unix::fs::symlink("a.conf", sub.join("link.conf")).unwrap();
+        let fs = mgr.fs("e2e").await.unwrap();
+
+        let o = files::open(&fs, "/edit2/a.conf").await.unwrap();
+        assert!(o.editable, "{:?}", o.reason);
+        let r = files::save(&fs, &o.real_path, "two\n", false, &o.stamp, false)
+            .await
+            .unwrap();
+        let SaveOutcome::Saved { stamp, method } = r else {
+            panic!("{r:?}")
+        };
+        assert_eq!(
+            method,
+            if swap {
+                SaveMethod::Swap
+            } else {
+                SaveMethod::Atomic
+            }
+        );
+        assert_eq!(
+            std::fs::read_to_string(sub.join("a.conf")).unwrap(),
+            "two\n"
+        );
+        let mode = std::fs::metadata(sub.join("a.conf"))
+            .unwrap()
+            .permissions()
+            .mode()
+            & 0o777;
+        assert_eq!(mode, 0o640, "mode must be preserved");
+        let mut names: Vec<String> = std::fs::read_dir(&sub)
+            .unwrap()
+            .flatten()
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        assert_eq!(
+            names,
+            vec!["a.conf", "link.conf"],
+            "no temp/backup files left"
+        );
+
+        // 같은 크기로 바깥에서 바꾸면 해시로 충돌을 잡고, 쓰지 않는다.
+        std::fs::write(sub.join("a.conf"), "TWO\n").unwrap();
+        let r = files::save(&fs, &o.real_path, "333\n", false, &stamp, false)
+            .await
+            .unwrap();
+        assert!(
+            matches!(r, SaveOutcome::Conflict { current: Some(_) }),
+            "{r:?}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(sub.join("a.conf")).unwrap(),
+            "TWO\n"
+        );
+
+        // 링크로 열면 실제 파일에 저장하고 링크는 링크로 남는다.
+        let l = files::open(&fs, "/edit2/link.conf").await.unwrap();
+        println!("link real_path = {}", l.real_path);
+        files::save(&fs, &l.real_path, "via link\n", false, &l.stamp, false)
+            .await
+            .unwrap();
+        assert_eq!(
+            std::fs::read_to_string(sub.join("a.conf")).unwrap(),
+            "via link\n"
+        );
+        assert!(std::fs::symlink_metadata(sub.join("link.conf"))
+            .unwrap()
+            .file_type()
+            .is_symlink());
+
+        // 쓰기 권한이 없는 내 파일은 읽기 전용으로 열린다.
+        std::fs::write(sub.join("ro.txt"), "r").unwrap();
+        std::fs::set_permissions(sub.join("ro.txt"), std::fs::Permissions::from_mode(0o444))
+            .unwrap();
+        let ro = files::open(&fs, "/edit2/ro.txt").await.unwrap();
+        assert_eq!(ro.reason, Some("no_permission"));
+
+        // 재귀 개수·삭제(링크는 따라가지 않는다).
+        std::fs::create_dir_all(sub.join("t/u")).unwrap();
+        std::fs::write(sub.join("t/u/f"), "f").unwrap();
+        std::os::unix::fs::symlink(&sub, sub.join("t/loop")).unwrap();
+        use crate::ssh::files::Fs;
+        assert_eq!(fs.count_tree("/edit2/t").await.unwrap(), (2, 2, false));
+        assert_eq!(fs.remove_tree("/edit2/t").await.unwrap(), (2, 2));
+        assert!(!sub.join("t").exists());
+        assert!(sub.join("a.conf").exists(), "link target untouched");
     }
 
     /// 권한 변경이 권한만 바꾸는지(#167). FileAttributes::default()는 빈 값이 아니라

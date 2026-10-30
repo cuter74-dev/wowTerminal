@@ -6,6 +6,7 @@
 //! - 자세한 설계는 `docs/design/ssh-manager.md` 참고.
 
 pub mod commands;
+pub mod files;
 pub mod groups;
 pub mod keys;
 pub mod known_hosts;

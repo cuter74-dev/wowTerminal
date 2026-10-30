@@ -71,6 +71,63 @@ fn read_only(content: String, reason: &'static str) -> TextRead {
     }
 }
 
+/// 편집 탭(#166)이 여는 상한: 이보다 큰 파일은 앞 `HEAD_BYTES`만 읽기 전용으로 보여 준다(결정 D2).
+pub const EDITOR_MAX_BYTES: u64 = 5 * 1024 * 1024;
+pub const HEAD_BYTES: u64 = 1024 * 1024;
+
+/// 편집 탭용 판정 결과 (#166). 순서: BOM → NUL(바이너리) → UTF-8 → 줄끝 혼합.
+/// 쓰기 권한·크기 판정은 호출하는 쪽(files.rs)이 stat으로 먼저 한다.
+#[derive(Serialize, Clone, Debug, PartialEq)]
+pub struct Inspect {
+    pub content: String,
+    pub editable: bool,
+    /// "too_large" | "binary" | "not_utf8" | "utf16" | "mixed_eol"
+    pub reason: Option<&'static str>,
+    pub eol: &'static str,
+    /// UTF-8 BOM이 있었는지 — content에서는 빼고, 저장할 때 다시 붙인다.
+    pub bom: bool,
+}
+
+/// `buf`는 파일 전체(또는 `truncated`면 앞부분)의 바이트.
+pub fn inspect(buf: Vec<u8>, truncated: bool) -> Inspect {
+    let ro = |content: String, reason: &'static str| Inspect {
+        content,
+        editable: false,
+        reason: Some(reason),
+        eol: "lf",
+        bom: false,
+    };
+    // UTF-16은 NUL 바이트가 많아 BOM을 먼저 봐야 바이너리로 오판하지 않는다.
+    if buf.starts_with(&[0xFF, 0xFE]) || buf.starts_with(&[0xFE, 0xFF]) {
+        let le = buf[0] == 0xFF;
+        let units: Vec<u16> = buf[2..]
+            .chunks_exact(2)
+            .map(|c| {
+                if le {
+                    u16::from_le_bytes([c[0], c[1]])
+                } else {
+                    u16::from_be_bytes([c[0], c[1]])
+                }
+            })
+            .collect();
+        return ro(String::from_utf16_lossy(&units), "utf16");
+    }
+    let bom = buf.starts_with(&[0xEF, 0xBB, 0xBF]);
+    let body = if bom { buf[3..].to_vec() } else { buf };
+    if truncated {
+        return ro(String::from_utf8_lossy(&body).into_owned(), "too_large");
+    }
+    // classify와 같은 판정(상한 없음)을 쓰고 BOM 정보만 더한다.
+    let t = classify(body, usize::MAX);
+    Inspect {
+        content: t.content,
+        editable: t.editable,
+        reason: t.reason,
+        eol: t.eol,
+        bom,
+    }
+}
+
 /// 충돌을 피한 이름: `numbered_name("report.txt", 1)` → "report (1).txt".
 /// 선행 점 파일(".bashrc")은 확장자가 없는 것으로 본다 → ".bashrc (1)".
 /// 프런트 FileBrowser의 `uniqueName`과 같은 규칙이다.
@@ -126,6 +183,33 @@ mod tests {
         let r = classify(vec![0xB0, 0xA1, b'\n'], 100);
         assert_eq!(r.reason, Some("not_utf8"));
         assert!(!r.editable);
+    }
+
+    #[test]
+    fn inspect_strips_utf8_bom_and_keeps_it_editable() {
+        let r = inspect(b"\xEF\xBB\xBFa\r\nb\r\n".to_vec(), false);
+        assert!(r.editable);
+        assert!(r.bom);
+        assert_eq!(r.eol, "crlf");
+        assert_eq!(r.content, "a\r\nb\r\n");
+    }
+
+    #[test]
+    fn inspect_reads_utf16_as_text_not_binary() {
+        // "hi" UTF-16LE + BOM — NUL이 있지만 바이너리가 아니다.
+        let r = inspect(vec![0xFF, 0xFE, b'h', 0, b'i', 0], false);
+        assert_eq!(r.reason, Some("utf16"));
+        assert_eq!(r.content, "hi");
+        let be = inspect(vec![0xFE, 0xFF, 0, b'h', 0, b'i'], false);
+        assert_eq!(be.content, "hi");
+    }
+
+    #[test]
+    fn inspect_truncated_is_read_only() {
+        let r = inspect(b"abc".to_vec(), true);
+        assert_eq!(r.reason, Some("too_large"));
+        assert!(!r.editable);
+        assert_eq!(inspect(b"a\0b".to_vec(), false).reason, Some("binary"));
     }
 
     #[test]
