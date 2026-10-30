@@ -2206,6 +2206,11 @@ function App() {
                 termSettings={settings.terminal}
                 onSession={(leafId, sid) => {
                   sessionByLeaf.current[leafId] = sid;
+                  // 살아 있던 세션에 재attach됐으면(#153/#160) 그 안의 tmux도 그대로다 — 복원용
+                  // tmux attach 명령을 또 보내면 실행 중인 프로그램에 그 글자가 입력된다.
+                  if (initAttachByLeaf.current[leafId] === sid) {
+                    delete initTmuxByLeaf.current[leafId];
+                  }
                   // 세션 복원 (#90): 활성 탭의 leaf만 즉시 재attach — 숨김 탭은 0크기라
                   // xterm이 기본 80x24이고, 그 크기로 attach하면 TUI가 좁게 그려진다.
                   // 숨김 탭의 attach는 탭 활성화(fit 후) 시점에 flushPendingTmux로 처리.

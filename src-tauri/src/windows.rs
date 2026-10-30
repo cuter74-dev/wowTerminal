@@ -119,6 +119,16 @@ pub async fn mark_session_detached(
     ssh_state: State<'_, crate::ssh::commands::SshState>,
     pty_state: State<'_, crate::pty::commands::PtyState>,
 ) -> Result<(), String> {
+    // 세션을 데몬이 소유하면 보호 표시도 데몬에 해야 한다(#160) — 원본 창의 cleanup kill이
+    // 데몬으로 가므로, 인프로세스 매니저에만 표시하면 인계 중인 세션이 죽는다(#153 회귀).
+    #[cfg(unix)]
+    {
+        let owner = if kind == "ssh" { ssh_state.daemon.as_ref() } else { pty_state.daemon.as_ref() };
+        if let Some(d) = owner.filter(|d| d.protocol() >= 2) {
+            d.call(crate::daemon::proto::Req::MarkDetached { session_id }).await?;
+            return Ok(());
+        }
+    }
     if kind == "ssh" {
         ssh_state.manager.mark_detached(&session_id).await;
     } else {

@@ -7,6 +7,13 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- **SSH sessions now survive an app update or restart** (macOS and Linux). Like local shells since 0.20.16, an SSH tab's connection is now held by the background session daemon, so a long-running remote command keeps going while the app relaunches to install an update, and the tab reconnects to the same remote shell with its scrollback, without asking for the password again. Closing a tab still ends its session. Right after updating from an older version, this turns on once the old background service is idle (no local shells left running), so running shells are never interrupted. (#160)
+
+### Fixed
+- Detaching a tab into a new window could end that tab's session when the background session daemon was in use. (#160)
+- After an app restart that reconnected to a still-running session, the app could type its saved `tmux attach` command into whatever program was running in that session. (#160)
+
 ### Changed
 - **iOS now requires iOS 15.0 or later** (was 14.0). From April 2027, the App Store rejects apps that target anything older, so without this change no further iOS updates could ship. Devices that can't run iOS 15 keep the version they already have. (#155)
 
