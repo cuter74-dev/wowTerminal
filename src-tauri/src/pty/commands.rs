@@ -214,6 +214,31 @@ pub async fn pty_kill(session_id: String, state: State<'_, PtyState>) -> Result<
     state.manager.kill(&session_id).map_err(|e| e.to_string())
 }
 
+/// 로컬 터미널의 작업 폴더 (#168) — 파일 패널이 이 탭의 폴더(tmux 창·실행 중 프로그램·셸)를
+/// 연다. 세션을 데몬이 갖고 있으면 데몬에 묻는다(프로토콜 3 이상 — 구버전 데몬이면 null로 폴백).
+#[tauri::command]
+pub async fn pty_cwd(
+    session_id: String,
+    state: State<'_, PtyState>,
+) -> Result<Option<String>, String> {
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        if d.protocol() < 3 {
+            return Ok(None);
+        }
+        let v = d
+            .call(crate::daemon::proto::Req::PtyCwd { session_id })
+            .await
+            .unwrap_or_default();
+        return Ok(serde_json::from_value(v).unwrap_or(None));
+    }
+    let mgr = Arc::clone(&state.manager);
+    Ok(tokio::task::spawn_blocking(move || mgr.cwd(&session_id))
+        .await
+        .ok()
+        .flatten())
+}
+
 /// 데몬에 살아있는 세션 id 목록 (#153). UI가 재시작 후 복원 스냅샷과 대조해
 /// **재attach할 세션**을 고른다. 데몬이 없으면 빈 목록(= 전부 새로 스폰).
 #[tauri::command]

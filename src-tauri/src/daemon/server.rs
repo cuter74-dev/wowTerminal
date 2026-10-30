@@ -259,6 +259,7 @@ fn is_slow(req: &Req) -> bool {
             | Req::SshRemoteCwd { .. }
             | Req::SshTmuxSessions { .. }
             | Req::SshProbeSystem { .. }
+            | Req::PtyCwd { .. }
     )
 }
 
@@ -350,6 +351,15 @@ async fn handle(d: &Daemon, req: Req) -> ReplyResult {
             Err(e) => err(e),
         },
         Req::SshRemoteCwd { session_id } => ReplyResult::ok(d.ssh.remote_cwd(&session_id).await),
+        // 프로세스 조회·tmux 질의(최대 2초)는 블로킹이라 전용 스레드에서.
+        Req::PtyCwd { session_id } => {
+            let pty = Arc::clone(&d.pty);
+            let cwd = tokio::task::spawn_blocking(move || pty.cwd(&session_id))
+                .await
+                .ok()
+                .flatten();
+            ReplyResult::ok(cwd)
+        }
         Req::SshTmuxSessions { session_id } => {
             ReplyResult::ok(d.ssh.tmux_sessions(&session_id).await)
         }
@@ -395,12 +405,60 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn hello_reports_protocol_2_and_socket_is_owner_only() {
+    async fn hello_reports_protocol_3_and_socket_is_owner_only() {
         let (_dir, sock, client) = start().await;
-        assert_eq!(client.protocol(), 2);
+        assert_eq!(client.protocol(), 3);
         use std::os::unix::fs::PermissionsExt;
         let mode = std::fs::metadata(&sock).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600, "socket must be owner-only");
+    }
+
+    /// PtyCwd(#168): 데몬이 가진 로컬 PTY의 작업 폴더를 돌려준다(전면 프로그램의 폴더).
+    #[tokio::test]
+    async fn pty_cwd_reports_foreground_program_folder() {
+        let (_dir, _sock, client) = start().await;
+        let proj = tempfile::tempdir().unwrap();
+        let v = client
+            .call(Req::PtySpawn {
+                program: Some("/bin/sh".into()),
+                cols: Some(80),
+                rows: Some(24),
+                cwd: None,
+                attach: None,
+            })
+            .await
+            .unwrap();
+        let sid: String = serde_json::from_value(v).unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+        let cmd = format!("cd '{}' && exec sleep 30\n", proj.path().display());
+        client
+            .call(Req::PtyWrite {
+                session_id: sid.clone(),
+                data_b64: B64.encode(cmd),
+            })
+            .await
+            .unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(400)).await;
+        let v = client
+            .call(Req::PtyCwd {
+                session_id: sid.clone(),
+            })
+            .await
+            .unwrap();
+        let got: Option<String> = serde_json::from_value(v).unwrap();
+        let _ = client.call(Req::PtyKill { session_id: sid }).await;
+        assert_eq!(
+            std::fs::canonicalize(got.expect("cwd")).unwrap(),
+            std::fs::canonicalize(proj.path()).unwrap()
+        );
+        // 없는 세션은 null.
+        let v = client
+            .call(Req::PtyCwd {
+                session_id: "nope".into(),
+            })
+            .await
+            .unwrap();
+        assert!(v.is_null());
     }
 
     /// 탭 분리(#153 회귀, #160 수정): MarkDetached 직후의 kill 1회는 무시되고 세션은 살아 있어야

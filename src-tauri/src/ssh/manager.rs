@@ -218,3 +218,72 @@ impl SshManager {
         session.probe_system().await
     }
 }
+
+/// 원격 작업 폴더 e2e (#168) — 기본 무시. 비밀번호 test/test 계정과 tmux가 있는 Linux sshd를
+/// 띄우고 `WT_TEST_REMOTE_PORT=<포트> cargo test --lib remote_cwd_e2e -- --ignored --nocapture`.
+/// (Alpine = OpenSSH 10, 연결 프로세스 이름이 sshd-session / Ubuntu 24.04 = OpenSSH 9.6, sshd)
+#[cfg(test)]
+mod remote_cwd_e2e {
+    use super::*;
+    use crate::ssh::session::ResolvedAuth;
+
+    async fn shell(port: u16) -> (SshManager, SessionId, tempfile::TempDir) {
+        let dir = tempfile::tempdir().unwrap();
+        let ks = Arc::new(KnownHostsStore::new(dir.path().join("known_hosts.toml")));
+        let mgr = SshManager::new(Arc::new(|_, _| {}), Arc::clone(&ks));
+        let pw = || ResolvedAuth::Password("test".into());
+        let id = match mgr
+            .connect_addr("127.0.0.1", port, "test", pw(), 80, 24, None)
+            .await
+        {
+            Err(SshError::FirstContactRequired {
+                algorithm,
+                fingerprint,
+                ..
+            }) => {
+                ks.record("127.0.0.1", port, &algorithm, &fingerprint)
+                    .unwrap();
+                mgr.connect_addr("127.0.0.1", port, "test", pw(), 80, 24, None)
+                    .await
+                    .unwrap()
+            }
+            r => r.unwrap(),
+        };
+        tokio::time::sleep(std::time::Duration::from_millis(700)).await;
+        (mgr, id, dir)
+    }
+
+    async fn type_line(mgr: &SshManager, id: &str, line: &str) {
+        mgr.write(id, format!("{line}\r").as_bytes()).await.unwrap();
+        tokio::time::sleep(std::time::Duration::from_millis(900)).await;
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn remote_cwd_e2e_plain_shell_program_and_tmux() {
+        let port: u16 = std::env::var("WT_TEST_REMOTE_PORT")
+            .unwrap()
+            .parse()
+            .unwrap();
+        let (mgr, id, _keep) = shell(port).await;
+        let plain = mgr.remote_cwd(&id).await;
+        println!("plain shell: {plain:?}");
+        // 셸은 홈에 둔 채 프로그램만 /srv/proj에서 실행(= 다른 폴더에서 claude를 띄운 상황).
+        type_line(&mgr, &id, "sh -c 'cd /srv/proj && exec sleep 60'").await;
+        let program = mgr.remote_cwd(&id).await;
+        println!("program running in /srv/proj: {program:?}");
+        mgr.write(&id, b"\x03").await.unwrap();
+        type_line(
+            &mgr,
+            &id,
+            "cd ~ && tmux -f /dev/null new-session -s wt -c /srv/tmuxproj",
+        )
+        .await;
+        let in_tmux = mgr.remote_cwd(&id).await;
+        println!("tmux started from ~ in /srv/tmuxproj: {in_tmux:?}");
+        let _ = mgr.kill(&id).await;
+        assert_eq!(plain.as_deref(), Some("/home/test"));
+        assert_eq!(program.as_deref(), Some("/srv/proj"));
+        assert_eq!(in_tmux.as_deref(), Some("/srv/tmuxproj"));
+    }
+}

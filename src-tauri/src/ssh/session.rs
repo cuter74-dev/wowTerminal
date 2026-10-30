@@ -190,16 +190,21 @@ pub struct SshSession {
     handle: Arc<client::Handle<TofuHandler>>,
 }
 
-/// 원격 *대화형 셸*의 현재 작업 디렉터리를 화면 흔적/주입 없이 알아내는 POSIX sh 스크립트.
-/// 원리: 같은 SSH 연결의 셸·exec 채널은 같은 "연결 sshd"를 공통 조상으로 갖는다(privsep 깊이 무관).
-/// exec(이 스크립트)에서 자신의 조상 체인을 따라 연결 sshd를 찾고, 그 sshd를 조상으로 가지면서
-/// tty를 가진(=대화형 셸) 프로세스의 `/proc/<pid>/cwd`를 읽는다. exec 자신은 tty가 없어 제외된다.
-/// Linux(/proc)에서만 동작하며, 그 외(macOS/BSD·hidepid 등)에서는 아무것도 출력하지 않는다(홈 폴백).
 /// 원격 시스템 요약 한 줄(들)을 뽑는 읽기 전용 프로브 (#103). uname + 셸/유저 + 배포판명.
 /// uname 없는 환경(드묾)이어도 셸/유저는 나오고, /etc/os-release 없으면 distro만 빠진다.
 const SYSTEM_PROBE_SCRIPT: &str = r#"uname -srm 2>/dev/null; printf 'shell=%s user=%s' "${SHELL:-?}" "$(id -un 2>/dev/null || whoami 2>/dev/null || echo '?')"; if [ -r /etc/os-release ]; then . /etc/os-release 2>/dev/null; [ -n "$PRETTY_NAME" ] && printf ' distro=%s' "$PRETTY_NAME"; fi; printf '\n'"#;
 
-const REMOTE_CWD_SCRIPT: &str = r#"sh -c 'ppidof(){ s=$(cat /proc/$1/stat 2>/dev/null)||return 1; r=${s##*\) }; set -- $r; printf %s "$2"; }; ttyof(){ s=$(cat /proc/$1/stat 2>/dev/null)||return 1; r=${s##*\) }; set -- $r; printf %s "$5"; }; self=$$; p=$self; ch=; while [ "$p" -gt 1 ] 2>/dev/null; do ch="$ch $p"; np=$(ppidof $p)||break; [ "$np" = "$p" ] && break; p=$np; done; conn=; prev=; for q in $ch; do [ "$(cat /proc/$q/comm 2>/dev/null)" = sshd ] || continue; pq=$(ppidof $q); [ "$(cat /proc/$pq/comm 2>/dev/null)" != sshd ] && { conn=$prev; break; }; prev=$q; done; [ -n "$conn" ] || exit 0; for d in /proc/[0-9]*; do pid=${d#/proc/}; [ "$pid" = "$self" ] && continue; t=$(ttyof $pid 2>/dev/null)||continue; [ -n "$t" ] && [ "$t" != 0 ] || continue; a=$pid; ok=0; while [ "$a" -gt 1 ] 2>/dev/null; do [ "$a" = "$conn" ] && { ok=1; break; }; na=$(ppidof $a)||break; [ "$na" = "$a" ] && break; a=$na; done; [ "$ok" = 1 ] || continue; cwd=$(readlink /proc/$pid/cwd 2>/dev/null) && { printf "%s\n" "$cwd"; exit 0; }; done'"#;
+/// 원격 터미널의 작업 폴더를 화면 흔적·주입 없이 알아내는 POSIX sh 스크립트(#168).
+/// 원리: 같은 SSH 연결의 셸·exec 채널은 같은 "연결 sshd"를 공통 조상으로 갖는다(privsep 깊이 무관).
+/// exec(이 스크립트)에서 자신의 조상 체인을 따라 연결 sshd를 찾고, 그 아래에서 tty를 가진
+/// (= 대화형) 프로세스 중 **tty의 전면 프로세스**(pid = tpgid)를 고른다.
+/// - 전면이 tmux 클라이언트면 그 클라이언트(tty)가 보고 있는 tmux 창의 폴더를 tmux에 묻는다.
+///   tmux 서버는 연결 sshd의 자손이 아니어서 창 안의 프로세스는 직접 볼 수 없다.
+/// - 아니면 전면 프로세스(예: claude)의 `/proc/<pid>/cwd`. 없으면 처음 찾은 tty 프로세스(셸).
+///
+/// OpenSSH 9.8부터 연결 프로세스 이름이 `sshd-session`(10.x는 `sshd-auth`도)이라 셋 다 sshd로 본다.
+/// Linux(/proc)에서만 동작하며, 그 외(macOS/BSD·hidepid 등)에서는 아무것도 출력하지 않는다(홈 폴백).
+const REMOTE_CWD_SCRIPT: &str = r##"sh -c 'st(){ _i=$2; s=$(cat /proc/$1/stat 2>/dev/null)||return 1; r=${s##*\) }; set -- $r; eval "printf %s \"\${$_i}\""; }; issshd(){ case "$(cat /proc/$1/comm 2>/dev/null)" in sshd|sshd-session|sshd-auth) return 0;; esac; return 1; }; self=$$; p=$self; ch=; while [ "$p" -gt 1 ] 2>/dev/null; do ch="$ch $p"; np=$(st $p 2)||break; [ "$np" = "$p" ] && break; p=$np; done; conn=; prev=; for q in $ch; do issshd $q || continue; pq=$(st $q 2); issshd $pq || { conn=$prev; [ -n "$conn" ] || conn=$q; break; }; prev=$q; done; [ -n "$conn" ] || exit 0; first=; fg=; for d in /proc/[0-9]*; do pid=${d#/proc/}; [ "$pid" = "$self" ] && continue; t=$(st $pid 5 2>/dev/null)||continue; [ -n "$t" ] && [ "$t" != 0 ] || continue; a=$pid; ok=0; while [ "$a" -gt 1 ] 2>/dev/null; do [ "$a" = "$conn" ] && { ok=1; break; }; na=$(st $a 2)||break; [ "$na" = "$a" ] && break; a=$na; done; [ "$ok" = 1 ] || continue; [ -n "$first" ] || first=$pid; [ "$(st $pid 6)" = "$pid" ] && { fg=$pid; break; }; done; if [ -n "$fg" ]; then case "$(cat /proc/$fg/comm 2>/dev/null)" in tmux*) tty=$(readlink /proc/$fg/fd/0 2>/dev/null); out=; [ -n "$tty" ] && out=$(tmux display-message -p -c "$tty" -F "#{pane_current_path}" 2>/dev/null); case "$out" in /*) printf "%s\n" "$out"; exit 0;; esac;; esac; cwd=$(readlink /proc/$fg/cwd 2>/dev/null) && { printf "%s\n" "$cwd"; exit 0; }; fi; [ -n "$first" ] && cwd=$(readlink /proc/$first/cwd 2>/dev/null) && printf "%s\n" "$cwd"'"##;
 
 impl SshSession {
     /// SSH 핸드셰이크 + 인증까지 수행하고 연결 핸들을 반환. PTY 세션과 SFTP가 공유.

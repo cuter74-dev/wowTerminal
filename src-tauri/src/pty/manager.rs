@@ -301,6 +301,27 @@ impl PtyManager {
         Ok(())
     }
 
+    /// 이 세션의 작업 폴더(#168) — 전면 프로세스(tmux면 tmux 창), 아니면 셸의 폴더.
+    /// 판정은 pty::cwd. 세션이 없거나 알 수 없으면 None.
+    pub fn cwd(&self, id: &str) -> Option<String> {
+        let (fg, shell, tty) = {
+            let sessions = self.sessions.lock().expect("sessions mutex poisoned");
+            let s = sessions.get(id)?;
+            #[cfg(unix)]
+            let (fg, tty) = (
+                s.master.process_group_leader(),
+                s.master
+                    .tty_name()
+                    .map(|p| p.to_string_lossy().into_owned()),
+            );
+            #[cfg(not(unix))]
+            let (fg, tty): (Option<i32>, Option<String>) = (None, None);
+            (fg, s.child.process_id().map(|p| p as i32), tty)
+        };
+        // tmux 질의는 하위 프로세스를 띄우므로 잠금 밖에서 한다.
+        super::cwd::session_cwd(fg, shell, tty.as_deref())
+    }
+
     pub fn resize(&self, id: &str, dims: PtyDims) -> Result<(), PtyError> {
         let guard = self.sessions.lock().expect("sessions mutex poisoned");
         let session = guard.get(id).ok_or_else(|| PtyError::NotFound(id.into()))?;
@@ -707,5 +728,102 @@ mod tests {
             .into_iter()
             .find(|p| std::path::Path::new(p).exists())
             .ok_or(())
+    }
+
+    /// 작업 폴더 판정(#168): 셸에서 프로그램을 실행 중이면 그 프로그램의 폴더.
+    #[cfg(unix)]
+    #[test]
+    fn cwd_follows_foreground_program() {
+        let (sink, _rx) = collect_sink();
+        let mgr = PtyManager::new(sink);
+        let home = tempfile::tempdir().unwrap();
+        let proj = tempfile::tempdir().unwrap();
+        let id = mgr
+            .spawn(
+                Some("/bin/sh"),
+                PtyDims { cols: 80, rows: 24 },
+                home.path().to_str(),
+            )
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        let canon = |p: &str| std::fs::canonicalize(p).unwrap();
+        assert_eq!(
+            canon(&mgr.cwd(&id).unwrap()),
+            canon(home.path().to_str().unwrap())
+        );
+        // 다른 폴더에서 전면 프로그램(sleep) 실행 — 셸 폴더(home)가 아니라 그 프로그램의 폴더.
+        let cmd = format!("cd '{}' && exec sleep 30\n", proj.path().display());
+        mgr.write(&id, cmd.as_bytes()).unwrap();
+        std::thread::sleep(Duration::from_millis(400));
+        let got = mgr.cwd(&id).unwrap();
+        mgr.kill(&id).unwrap();
+        assert_eq!(canon(&got), canon(proj.path().to_str().unwrap()));
+    }
+
+    /// 작업 폴더 판정(#168): 전면이 tmux 클라이언트면 그 tmux 창의 폴더. 격리된 TMUX_TMPDIR로
+    /// 사용자 tmux 서버와 섞이지 않게 한다(판정도 같은 환경 변수를 본다). tmux가 없으면 건너뛴다.
+    #[cfg(unix)]
+    #[test]
+    fn cwd_asks_tmux_for_the_pane_folder() {
+        if ![
+            "/opt/homebrew/bin/tmux",
+            "/usr/local/bin/tmux",
+            "/usr/bin/tmux",
+        ]
+        .iter()
+        .any(|p| std::path::Path::new(p).is_file())
+        {
+            eprintln!("tmux not installed — skipped");
+            return;
+        }
+        let sock = tempfile::tempdir().unwrap();
+        std::env::set_var("TMUX_TMPDIR", sock.path());
+        let (sink, _rx) = collect_sink();
+        let mgr = PtyManager::new(sink);
+        let home = tempfile::tempdir().unwrap();
+        let proj = tempfile::tempdir().unwrap();
+        let id = mgr
+            .spawn(
+                Some("/bin/sh"),
+                PtyDims { cols: 80, rows: 24 },
+                home.path().to_str(),
+            )
+            .unwrap();
+        std::thread::sleep(Duration::from_millis(200));
+        let tmux = [
+            "/opt/homebrew/bin/tmux",
+            "/usr/local/bin/tmux",
+            "/usr/bin/tmux",
+        ]
+        .iter()
+        .find(|p| std::path::Path::new(p).is_file())
+        .unwrap();
+        // 바깥 셸은 home에 둔 채 tmux 세션을 프로젝트 폴더에서 시작(= 프로젝트에서 tmux를 연 상황).
+        let cmd = format!(
+            "{tmux} -f /dev/null new-session -s wtcwd -c '{}'\n",
+            proj.path().display()
+        );
+        mgr.write(&id, cmd.as_bytes()).unwrap();
+        let mut got = None;
+        for _ in 0..30 {
+            std::thread::sleep(Duration::from_millis(100));
+            got = mgr.cwd(&id);
+            if got.as_deref().map(|g| std::fs::canonicalize(g).ok())
+                == Some(std::fs::canonicalize(proj.path()).ok())
+            {
+                break;
+            }
+        }
+        let _ = std::process::Command::new(tmux)
+            .args(["kill-server"])
+            .env("TMUX_TMPDIR", sock.path())
+            .status();
+        mgr.kill(&id).unwrap();
+        std::env::remove_var("TMUX_TMPDIR");
+        let canon = |p: &str| std::fs::canonicalize(p).unwrap();
+        assert_eq!(
+            canon(&got.expect("cwd")),
+            canon(proj.path().to_str().unwrap())
+        );
     }
 }

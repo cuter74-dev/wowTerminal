@@ -314,6 +314,7 @@ pub fn run() {
             ssh::commands::ssh_tmux_sessions,
             ssh::commands::ssh_probe_system,
             pty::commands::local_tmux_sessions,
+            pty::commands::pty_cwd,
             pty::commands::local_system_info,
             ssh::commands::ssh_resize,
             ssh::commands::ssh_kill,

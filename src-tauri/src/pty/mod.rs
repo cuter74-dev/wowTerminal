@@ -4,6 +4,7 @@
 //! 출력은 Tauri event `pty:output`으로 프론트엔드에 전달된다.
 
 pub mod commands;
+pub mod cwd;
 pub mod manager;
 
 pub use manager::{PtyError, PtyManager, SessionId};
