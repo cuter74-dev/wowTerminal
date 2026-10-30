@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-10-30
+
 ### Added
 - **File panel and editor tabs** (desktop). The top of the left panel now switches between **Servers** and **Files**. Files shows the active tab's server (or your Mac) as a folder tree. Click to select, double-click to open in an editor tab, and right-click for download, rename, delete and copy path. The bottom bar has Upload, Download (to your default download folder), New file, New folder and "Both sides" (the previous two-pane browser). You can also drop files from Finder onto the panel to upload them. (#166)
 - **Editing is safe by default.**
@@ -587,7 +589,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.19...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.0...HEAD
+[0.21.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.19...v0.21.0
 [0.20.19]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.18...v0.20.19
 [0.20.18]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.17...v0.20.18
 [0.20.17]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.16...v0.20.17
