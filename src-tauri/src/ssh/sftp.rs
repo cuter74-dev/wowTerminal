@@ -575,13 +575,13 @@ impl SftpManager {
         Ok(())
     }
 
-    /// 텍스트 미리보기용. 최대 max_bytes까지 읽어 UTF-8(lossy)로 반환 (바이너리도 안전).
-    pub async fn read_text(
+    /// 파일 앞부분을 최대 max_bytes까지 바이트로 읽는다(편집용 판정은 textfile::classify).
+    pub async fn read_prefix(
         &self,
         host_id: &str,
         path: &str,
         max_bytes: u64,
-    ) -> Result<String, SshError> {
+    ) -> Result<Vec<u8>, SshError> {
         use tokio::io::AsyncReadExt;
         let conn = self.conn(host_id).await?;
         let rf = conn
@@ -594,7 +594,43 @@ impl SftpManager {
             .read_to_end(&mut buf)
             .await
             .map_err(|e| SshError::Io(format!("read {path}: {e}")))?;
-        Ok(String::from_utf8_lossy(&buf).to_string())
+        Ok(buf)
+    }
+
+    /// 경로에 무엇이든(심볼릭 링크 포함) 있는지. 링크를 따라가지 않는다(lstat) — 끊긴 링크도
+    /// "있음"으로 봐야 그 위로 create()해서 링크 너머에 쓰는 일이 없다(#165).
+    pub async fn exists_nofollow(&self, host_id: &str, path: &str) -> Result<bool, SshError> {
+        use russh_sftp::client::error::Error;
+        use russh_sftp::protocol::StatusCode;
+        let conn = self.conn(host_id).await?;
+        match conn.sftp.symlink_metadata(path).await {
+            Ok(_) => Ok(true),
+            Err(Error::Status(st)) if st.status_code == StatusCode::NoSuchFile => Ok(false),
+            Err(e) => Err(SshError::Channel(format!("lstat {path}: {e}"))),
+        }
+    }
+
+    /// `dir/name`이 이미 있으면 "이름 (1).확장자"처럼 비어 있는 이름을 찾아 전체 경로를 돌려준다.
+    /// 충돌 창 없이 올리는 경로(터미널 드롭)가 덮어쓰지 않게 한다(#165).
+    pub async fn free_path(
+        &self,
+        host_id: &str,
+        dir: &str,
+        name: &str,
+    ) -> Result<String, SshError> {
+        let dir = dir.trim_end_matches('/');
+        let mut path = format!("{dir}/{name}");
+        let mut n = 0;
+        while self.exists_nofollow(host_id, &path).await? {
+            n += 1;
+            if n > 999 {
+                return Err(SshError::Channel(format!(
+                    "no free name for {name:?} in {dir}"
+                )));
+            }
+            path = format!("{dir}/{}", super::textfile::numbered_name(name, n));
+        }
+        Ok(path)
     }
 
     /// 텍스트를 원격 파일에 쓴다 (빠른 편집 저장용). 기존 내용을 덮어쓴다(truncate).
@@ -772,5 +808,115 @@ mod tests {
         ] {
             assert!(!is_safe_component(bad), "should reject {bad:?}");
         }
+    }
+}
+
+/// 실제 SFTP 서버 대상 e2e (#165) — 기본 무시. 아무 비밀번호나 받는 로컬 SFTP 서버를 띄운 뒤
+/// `WT_TEST_SFTP_PORT=<포트> WT_TEST_SFTP_ROOT=<서버 루트> cargo test --lib sftp_e2e -- --ignored`.
+/// 서버 루트는 테스트가 직접 파일을 만들고 확인하는 로컬 디렉터리(서버가 chroot로 내보내는 곳)다.
+#[cfg(test)]
+mod e2e {
+    use super::*;
+    use crate::ssh::types::SshAuthMethod;
+
+    async fn connect() -> (SftpManager, std::path::PathBuf, tempfile::TempDir) {
+        let port: u16 = std::env::var("WT_TEST_SFTP_PORT").unwrap().parse().unwrap();
+        let root = std::path::PathBuf::from(std::env::var("WT_TEST_SFTP_ROOT").unwrap());
+        let dir = tempfile::tempdir().unwrap();
+        let ks = Arc::new(KnownHostsStore::new(dir.path().join("known_hosts.toml")));
+        let mgr = SftpManager::new(Arc::clone(&ks), Arc::new(|_, _, _| {}));
+        let host = SshHost {
+            id: "e2e".into(),
+            name: "e2e".into(),
+            host: "127.0.0.1".into(),
+            port,
+            user: "test".into(),
+            auth: SshAuthMethod::PasswordPrompt,
+            tags: vec![],
+            group_id: None,
+            proxy_jump: None,
+            tmux_session: None,
+        };
+        let pw = || ResolvedAuth::Password("x".into());
+        if let Err(SshError::FirstContactRequired {
+            algorithm,
+            fingerprint,
+            ..
+        }) = mgr.connect(&host, pw()).await
+        {
+            ks.record("127.0.0.1", port, &algorithm, &fingerprint)
+                .unwrap();
+        }
+        mgr.connect(&host, pw()).await.expect("connect");
+        (mgr, root, dir)
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn sftp_e2e_free_path_never_overwrites() {
+        let (mgr, root, _keep) = connect().await;
+        let sub = root.join("drop");
+        let _ = std::fs::remove_dir_all(&sub);
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("a.txt"), "old").unwrap();
+        std::fs::write(sub.join("a (1).txt"), "old1").unwrap();
+        // 끊긴 심볼릭 링크도 "있음"이어야 링크 너머에 쓰지 않는다.
+        std::os::unix::fs::symlink(root.join("outside.txt"), sub.join("b.txt")).unwrap();
+
+        assert_eq!(
+            mgr.free_path("e2e", "/drop/", "a.txt").await.unwrap(),
+            "/drop/a (2).txt"
+        );
+        assert_eq!(
+            mgr.free_path("e2e", "/drop", "b.txt").await.unwrap(),
+            "/drop/b (1).txt"
+        );
+        assert_eq!(
+            mgr.free_path("e2e", "/drop", "c.txt").await.unwrap(),
+            "/drop/c.txt"
+        );
+
+        // 실제 업로드도 고른 이름으로 가고 원본은 그대로다.
+        let local = _keep.path().join("a.txt");
+        std::fs::write(&local, "new").unwrap();
+        let dest = mgr.free_path("e2e", "/drop", "a.txt").await.unwrap();
+        mgr.upload("e2e", local.to_str().unwrap(), &dest, "t")
+            .await
+            .unwrap();
+        assert_eq!(std::fs::read_to_string(sub.join("a.txt")).unwrap(), "old");
+        assert_eq!(
+            std::fs::read_to_string(sub.join("a (2).txt")).unwrap(),
+            "new"
+        );
+        assert!(!root.join("outside.txt").exists());
+    }
+
+    #[tokio::test]
+    #[ignore]
+    async fn sftp_e2e_read_for_edit_flags_unsafe_files() {
+        use crate::ssh::textfile::{classify, EDIT_LIMIT};
+        let (mgr, root, _keep) = connect().await;
+        let sub = root.join("edit");
+        let _ = std::fs::remove_dir_all(&sub);
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("big.txt"), vec![b'x'; EDIT_LIMIT + 10]).unwrap();
+        std::fs::write(sub.join("crlf.txt"), "a\r\nb\r\n").unwrap();
+        let read = |p: &'static str| {
+            let mgr = &mgr;
+            async move {
+                classify(
+                    mgr.read_prefix("e2e", p, EDIT_LIMIT as u64 + 1)
+                        .await
+                        .unwrap(),
+                    EDIT_LIMIT,
+                )
+            }
+        };
+        let big = read("/edit/big.txt").await;
+        assert_eq!(big.reason, Some("too_large"));
+        assert!(!big.editable);
+        let crlf = read("/edit/crlf.txt").await;
+        assert!(crlf.editable);
+        assert_eq!(crlf.eol, "crlf");
     }
 }

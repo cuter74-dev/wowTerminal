@@ -15,6 +15,7 @@ pub mod sftp;
 pub mod store;
 pub mod tunnel;
 pub mod tags;
+pub mod textfile;
 pub mod types;
 
 pub use known_hosts::{KnownHostEntry, KnownHostsStore};

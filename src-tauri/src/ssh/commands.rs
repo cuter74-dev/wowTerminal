@@ -18,6 +18,7 @@ use super::session::{ResolvedAuth, SessionId, WireAuth, WireJump};
 use super::sftp::{FileEntry, ProgressSink, SearchHit, SftpManager};
 use super::store::HostStore;
 use super::tags::TagStore;
+use super::textfile::{self, TextRead};
 use super::tunnel::{TunnelInfo, TunnelManager};
 use super::types::{Group, SshAuthMethod, SshHost, SshKeyEntry, Tag};
 
@@ -759,6 +760,8 @@ pub async fn sftp_download(
 
 /// 로컬 파일을 원격 디렉토리로 업로드. 업로드된 원격 경로 반환.
 /// `dest_name`이 있으면 그 이름으로 올린다 — 이름 충돌 시 "새 이름으로 저장" 선택용(#137).
+/// `no_clobber`면 같은 이름이 있을 때 덮어쓰지 않고 "이름 (1).확장자"로 올린다 — 충돌 창이
+/// 없는 경로(터미널에 드롭)용(#165). 반환 경로로 실제 이름을 알 수 있다.
 #[tauri::command]
 pub async fn sftp_upload(
     host_id: String,
@@ -766,6 +769,7 @@ pub async fn sftp_upload(
     remote_dir: String,
     transfer_id: String,
     dest_name: Option<String>,
+    no_clobber: Option<bool>,
     state: State<'_, SshState>,
 ) -> Result<String, String> {
     let name = match dest_name {
@@ -776,7 +780,15 @@ pub async fn sftp_upload(
             .ok_or_else(|| "invalid local path".to_string())?,
     };
     validate_dest_name(&name)?;
-    let remote_path = format!("{}/{}", remote_dir.trim_end_matches('/'), name);
+    let remote_path = if no_clobber.unwrap_or(false) {
+        state
+            .sftp
+            .free_path(&host_id, &remote_dir, &name)
+            .await
+            .map_err(|e| e.to_string())?
+    } else {
+        format!("{}/{}", remote_dir.trim_end_matches('/'), name)
+    };
     state
         .sftp
         .upload(&host_id, &local_path, &remote_path, &transfer_id)
@@ -831,18 +843,19 @@ pub async fn sftp_touch(
     state.sftp.touch(&host_id, &path).await.map_err(|e| e.to_string())
 }
 
-/// 텍스트 미리보기. 최대 256KB까지 읽어 반환.
+/// 빠른 편집용 읽기. 앞 256KB와 함께 저장해도 안전한지(편집 가능 여부·이유·줄끝)를 돌려준다(#165).
 #[tauri::command]
-pub async fn sftp_read_text(
+pub async fn sftp_read_for_edit(
     host_id: String,
     path: String,
     state: State<'_, SshState>,
-) -> Result<String, String> {
-    state
+) -> Result<TextRead, String> {
+    let buf = state
         .sftp
-        .read_text(&host_id, &path, 256 * 1024)
+        .read_prefix(&host_id, &path, textfile::EDIT_LIMIT as u64 + 1)
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    Ok(textfile::classify(buf, textfile::EDIT_LIMIT))
 }
 
 /// 텍스트를 원격 파일에 저장한다 (빠른 편집). 기존 내용을 덮어쓴다.
@@ -974,6 +987,18 @@ pub fn local_read_text(path: String) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&buf).to_string())
 }
 
+/// 로컬 파일 빠른 편집용 읽기 — `sftp_read_for_edit`와 같은 판정(#165).
+#[tauri::command]
+pub fn local_read_for_edit(path: String) -> Result<TextRead, String> {
+    use std::io::Read;
+    let f = std::fs::File::open(&path).map_err(|e| e.to_string())?;
+    let mut buf = Vec::new();
+    f.take(textfile::EDIT_LIMIT as u64 + 1)
+        .read_to_end(&mut buf)
+        .map_err(|e| e.to_string())?;
+    Ok(textfile::classify(buf, textfile::EDIT_LIMIT))
+}
+
 /// 로컬 파일에 텍스트를 쓴다 (설정 내보내기용). 경로는 저장 다이얼로그에서 받은 것.
 #[tauri::command]
 pub fn local_write_text(path: String, content: String) -> Result<(), String> {
@@ -981,14 +1006,26 @@ pub fn local_write_text(path: String, content: String) -> Result<(), String> {
 }
 
 /// 로컬 파일을 대상 디렉터리로 복사한다 (터미널에 파일 드래그→현재 폴더에 넣기, 로컬 셸).
-/// 복사된 파일의 전체 경로를 반환한다.
+/// 복사된 파일의 전체 경로를 반환한다. 같은 이름이 있으면 덮어쓰지 않고 "이름 (1).확장자"로
+/// 복사한다(#165). 존재 확인은 링크를 따라가지 않는다 — copy가 링크 너머에 쓰지 않게.
 #[tauri::command]
 pub fn local_copy_into(src_path: String, dest_dir: String) -> Result<String, String> {
     let src = std::path::Path::new(&src_path);
     let name = src
         .file_name()
-        .ok_or_else(|| "invalid source path".to_string())?;
-    let dest = std::path::Path::new(&dest_dir).join(name);
+        .ok_or_else(|| "invalid source path".to_string())?
+        .to_string_lossy()
+        .to_string();
+    let dir = std::path::Path::new(&dest_dir);
+    let mut dest = dir.join(&name);
+    let mut n = 0;
+    while std::fs::symlink_metadata(&dest).is_ok() {
+        n += 1;
+        if n > 999 {
+            return Err(format!("no free name for {name:?} in {dest_dir}"));
+        }
+        dest = dir.join(textfile::numbered_name(&name, n));
+    }
     std::fs::copy(src, &dest).map_err(|e| e.to_string())?;
     Ok(dest.to_string_lossy().to_string())
 }
@@ -1287,4 +1324,54 @@ fn split_into_row(key: &str, entry: &KnownHostEntry) -> KnownHostRow {
 #[allow(dead_code)]
 fn _ensure_imports_used() {
     let _ = std::any::TypeId::of::<EncryptedFileStore>();
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::local_copy_into;
+
+    fn scratch(tag: &str) -> std::path::PathBuf {
+        let d = std::env::temp_dir().join(format!("wt-copy-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&d);
+        std::fs::create_dir_all(d.join("src")).unwrap();
+        std::fs::create_dir_all(d.join("dst")).unwrap();
+        d
+    }
+
+    /// 같은 이름이 있으면 덮어쓰지 않고 "이름 (1)"로 복사한다(#165).
+    #[test]
+    fn copy_into_never_overwrites() {
+        let d = scratch("clobber");
+        std::fs::write(d.join("src/a.txt"), "new").unwrap();
+        std::fs::write(d.join("dst/a.txt"), "old").unwrap();
+        let out = local_copy_into(
+            d.join("src/a.txt").to_string_lossy().into(),
+            d.join("dst").to_string_lossy().into(),
+        )
+        .unwrap();
+        assert!(out.ends_with("a (1).txt"), "{out}");
+        assert_eq!(std::fs::read_to_string(d.join("dst/a.txt")).unwrap(), "old");
+        assert_eq!(
+            std::fs::read_to_string(d.join("dst/a (1).txt")).unwrap(),
+            "new"
+        );
+        let _ = std::fs::remove_dir_all(&d);
+    }
+
+    /// 대상 이름이 끊긴 심볼릭 링크여도 링크 너머(target)에 쓰지 않는다(#165).
+    #[test]
+    fn copy_into_does_not_write_through_dangling_symlink() {
+        let d = scratch("symlink");
+        std::fs::write(d.join("src/b.txt"), "data").unwrap();
+        let target = d.join("outside.txt");
+        std::os::unix::fs::symlink(&target, d.join("dst/b.txt")).unwrap();
+        let out = local_copy_into(
+            d.join("src/b.txt").to_string_lossy().into(),
+            d.join("dst").to_string_lossy().into(),
+        )
+        .unwrap();
+        assert!(out.ends_with("b (1).txt"), "{out}");
+        assert!(!target.exists(), "must not create the symlink target");
+        let _ = std::fs::remove_dir_all(&d);
+    }
 }

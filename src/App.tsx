@@ -1209,11 +1209,14 @@ function App() {
                 }
                 remoteDir = remoteDir || ".";
                 await invoke("sftp_open", { hostId, path: remoteDir });
+                // 충돌 창이 없는 경로라 같은 이름은 덮어쓰지 않고 "이름 (1)"로 올린다(#165).
+                // 알림의 remotePath가 실제로 올라간 이름이다.
                 const remotePath = await invoke<string>("sftp_upload", {
                   hostId,
                   localPath: path,
                   remoteDir,
                   transferId: `wt-drop-${Date.now()}-${Math.floor(Math.random() * 1e6)}`,
+                  noClobber: true,
                 });
                 notify(`⬆ ${name} → ${remotePath}`);
               } catch (e) {

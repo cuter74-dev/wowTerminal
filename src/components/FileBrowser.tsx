@@ -9,6 +9,7 @@ import {
 } from "@tauri-apps/api/path";
 import { LangDict, useT } from "../i18n";
 import { loadSettings } from "../settings";
+import { Eol, toFileEol } from "../eol";
 import { FileEntry, Listing, SearchHit } from "../types";
 
 const STR: LangDict<{
@@ -50,6 +51,10 @@ const STR: LangDict<{
     ctxUpload: string;
     emptyFile: string;
     previewFooter: string;
+    roTooLarge: string;
+    roBinary: string;
+    roNotUtf8: string;
+    roMixedEol: string;
     save: string;
     saved: string;
     saveErr: string;
@@ -125,6 +130,10 @@ const STR: LangDict<{
     ctxUpload: "→ Upload",
     emptyFile: "(empty file)",
     previewFooter: "Up to 256KB preview · binary may appear garbled",
+    roTooLarge: "Over 256KB — showing the first 256KB, read-only (saving would cut the file)",
+    roBinary: "Binary file — read-only",
+    roNotUtf8: "Not UTF-8 text — read-only (saving would corrupt characters)",
+    roMixedEol: "Mixed line endings (CRLF/LF) — read-only",
     save: "Save",
     saved: "Saved ✓",
     saveErr: "Save failed",
@@ -200,6 +209,10 @@ const STR: LangDict<{
     ctxUpload: "→ 업로드",
     emptyFile: "(빈 파일)",
     previewFooter: "최대 256KB 미리보기 · 바이너리는 깨져 보일 수 있음",
+    roTooLarge: "256KB 초과 — 앞 256KB만 읽기 전용으로 표시 (저장하면 파일이 잘림)",
+    roBinary: "바이너리 파일 — 읽기 전용",
+    roNotUtf8: "UTF-8이 아닌 텍스트 — 읽기 전용 (저장하면 글자가 깨짐)",
+    roMixedEol: "줄끝(CRLF/LF)이 섞여 있음 — 읽기 전용",
     save: "저장",
     saved: "저장됨 ✓",
     saveErr: "저장 실패",
@@ -275,6 +288,10 @@ const STR: LangDict<{
     ctxUpload: "→ Subir",
     emptyFile: "(archivo vacío)",
     previewFooter: "Vista previa hasta 256KB · los binarios pueden verse ilegibles",
+    roTooLarge: "Más de 256 KB — se muestran los primeros 256 KB, solo lectura (guardar cortaría el archivo)",
+    roBinary: "Archivo binario — solo lectura",
+    roNotUtf8: "Texto no UTF-8 — solo lectura (guardar dañaría los caracteres)",
+    roMixedEol: "Finales de línea mezclados (CRLF/LF) — solo lectura",
     save: "Guardar",
     saved: "Guardado ✓",
     saveErr: "Error al guardar",
@@ -350,6 +367,10 @@ const STR: LangDict<{
     ctxUpload: "→ 上传",
     emptyFile: "(空文件)",
     previewFooter: "最多预览 256KB · 二进制文件可能显示乱码",
+    roTooLarge: "超过 256KB — 仅以只读方式显示前 256KB（保存会截断文件）",
+    roBinary: "二进制文件 — 只读",
+    roNotUtf8: "非 UTF-8 文本 — 只读（保存会损坏字符）",
+    roMixedEol: "换行符混用（CRLF/LF）— 只读",
     save: "保存",
     saved: "已保存 ✓",
     saveErr: "保存失败",
@@ -425,6 +446,10 @@ const STR: LangDict<{
     ctxUpload: "→ アップロード",
     emptyFile: "(空のファイル)",
     previewFooter: "最大 256KB のプレビュー · バイナリは文字化けする場合があります",
+    roTooLarge: "256KB 超 — 先頭 256KB のみ読み取り専用で表示（保存するとファイルが切り詰められます）",
+    roBinary: "バイナリファイル — 読み取り専用",
+    roNotUtf8: "UTF-8 ではないテキスト — 読み取り専用（保存すると文字化けします）",
+    roMixedEol: "改行コード（CRLF/LF）が混在 — 読み取り専用",
     save: "保存",
     saved: "保存しました ✓",
     saveErr: "保存に失敗",
@@ -500,6 +525,10 @@ const STR: LangDict<{
     ctxUpload: "→ Загрузить",
     emptyFile: "(пустой файл)",
     previewFooter: "Предпросмотр до 256КБ · двоичные файлы могут отображаться некорректно",
+    roTooLarge: "Больше 256 КБ — показаны первые 256 КБ, только чтение (сохранение обрезало бы файл)",
+    roBinary: "Двоичный файл — только чтение",
+    roNotUtf8: "Текст не в UTF-8 — только чтение (сохранение испортило бы символы)",
+    roMixedEol: "Смешанные окончания строк (CRLF/LF) — только чтение",
     save: "Сохранить",
     saved: "Сохранено ✓",
     saveErr: "Не удалось сохранить",
@@ -575,6 +604,10 @@ const STR: LangDict<{
     ctxUpload: "→ Envoyer",
     emptyFile: "(fichier vide)",
     previewFooter: "Aperçu jusqu'à 256 Ko · le binaire peut être illisible",
+    roTooLarge: "Plus de 256 Ko — seuls les 256 premiers Ko sont affichés, en lecture seule (enregistrer tronquerait le fichier)",
+    roBinary: "Fichier binaire — lecture seule",
+    roNotUtf8: "Texte non UTF-8 — lecture seule (enregistrer corromprait les caractères)",
+    roMixedEol: "Fins de ligne mixtes (CRLF/LF) — lecture seule",
     save: "Enregistrer",
     saved: "Enregistré ✓",
     saveErr: "Échec de l'enregistrement",
@@ -650,6 +683,10 @@ const STR: LangDict<{
     ctxUpload: "→ Hochladen",
     emptyFile: "(leere Datei)",
     previewFooter: "Vorschau bis 256 KB · Binärdateien können unleserlich erscheinen",
+    roTooLarge: "Über 256 KB — nur die ersten 256 KB schreibgeschützt angezeigt (Speichern würde die Datei abschneiden)",
+    roBinary: "Binärdatei — schreibgeschützt",
+    roNotUtf8: "Kein UTF-8-Text — schreibgeschützt (Speichern würde Zeichen beschädigen)",
+    roMixedEol: "Gemischte Zeilenenden (CRLF/LF) — schreibgeschützt",
     save: "Speichern",
     saved: "Gespeichert ✓",
     saveErr: "Speichern fehlgeschlagen",
@@ -725,6 +762,10 @@ const STR: LangDict<{
     ctxUpload: "→ Tải lên",
     emptyFile: "(tệp trống)",
     previewFooter: "Xem trước tối đa 256KB · tệp nhị phân có thể hiển thị lỗi",
+    roTooLarge: "Trên 256KB — chỉ hiển thị 256KB đầu ở chế độ chỉ đọc (lưu sẽ cắt cụt tệp)",
+    roBinary: "Tệp nhị phân — chỉ đọc",
+    roNotUtf8: "Văn bản không phải UTF-8 — chỉ đọc (lưu sẽ làm hỏng ký tự)",
+    roMixedEol: "Ký tự xuống dòng lẫn lộn (CRLF/LF) — chỉ đọc",
     save: "Lưu",
     saved: "Đã lưu ✓",
     saveErr: "Lưu thất bại",
@@ -800,6 +841,10 @@ const STR: LangDict<{
     ctxUpload: "→ Unggah",
     emptyFile: "(file kosong)",
     previewFooter: "Pratinjau hingga 256KB · biner mungkin tampak rusak",
+    roTooLarge: "Lebih dari 256KB — hanya 256KB pertama ditampilkan, hanya-baca (menyimpan akan memotong berkas)",
+    roBinary: "Berkas biner — hanya-baca",
+    roNotUtf8: "Teks bukan UTF-8 — hanya-baca (menyimpan akan merusak karakter)",
+    roMixedEol: "Akhir baris campuran (CRLF/LF) — hanya-baca",
     save: "Simpan",
     saved: "Tersimpan ✓",
     saveErr: "Gagal menyimpan",
@@ -875,6 +920,10 @@ const STR: LangDict<{
     ctxUpload: "→ अपलोड",
     emptyFile: "(खाली फ़ाइल)",
     previewFooter: "256KB तक पूर्वावलोकन · बाइनरी विकृत दिख सकती है",
+    roTooLarge: "256KB से बड़ी — केवल पहले 256KB केवल-पढ़ने के लिए दिखाए गए (सहेजने से फ़ाइल कट जाएगी)",
+    roBinary: "बाइनरी फ़ाइल — केवल-पढ़ने के लिए",
+    roNotUtf8: "UTF-8 नहीं है — केवल-पढ़ने के लिए (सहेजने से अक्षर बिगड़ जाएँगे)",
+    roMixedEol: "मिश्रित लाइन अंत (CRLF/LF) — केवल-पढ़ने के लिए",
     save: "सहेजें",
     saved: "सहेजा गया ✓",
     saveErr: "सहेजना विफल",
@@ -971,6 +1020,16 @@ type ConflictResolution = {
   name?: string;
   applyAll: boolean;
 };
+
+/** 백엔드 textfile::TextRead — 빠른 편집용 읽기 결과(#165). */
+type ReadOnlyReason = "too_large" | "binary" | "not_utf8" | "mixed_eol";
+type TextRead = { content: string; editable: boolean; reason: ReadOnlyReason | null; eol: Eol };
+const READ_ONLY_KEY = {
+  too_large: "roTooLarge",
+  binary: "roBinary",
+  not_utf8: "roNotUtf8",
+  mixed_eol: "roMixedEol",
+} as const;
 
 /** 전송 계획 한 건 — destName이 null이면 원래 이름 그대로(=덮어쓰기). */
 type TransferPlan = { entry: FileEntry; destName: string | null };
@@ -1203,8 +1262,11 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
     name: string;
     content: string;
     imageUrl?: string;
-    /** 텍스트 파일이면 편집 가능. 저장에 필요한 위치 정보. */
+    /** 저장해도 파일이 그대로 보존될 때만 편집 가능(#165). 저장에 필요한 위치 정보. */
     editable?: boolean;
+    /** 편집 불가 이유(백엔드 textfile::classify) — 꼬리말에 표시. */
+    reason?: ReadOnlyReason | null;
+    eol?: Eol;
     path?: string;
     hostId?: string;
     isLocal?: boolean;
@@ -1772,8 +1834,8 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
         });
         return;
       }
-      const content = await invoke<string>("sftp_read_text", { hostId, path });
-      setPreview({ name: entry.name, content, editable: true, path, hostId });
+      const r = await invoke<TextRead>("sftp_read_for_edit", { hostId, path });
+      setPreview({ name: entry.name, ...r, path, hostId });
     } catch (e) {
       setError(t.errPreview(String(e)));
     }
@@ -1793,8 +1855,8 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
         });
         return;
       }
-      const content = await invoke<string>("local_read_text", { path });
-      setPreview({ name: entry.name, content, editable: true, path, isLocal: true });
+      const r = await invoke<TextRead>("local_read_for_edit", { path });
+      setPreview({ name: entry.name, ...r, path, isLocal: true });
     } catch (e) {
       setError(t.errPreview(String(e)));
     }
@@ -2105,6 +2167,8 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
             content={preview.content}
             imageUrl={preview.imageUrl}
             editable={preview.editable}
+            reason={preview.reason}
+            eol={preview.eol}
             onSave={
               preview.editable && preview.path
                 ? async (next) => {
@@ -2245,6 +2309,8 @@ function PreviewModal({
   content,
   imageUrl,
   editable,
+  reason,
+  eol = "lf",
   onSave,
   onClose,
 }: {
@@ -2252,29 +2318,38 @@ function PreviewModal({
   content: string;
   imageUrl?: string;
   editable?: boolean;
+  reason?: ReadOnlyReason | null;
+  eol?: Eol;
   onSave?: (next: string) => Promise<void>;
   onClose: () => void;
 }) {
   const t = useT(STR);
   const canEdit = !!editable && !imageUrl && !!onSave;
   const [draft, setDraft] = useState(content);
+  // 디스크에 있는 내용(처음엔 읽은 내용, 저장하면 저장한 내용). 변경 여부는 파일 줄끝으로
+  // 바꾼 draft와 비교한다 — textarea가 CRLF를 LF로 바꿔도 "변경"으로 보지 않게(#165).
+  const [base, setBase] = useState(content);
   const [status, setStatus] = useState<"idle" | "saving" | "saved" | "error">(
     "idle",
   );
   const [errMsg, setErrMsg] = useState("");
-  const dirty = canEdit && draft !== content;
+  const dirty = canEdit && toFileEol(draft, eol) !== base;
 
   const save = useCallback(async () => {
-    if (!onSave || status === "saving") return;
+    // 변경이 없으면 저장하지 않는다 — ⌘S도 이 경로라, 열기만 하고 누른 ⌘S가 파일을
+    // 다시 쓰지 않게(#165).
+    if (!onSave || !dirty || status === "saving") return;
+    const next = toFileEol(draft, eol);
     setStatus("saving");
     try {
-      await onSave(draft);
+      await onSave(next);
+      setBase(next);
       setStatus("saved");
     } catch (e) {
       setErrMsg(String(e));
       setStatus("error");
     }
-  }, [onSave, draft, status]);
+  }, [onSave, dirty, draft, eol, status]);
 
   return (
     <div
@@ -2422,7 +2497,7 @@ function PreviewModal({
         )}
         {!imageUrl && (
           <div style={{ padding: "4px 14px", fontSize: 10, color: "#789", borderTop: "1px solid #2a2a30" }}>
-            {canEdit ? t.editFooter : t.previewFooter}
+            {canEdit ? t.editFooter : reason ? t[READ_ONLY_KEY[reason]] : t.previewFooter}
           </div>
         )}
       </div>

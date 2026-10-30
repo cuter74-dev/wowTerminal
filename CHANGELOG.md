@@ -13,6 +13,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Fixed
 - Detaching a tab into a new window could end that tab's session when the background session daemon was in use. (#160)
 - After an app restart that reconnected to a still-running session, the app could type its saved `tmux attach` command into whatever program was running in that session. (#160)
+- **Saving from the file browser's quick-edit window could cut or corrupt the file.** The window showed only the first 256 KB, yet saving wrote that back as the whole file, so everything after it was lost — even when you only opened the file and pressed ⌘S/Ctrl+S out of habit. Files that aren't UTF-8 text or are binary had their unreadable bytes replaced, and editing a Windows-style (CRLF) file turned its line endings into LF. Such files now open read-only with the reason shown at the bottom, ⌘S saves only when something changed, and CRLF files keep CRLF. (#165)
+- **Dropping a file onto a terminal overwrote a file with the same name** in the shell's current folder without asking (both SSH and local). It is now saved next to it as `name (1).ext`, and the notification shows the name it was saved under. (#165)
 
 ### Changed
 - **iOS now requires iOS 15.0 or later** (was 14.0). From April 2027, the App Store rejects apps that target anything older, so without this change no further iOS updates could ship. Devices that can't run iOS 15 keep the version they already have. (#155)
