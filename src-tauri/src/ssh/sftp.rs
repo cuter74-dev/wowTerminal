@@ -564,9 +564,11 @@ impl SftpManager {
     /// POSIX 권한 변경 (chmod). mode는 8진수 비트 (예: 0o755).
     pub async fn chmod(&self, host_id: &str, path: &str, mode: u32) -> Result<(), SshError> {
         let conn = self.conn(host_id).await?;
+        // empty()에서 시작해야 한다: FileAttributes::default()는 size=0·uid/gid=0·mtime=0을 담아
+        // 서버가 파일을 비우고 소유자·시각까지 바꾸려 든다(#167).
         let attrs = russh_sftp::protocol::FileAttributes {
             permissions: Some(mode),
-            ..Default::default()
+            ..russh_sftp::protocol::FileAttributes::empty()
         };
         conn.sftp
             .set_metadata(path, attrs)
@@ -918,5 +920,35 @@ mod e2e {
         let crlf = read("/edit/crlf.txt").await;
         assert!(crlf.editable);
         assert_eq!(crlf.eol, "crlf");
+    }
+
+    /// 권한 변경이 권한만 바꾸는지(#167). FileAttributes::default()는 빈 값이 아니라
+    /// size=0·uid/gid=0·mtime=0을 담아, 그대로 보내면 서버가 파일을 비우고 시각을 1970으로 바꾼다.
+    #[tokio::test]
+    #[ignore]
+    async fn sftp_e2e_chmod_changes_only_mode() {
+        use std::os::unix::fs::{MetadataExt, PermissionsExt};
+        let (mgr, root, _keep) = connect().await;
+        let sub = root.join("chmod");
+        let _ = std::fs::remove_dir_all(&sub);
+        std::fs::create_dir_all(&sub).unwrap();
+        std::fs::write(sub.join("x.txt"), "hello").unwrap();
+        let before = std::fs::metadata(sub.join("x.txt")).unwrap().mtime();
+        let r = mgr.chmod("e2e", "/chmod/x.txt", 0o600).await;
+        let m = std::fs::metadata(sub.join("x.txt")).unwrap();
+        println!(
+            "chmod result: {r:?}; size={} mode={:o} mtime={}",
+            m.len(),
+            m.permissions().mode() & 0o777,
+            m.mtime()
+        );
+        assert_eq!(
+            std::fs::read_to_string(sub.join("x.txt")).unwrap(),
+            "hello",
+            "content must survive"
+        );
+        assert_eq!(m.mtime(), before, "mtime must not change");
+        r.expect("chmod");
+        assert_eq!(m.permissions().mode() & 0o777, 0o600);
     }
 }
