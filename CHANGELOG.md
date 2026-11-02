@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **The window's close button (X) didn't close the app** since 0.21.0 — on Windows, Alt+F4 didn't either. The check for unsaved files, added with the editor tabs, takes over closing the window, but the app lacked the permission to then close it. It now closes as before, asking first only when a file has unsaved changes. (#169)
+
 ## [0.21.1] — 2026-10-30
 
 ### Fixed
