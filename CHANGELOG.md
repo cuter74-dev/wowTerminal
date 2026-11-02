@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.2] — 2026-11-02
+
 ### Fixed
 - **The window's close button (X) didn't close the app** since 0.21.0 — on Windows, Alt+F4 didn't either. The check for unsaved files, added with the editor tabs, takes over closing the window, but the app lacked the permission to then close it. It now closes as before, asking first only when a file has unsaved changes. (#169)
 
@@ -598,7 +600,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.1...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.2...HEAD
+[0.21.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.1...v0.21.2
 [0.21.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.19...v0.21.0
 [0.20.19]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.18...v0.20.19
