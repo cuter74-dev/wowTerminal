@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **macOS: text you had typed was deleted when you came back and continued typing in Korean.** For example, write part of a Claude Code prompt, switch to another app or click elsewhere, then come back and type a Korean letter — the earlier text was erased. The terminal now keeps it. (#170)
+
 ## [0.21.2] — 2026-11-02
 
 ### Fixed

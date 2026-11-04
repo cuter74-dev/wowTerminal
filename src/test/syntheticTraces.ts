@@ -147,4 +147,38 @@ export const SYNTHETIC_TRACES: ImeTrace[] = [
     ["ㅎㅏㄴ ㄱㅡㄹ"],
     "ㅎㅏㄴ ㄱㅡㄹ\r",
   ),
+  trace(
+    "T9 focus round trip, first key back is Hangul (#170)",
+    "229-only 맥의 실제 순서(실기기 녹화 macos-typeA-2set-focus-roundtrip과 같은 beforeinput → input → " +
+      "keydown(229))로 '안녕'을 친 뒤 창을 떠났다(blur, xterm이 textarea를 비움) 돌아와 **한글로** 이어 쓴다. " +
+      "#159는 keydown에서만 기준선을 맞춰, 그보다 먼저 오는 input이 빈 textarea와 옛 기준선을 비교해 " +
+      "'안녕'을 \\x7f로 지웠다(셸 줄: '하'). beforeinput에서도 맞추면 '안녕하'.",
+    {},
+    (b) => {
+      // 한 자모 = beforeinput(이전 값) → input(새 값) → keydown 229(새 값) — 실기기 순서.
+      const jamo = (prev: string, next: string, data: string, inputType: string) => {
+        b.raw({ type: "beforeinput", value: prev, data, inputType });
+        b.raw({ type: "input", value: next, data, inputType });
+        b.raw({ type: "keydown", value: next, key: data, keyCode: 229 });
+        b.sleep(70);
+      };
+      jamo("", "ㅇ", "ㅇ", "insertText");
+      jamo("ㅇ", "아", "아", "insertReplacementText");
+      jamo("아", "안", "안", "insertReplacementText");
+      jamo("안", "안ㄴ", "ㄴ", "insertText");
+      jamo("안ㄴ", "안녀", "녀", "insertReplacementText");
+      jamo("안녀", "안녕", "녕", "insertReplacementText");
+      // 창을 떠났다가(blur — xterm이 helper textarea를 비운다) 한참 뒤 돌아온다.
+      b.raw({ type: "blur", value: "안녕" });
+      b.sleep(60_000);
+      b.raw({ type: "focus", value: "" });
+      b.sleep(800);
+      // 돌아와 첫 키가 한글: 여기서도 input이 keydown보다 먼저다.
+      jamo("", "ㅎ", "ㅎ", "insertText");
+      jamo("ㅎ", "하", "하", "insertReplacementText");
+      b.raw({ type: "keydown", value: "하", key: "Enter", keyCode: 13 });
+    },
+    ["안녕하"],
+    "아\x7f안ㄴ\x7f녀\x7f녕ㅎ\x7f하\r",
+  ),
 ];

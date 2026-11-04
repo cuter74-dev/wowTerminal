@@ -1060,6 +1060,17 @@ export function Terminal({
     ta?.addEventListener("blur", () => {
       mirrorFocusLost = true;
     });
+    // (#159·#170) 포커스 왕복 뒤 첫 변경 직전: 미러 기준선을 지금 textarea 값으로 맞춘다(전송 없음).
+    // keydown과 beforeinput 중 먼저 오는 쪽에서 한 번. 229-only 맥에서 한글 키는
+    // beforeinput → input → keydown(229) 순서라(실기기 녹화), keydown에서만 맞추면 그보다 먼저
+    // 도는 input의 미러 diff가 비어 있는 textarea와 옛 기준선을 비교해 이미 친 줄 전체를
+    // \x7f로 지웠다(#170 — "한참 뒤 한글로 이어 쓰면 앞 글이 다 지워짐").
+    const rebaselineAfterFocusLoss = () => {
+      if (!mirrorFocusLost) return;
+      mirrorFocusLost = false;
+      if (imeActive && ta) imeSent = ta.value.replace(/\u00a0/g, " ");
+    };
+    ta?.addEventListener("beforeinput", rebaselineAfterFocusLoss, true);
     // 미러를 켠다(macOS 229 / iOS 한글 자모 keydown 공통).
     const engageMirror = () => {
       if (!imeActive) {
@@ -1220,10 +1231,7 @@ export function Terminal({
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
       // (#159) 포커스 왕복 뒤 첫 키: 미러 기준선을 현재 textarea 값으로 재동기화(전송 없음).
-      if (mirrorFocusLost) {
-        mirrorFocusLost = false;
-        if (imeActive && ta) imeSent = ta.value.replace(/\u00a0/g, " ");
-      }
+      rebaselineAfterFocusLoss();
       // 모바일 온스크린 키바의 Ctrl 스티키 (#114): 켜져 있으면 다음 글자 1개를 Ctrl 조합으로
       // 보내고 끈다. 소프트 키보드로 친 영문자가 ⌃C/⌃D 등으로 전송된다.
       if (mobileCtrl.get() && !e.ctrlKey && !e.metaKey && !e.altKey) {
