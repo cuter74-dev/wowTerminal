@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.3] — 2026-11-04
+
 ### Fixed
 - **macOS: text you had typed was deleted when you came back and continued typing in Korean.** For example, write part of a Claude Code prompt, switch to another app or click elsewhere, then come back and type a Korean letter — the earlier text was erased. The terminal now keeps it. (#170)
 
@@ -603,7 +605,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.2...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.3...HEAD
+[0.21.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.2...v0.21.3
 [0.21.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.1...v0.21.2
 [0.21.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.0...v0.21.1
 [0.21.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.20.19...v0.21.0
