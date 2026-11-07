@@ -6,9 +6,12 @@ GitHub Actions Secrets below are present, that platform is signed automatically;
 secret is empty, the platform stays **unsigned** (users then see a first-launch warning —
 macOS Gatekeeper / Windows SmartScreen).
 
-> Status: **macOS is configured** — a Developer ID Application certificate (team
-> `Brain OS Institute`, `J5C9SY326P`) and notarization secrets are registered, so macOS
-> builds ship signed + notarized. Windows remains unsigned (no certificate yet).
+> Status: **macOS is configured** — a Developer ID Application certificate (team ID
+> `924883CCSU`) and notarization secrets are registered, so macOS builds ship signed +
+> notarized (verified on v0.21.3). The certificate was originally issued under team
+> `J5C9SY326P` (2026-06) and later replaced. Check the current signer of a release with
+> `codesign -dv --verbose=2 wowTerminal.app` and `spctl -a -vv wowTerminal.app`.
+> Windows remains unsigned (no certificate yet).
 
 > Secrets live in: GitHub repo → **Settings → Secrets and variables → Actions → New repository secret**.
 
