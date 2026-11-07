@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **AI panel: "Send to terminal" ran the first lines of a multi-line command right away.** Every line break acted as Enter, so a suggested `chmod +x deploy.sh` / `./deploy.sh` ran `chmod` without you pressing Enter. Multi-line commands are now inserted as a paste that the shell holds until you press Enter; if the shell can't hold them (bracketed paste off, e.g. `sh` or older bash), nothing is sent and the panel says so. (#172)
+
 ## [0.21.3] — 2026-11-04
 
 ### Fixed

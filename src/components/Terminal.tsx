@@ -1584,6 +1584,8 @@ export function Terminal({
             dataB64: bytesToBase64(encoder.encode(text)),
           });
         },
+        paste: (text) => term.paste(text),
+        bracketedPaste: () => term.modes.bracketedPasteMode,
         fit: safeFit,
         focus: () => term.focus(),
         serialize: () => {

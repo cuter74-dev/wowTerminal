@@ -1,5 +1,5 @@
 // 테스트용 Tauri 목 (#158). 세션 스폰은 고정 id로 성공시키고, pty_write로 간 바이트를 모은다.
-// 이벤트(listen)는 등록만 받고 아무것도 보내지 않는다 — 입력 리플레이는 PTY 에코가 필요 없다.
+// 이벤트(listen)는 등록만 받는다. 출력이 필요한 시험만 emitEvent로 보낸다(입력 리플레이는 PTY 에코가 필요 없다).
 
 export const SESSION_ID = "test-session";
 
@@ -44,6 +44,18 @@ export async function invoke(cmd: string, args?: Record<string, unknown>): Promi
   }
 }
 
-export async function listen(): Promise<() => void> {
-  return () => {};
+/** listen으로 등록된 콜백 — 출력이 필요한 시험(#172: bracketed paste 모드 켜기)이 emitEvent로 보낸다. */
+const listeners = new Map<string, Set<(e: { payload: unknown }) => void>>();
+
+export async function listen(
+  name: string,
+  cb: (e: { payload: unknown }) => void,
+): Promise<() => void> {
+  if (!listeners.has(name)) listeners.set(name, new Set());
+  listeners.get(name)!.add(cb);
+  return () => listeners.get(name)?.delete(cb);
+}
+
+export function emitEvent(name: string, payload: unknown): void {
+  listeners.get(name)?.forEach((cb) => cb({ payload }));
 }

@@ -7,6 +7,11 @@ export interface TerminalHandle {
   getRecentText: (maxLines?: number) => string;
   /** 텍스트를 그 세션에 입력으로 보냄 (예: AI 제안 명령). 개행은 호출자가 포함. */
   sendInput: (text: string) => void;
+  /** 붙여넣기처럼 입력 — bracketed paste 모드면 감싸서 보내 셸이 Enter 전까지 여러 줄을
+   *  붙잡아 둔다. 개행은 \r로 정규화된다(xterm `paste`). (#172) */
+  paste: (text: string) => void;
+  /** 셸(또는 전면 프로그램)이 bracketed paste 모드(DECSET 2004)를 켰는지. */
+  bracketedPaste: () => boolean;
   /** 컨테이너 크기에 맞춰 다시 fit (탭 전환/표시 시 — display:none에서 복귀 후 필요). */
   fit: () => void;
   /** 이 터미널에 키보드 포커스를 준다 (탭 전환 시 클릭 없이 바로 입력되도록). */
@@ -30,6 +35,21 @@ export function unregisterTerminal(id: string): void {
 export function getTerminal(id: string | null | undefined): TerminalHandle | undefined {
   if (!id) return undefined;
   return registry.get(id);
+}
+
+/** AI 명령 카드 → 터미널 입력 (#172). Enter는 사용자가 누른다 — 어떤 줄도 미리 실행되면 안 된다.
+ *  여러 줄을 원문으로 쓰면 줄바꿈마다 Enter가 되므로, bracketed paste가 켜져 있을 때만 그 길로
+ *  보낸다(셸이 Enter 전까지 모든 줄을 붙잡아 둔다). 꺼져 있으면(sh, 옛 bash) 막을 방법이 없어
+ *  보내지 않고 false를 돌려준다. */
+export function insertCommand(handle: TerminalHandle, code: string): boolean {
+  const text = code.replace(/\r\n?/g, "\n");
+  if (!text.includes("\n")) {
+    handle.sendInput(text);
+    return true;
+  }
+  if (!handle.bracketedPaste()) return false;
+  handle.paste(text);
+  return true;
 }
 
 // --- 입력 브로드캐스트 (#59): 켜면 한 패널에 친 입력을 다른 모든 패널에도 보낸다. ---

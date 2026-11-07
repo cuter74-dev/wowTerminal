@@ -9,7 +9,7 @@ import {
   TerminalSource,
 } from "../types";
 import { LlmSetupModal } from "./LlmSetupModal";
-import { getTerminal } from "../terminalRegistry";
+import { getTerminal, insertCommand } from "../terminalRegistry";
 import { setAskAIListener } from "../aiBus";
 import { LangDict, useT } from "../i18n";
 import {
@@ -96,6 +96,7 @@ const STR: LangDict<{
     sshContext: (label: string) => string;
     errorPrefix: (e: string) => string;
     noPaneToInput: string;
+    multilineNeedsPaste: string;
     qaFixLabel: string;
     qaFixPrompt: string;
     qaExplainLabel: string;
@@ -140,6 +141,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Error] ${e}`,
     noPaneToInput: "No terminal pane to input into.",
+    multilineNeedsPaste: "This shell can't hold several lines until Enter (bracketed paste is off), so nothing was sent. Send the lines one at a time or copy the block.",
     qaFixLabel: "🔧 Fix error",
     qaFixPrompt: "Check the current terminal output. If there's an error, explain the cause and give the command(s) to fix it (in a code block).",
     qaExplainLabel: "❔ Explain",
@@ -186,6 +188,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[에러] ${e}`,
     noPaneToInput: "입력할 터미널 패널이 없습니다.",
+    multilineNeedsPaste: "이 셸은 여러 줄을 Enter 전까지 붙잡아 두지 못해(bracketed paste 꺼짐) 보내지 않았습니다. 한 줄씩 보내거나 복사해 쓰세요.",
     qaFixLabel: "🔧 에러 고치기",
     qaFixPrompt: "현재 터미널 출력을 확인해서 에러가 있으면 원인을 설명하고 해결 명령을 코드블록으로 알려줘.",
     qaExplainLabel: "❔ 설명",
@@ -232,6 +235,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Error] ${e}`,
     noPaneToInput: "No hay panel de terminal donde escribir.",
+    multilineNeedsPaste: "Esta shell no puede retener varias líneas hasta Enter (bracketed paste desactivado), así que no se envió nada. Envía las líneas de una en una o copia el bloque.",
     qaFixLabel: "🔧 Corregir error",
     qaFixPrompt: "Revisa la salida actual del terminal. Si hay un error, explica la causa y da el/los comando(s) para solucionarlo (en bloque de código).",
     qaExplainLabel: "❔ Explicar",
@@ -278,6 +282,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[错误] ${e}`,
     noPaneToInput: "没有可输入的终端面板。",
+    multilineNeedsPaste: "此 shell 无法在按 Enter 前保留多行（bracketed paste 已关闭），因此未发送。请逐行发送或复制整段。",
     qaFixLabel: "🔧 修复错误",
     qaFixPrompt: "检查当前终端输出。如果有错误，请说明原因并给出修复命令（用代码块）。",
     qaExplainLabel: "❔ 解释",
@@ -324,6 +329,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[エラー] ${e}`,
     noPaneToInput: "入力できる端末ペインがありません。",
+    multilineNeedsPaste: "このシェルは Enter まで複数行を保持できない（bracketed paste がオフ）ため、送信しませんでした。1 行ずつ送るか、ブロックをコピーしてください。",
     qaFixLabel: "🔧 エラー修正",
     qaFixPrompt: "現在の端末出力を確認して、エラーがあれば原因を説明し、修正コマンドをコードブロックで示して。",
     qaExplainLabel: "❔ 説明",
@@ -370,6 +376,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Ошибка] ${e}`,
     noPaneToInput: "Нет панели терминала для ввода.",
+    multilineNeedsPaste: "Эта оболочка не может удерживать несколько строк до Enter (bracketed paste выключен), поэтому ничего не отправлено. Отправляйте строки по одной или скопируйте блок.",
     qaFixLabel: "🔧 Исправить ошибку",
     qaFixPrompt: "Проверь текущий вывод терминала. Если есть ошибка, объясни причину и дай команду(ы) для исправления (в блоке кода).",
     qaExplainLabel: "❔ Объяснить",
@@ -416,6 +423,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Erreur] ${e}`,
     noPaneToInput: "Aucun volet de terminal où saisir.",
+    multilineNeedsPaste: "Ce shell ne peut pas retenir plusieurs lignes jusqu'à Entrée (bracketed paste désactivé) : rien n'a été envoyé. Envoyez les lignes une par une ou copiez le bloc.",
     qaFixLabel: "🔧 Corriger l'erreur",
     qaFixPrompt: "Vérifie la sortie actuelle du terminal. S'il y a une erreur, explique la cause et donne la ou les commande(s) pour la corriger (dans un bloc de code).",
     qaExplainLabel: "❔ Expliquer",
@@ -462,6 +470,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Fehler] ${e}`,
     noPaneToInput: "Kein Terminalbereich zur Eingabe vorhanden.",
+    multilineNeedsPaste: "Diese Shell kann mehrere Zeilen nicht bis Enter zurückhalten (Bracketed Paste ist aus), daher wurde nichts gesendet. Sende die Zeilen einzeln oder kopiere den Block.",
     qaFixLabel: "🔧 Fehler beheben",
     qaFixPrompt: "Prüfe die aktuelle Terminalausgabe. Falls ein Fehler vorliegt, erkläre die Ursache und gib die Befehle zur Behebung an (im Codeblock).",
     qaExplainLabel: "❔ Erklären",
@@ -508,6 +517,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Lỗi] ${e}`,
     noPaneToInput: "Không có khung terminal để nhập.",
+    multilineNeedsPaste: "Shell này không giữ được nhiều dòng cho đến khi nhấn Enter (bracketed paste đang tắt) nên chưa gửi gì. Hãy gửi từng dòng hoặc sao chép cả khối.",
     qaFixLabel: "🔧 Sửa lỗi",
     qaFixPrompt: "Kiểm tra đầu ra terminal hiện tại. Nếu có lỗi, hãy giải thích nguyên nhân và đưa ra (các) lệnh để sửa (trong khối mã).",
     qaExplainLabel: "❔ Giải thích",
@@ -554,6 +564,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[Kesalahan] ${e}`,
     noPaneToInput: "Tidak ada panel terminal untuk diketik.",
+    multilineNeedsPaste: "Shell ini tidak bisa menahan beberapa baris sampai Enter (bracketed paste mati), jadi tidak ada yang dikirim. Kirim baris satu per satu atau salin bloknya.",
     qaFixLabel: "🔧 Perbaiki error",
     qaFixPrompt: "Periksa keluaran terminal saat ini. Jika ada error, jelaskan penyebabnya dan berikan perintah untuk memperbaikinya (dalam blok kode).",
     qaExplainLabel: "❔ Jelaskan",
@@ -600,6 +611,7 @@ const STR: LangDict<{
     sshContext: (label) => `SSH — ${label}`,
     errorPrefix: (e) => `[त्रुटि] ${e}`,
     noPaneToInput: "इनपुट करने के लिए कोई टर्मिनल पैनल नहीं है।",
+    multilineNeedsPaste: "यह शेल Enter दबाने तक कई पंक्तियाँ रोककर नहीं रख सकता (bracketed paste बंद है), इसलिए कुछ नहीं भेजा गया। पंक्तियाँ एक-एक करके भेजें या ब्लॉक कॉपी करें।",
     qaFixLabel: "🔧 त्रुटि ठीक करें",
     qaFixPrompt: "वर्तमान टर्मिनल आउटपुट जांचें। यदि कोई त्रुटि है, तो कारण बताएं और उसे ठीक करने के लिए कमांड दें (कोड ब्लॉक में)।",
     qaExplainLabel: "❔ समझाएं",
@@ -948,8 +960,11 @@ export function AIPanel({
       setError(t.noPaneToInput);
       return;
     }
-    // 개행 없이 입력만 — 사용자가 직접 Enter로 실행하도록 (안전).
-    handle.sendInput(code);
+    // 개행 없이 입력만 — 사용자가 직접 Enter로 실행하도록 (안전). 여러 줄은 #172 참고.
+    if (!insertCommand(handle, code)) {
+      setError(t.multilineNeedsPaste);
+      return;
+    }
     // 포커스를 터미널로 옮긴다(#131): 버튼에 포커스가 남으면 Enter가 버튼을 다시 눌러
     // 같은 명령이 중복 입력됐다. 이제 입력 직후 바로 Enter로 실행할 수 있다.
     handle.focus();
