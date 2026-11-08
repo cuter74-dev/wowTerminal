@@ -1505,9 +1505,9 @@ function App() {
     setRetryByLeaf((prev) => ({ ...prev, [leafId]: (prev[leafId] ?? 0) + 1 }));
   }
 
-  /** SSH 접속 성공 시: 사용자가 keychain 저장을 요청했으면 백엔드에 위임. 어느 경우든
-   *  메모리에 남은 password와 remember 플래그는 즉시 비운다 (보안). */
-  async function handleSshConnected(tabId: string, leafId: string) {
+  /** SSH 접속 직후 tmux로 다시 들어간다. tmux attach를 보냈으면 true — 터미널은 이때
+   *  재접속 폴더 복귀 cd를 보내지 않는다(그 줄이 tmux 안 프로그램에 입력된다, #173). */
+  function attachTmuxOnConnect(tabId: string, leafId: string): boolean {
     // tmux 자동 attach (#89): 호스트에 세션 이름이 설정돼 있으면 접속 직후 셸에
     // `tmux new-session -A -s <이름>`을 보낸다. tmux가 attach하며 화면 전체를 다시
     // 그리므로 명령 에코는 곧 지워진다(숨김 주입의 #34/#37 잔상 문제를 피하는 방식).
@@ -1522,6 +1522,7 @@ function App() {
       const known = src0?.kind === "ssh" ? tmuxByLeaf.current[leafId] : undefined;
       if (src0 && src0.kind === "ssh" && known) {
         getTerminal(leafId)?.sendInput(tmuxAttachInput(known, true));
+        return true;
       } else if (src0 && src0.kind === "ssh" && !initTmuxByLeaf.current[leafId]) {
         const hostId0 = src0.hostId;
         const host = hosts.find((h) => h.id === hostId0);
@@ -1530,10 +1531,16 @@ function App() {
           getTerminal(leafId)?.sendInput(`tmux new-session -A -s '${name}'\r`);
           tmuxByLeaf.current[leafId] = name;
           labelTabForLeaf(leafId, name);
+          return true;
         }
       }
     }
+    return false;
+  }
 
+  /** SSH 접속 성공 시: 사용자가 keychain 저장을 요청했으면 백엔드에 위임. 어느 경우든
+   *  메모리에 남은 password와 remember 플래그는 즉시 비운다 (보안). */
+  async function handleSshConnected(tabId: string, leafId: string) {
     const pw = passwordByLeaf[leafId];
     const remember = rememberByLeaf[leafId];
     // 항상 클리어 — 한 번 invoke로 전달됐고 더 이상 필요 없음.
@@ -2432,7 +2439,11 @@ function App() {
                 onSshError={(leafId, err) =>
                   handleSshError(tab.id, leafId, err)
                 }
-                onSshConnected={(leafId) => handleSshConnected(tab.id, leafId)}
+                onSshConnected={(leafId) => {
+                  const tmux = attachTmuxOnConnect(tab.id, leafId);
+                  void handleSshConnected(tab.id, leafId);
+                  return tmux;
+                }}
                 retryByLeaf={retryByLeaf}
                 passwordByLeaf={passwordByLeaf}
                 labelForSource={labelForSource}

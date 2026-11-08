@@ -77,7 +77,8 @@ interface Props {
   onClosePane: (leafId: string) => void;
   onRatioChange: (path: number[], ratio: number) => void;
   onSshError: (leafId: string, err: SshConnectError) => void;
-  onSshConnected: (leafId: string) => void;
+  /** tmux attach를 보냈으면 true(#173). */
+  onSshConnected: (leafId: string) => boolean;
   retryByLeaf: Record<string, number>;
   /** PasswordPrompt 모달 입력. leaf id → 그 leaf용 password. */
   passwordByLeaf: Record<string, string>;

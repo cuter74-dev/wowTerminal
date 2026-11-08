@@ -33,8 +33,10 @@ export async function invoke(cmd: string, args?: Record<string, unknown>): Promi
   if (handler) return handler(cmd, args);
   switch (cmd) {
     case "pty_spawn":
+    case "ssh_connect":
       return SESSION_ID;
     case "pty_write":
+    case "ssh_write":
       ptyWrites.push(decodeB64(String(args?.dataB64 ?? "")));
       return undefined;
     case "session_history":

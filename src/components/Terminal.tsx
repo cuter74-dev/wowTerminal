@@ -380,8 +380,9 @@ interface Props {
   source: TerminalSource;
   /** SSH spawn에서 구조화된 에러를 받으면 호출. 모달 띄우는 용도. */
   onSshError?: (err: SshConnectError) => void;
-  /** SSH 연결 성공 시 한 번 호출. App이 password 저장 여부 결정 등에 사용. */
-  onSshConnected?: () => void;
+  /** SSH 연결 성공 시 한 번 호출. App이 password 저장 여부 결정 등에 사용.
+   *  App이 이 세션에 tmux attach를 보냈으면 true를 돌려준다(#173). */
+  onSshConnected?: () => boolean | void;
   /** 재시도 트리거. 값이 바뀌면 effect가 다시 실행되어 새로 spawn. */
   retryNonce?: number;
   /** PasswordPrompt 인증의 즉석 password. 모달 입력 후 retryNonce와 함께 전달. */
@@ -1620,8 +1621,9 @@ export function Terminal({
           cmds.spawnCmd,
           cmds.spawnArgs(term.cols, term.rows),
         );
+        let tmuxAttaching = false;
         if (source.kind === "ssh") {
-          onSshConnected?.();
+          tmuxAttaching = onSshConnected?.() === true;
         }
         // spawn이 진행되는 동안 발생한 리사이즈(레이아웃 정착 refit 등)는 onResize에서
         // sessionId가 아직 없어 버려진다. 그 사이 xterm 크기가 바뀌었으면 PTY는 스폰 시점
@@ -1647,9 +1649,13 @@ export function Terminal({
         }
         // (#152) 재접속 복귀: 새 SSH 셸이 stdin을 읽기 시작하면 cd가 소비된다(PTY가 입력을
         // 버퍼링하므로 프롬프트 전 주입도 안전). 살짝 지연 후 마지막 원격 위치로 이동한다.
-        if (source.kind === "ssh" && restoreCwd) {
+        // (#173) 셸이 아닌 프로그램이 받으면 안 된다 — tmux로 다시 들어가면 이 줄이 tmux 창 안의
+        // 프로그램(예: Claude Code 입력창)에 입력되어 전송됐다. tmux 창은 자기 폴더를 그대로
+        // 가지므로 보내지 않는다. 그 사이 전체 화면 프로그램(원격 rc가 띄운 tmux 등)이 떠도 그렇다.
+        if (source.kind === "ssh" && restoreCwd && !tmuxAttaching) {
           const target = restoreCwd;
           setTimeout(() => {
+            if (term.buffer.active.type === "alternate") return;
             writeToSession(`cd ${shQuote(target)}\r`);
           }, 500);
         }

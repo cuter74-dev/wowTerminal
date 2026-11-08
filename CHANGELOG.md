@@ -8,6 +8,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Fixed
+- **SSH: reconnecting typed `cd '<last folder>'` into the program running inside tmux.** After a dropped SSH tab was reconnected with Enter, the tab went back into its tmux session and then typed the return-to-folder `cd` — so it landed in, for example, a Claude Code prompt and was sent as a message. The `cd` is now only sent to a plain shell; tmux panes keep their own folder. (#173)
 - **AI panel: "Send to terminal" ran the first lines of a multi-line command right away.** Every line break acted as Enter, so a suggested `chmod +x deploy.sh` / `./deploy.sh` ran `chmod` without you pressing Enter. Multi-line commands are now inserted as a paste that the shell holds until you press Enter; if the shell can't hold them (bracketed paste off, e.g. `sh` or older bash), nothing is sent and the panel says so. (#172)
 
 ## [0.21.3] — 2026-11-04
