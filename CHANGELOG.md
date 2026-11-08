@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.4] — 2026-11-08
+
 ### Fixed
 - **SSH: reconnecting typed `cd '<last folder>'` into the program running inside tmux.** After a dropped SSH tab was reconnected with Enter, the tab went back into its tmux session and then typed the return-to-folder `cd` — so it landed in, for example, a Claude Code prompt and was sent as a message. The `cd` is now only sent to a plain shell; tmux panes keep their own folder. (#173)
 - **AI panel: "Send to terminal" ran the first lines of a multi-line command right away.** Every line break acted as Enter, so a suggested `chmod +x deploy.sh` / `./deploy.sh` ran `chmod` without you pressing Enter. Multi-line commands are now inserted as a paste that the shell holds until you press Enter; if the shell can't hold them (bracketed paste off, e.g. `sh` or older bash), nothing is sent and the panel says so. (#172)
@@ -609,7 +611,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.3...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.4...HEAD
+[0.21.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.3...v0.21.4
 [0.21.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.2...v0.21.3
 [0.21.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.1...v0.21.2
 [0.21.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.0...v0.21.1
