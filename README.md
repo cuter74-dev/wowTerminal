@@ -21,6 +21,8 @@
 A context-aware AI terminal — a chat assistant that reads your terminal,<br/>
 an SSH host manager, and a dual-pane SFTP file browser, in one fast desktop app.
 
+<img src="docs/media/demo-ai-fix.gif" alt="wowTerminal AI assistant fixing a permission error: it reads the error, suggests a command card, and sends it to the terminal, where it waits for Enter" width="820" />
+
 [✨ Features](#features) • [🚀 Getting started](#getting-started) • [⌨️ Shortcuts](docs/guide/shortcuts.md) • [🔐 SSH](docs/guide/ssh.md) • [📁 SFTP](docs/guide/sftp.md) • [🤖 AI](docs/guide/ai.md)
 
 <sub>Love this project? A ⭐ on the repo keeps it going.</sub>
@@ -47,6 +49,9 @@ an SSH host manager, and a dual-pane SFTP file browser, in one fast desktop app.
 - **SFTP file browser**
   - Dual local ↔ remote panes, upload/download with a progress bar and transfer queue.
   - Remote file search and Unix permission editing.
+
+  <img src="docs/media/demo-ssh-upload.gif" alt="Connecting to an SSH host with a double-click and uploading a file by dragging it from Finder onto the Files panel" width="720" />
+
 - **Terminal core**
   - PTY-backed local shells, rendered with xterm.js (WebGL-accelerated).
   - Tabs, split panes (horizontal / vertical), and **detach a tab into a new window**
