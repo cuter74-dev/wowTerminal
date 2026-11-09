@@ -172,6 +172,8 @@ pub fn run() {
                 .map(|p| p.join("wowterminal"))
                 .unwrap_or_else(|| std::path::PathBuf::from("."));
             let _ = std::fs::create_dir_all(&config_dir);
+            // 설정의 "오류 보고 보내기"(#178) — 끔 표시가 있으면 백엔드 오류 보고를 보내지 않는다.
+            telemetry::load_pref(&config_dir);
 
             // 세션 데몬 (#153): PTY를 UI보다 오래 사는 별도 프로세스가 소유하게 해, 자동
             // 업데이트의 relaunch()로 앱이 재시작돼도 로컬 셸(Claude Code/Gemini 등)이 계속
@@ -298,6 +300,7 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            telemetry::set_error_reporting,
             greet,
             ai::commands::ai_list_backends,
             ai::commands::ai_complete,

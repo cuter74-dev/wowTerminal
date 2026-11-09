@@ -18,6 +18,7 @@ import {
   formatBinding,
 } from "../settings";
 import { LangDict, useT } from "../i18n";
+import { setErrorReporting } from "../telemetry";
 import { BackendInfo, Group, SshHost, Tag } from "../types";
 import { Snippet, loadSnippets, saveSnippets } from "../snippets";
 
@@ -62,6 +63,8 @@ const STR: LangDict<{
     logDir: string;
     startDir: string;
     downloadDir: string;
+    errorReports: string;
+    errorReportsDesc: string;
     chooseDir: string;
     applyNote: string;
     readonlyNote: string;
@@ -116,6 +119,9 @@ const STR: LangDict<{
     logDir: "Log folder (blank = ~/wowterminal-logs)",
     startDir: "New terminal start folder (blank = home)",
     downloadDir: "Default download folder (blank = OS Downloads)",
+    errorReports: "Send error reports",
+    errorReportsDesc:
+      "When something goes wrong, the app sends the error type, the error message with paths and addresses removed, and the OS and app version to the developer's error tracker (GlitchTip), plus an anonymous signal when the app starts. It never sends what you type, the screen, command output or AI conversations.",
     chooseDir: "Choose…",
     applyNote: "Applied to all terminals immediately.",
     readonlyNote: "v1 is read-only. Custom key bindings later.",
@@ -172,6 +178,9 @@ const STR: LangDict<{
     logDir: "로그 폴더 (비우면 ~/wowterminal-logs)",
     startDir: "새 터미널 시작 폴더 (비우면 홈)",
     downloadDir: "기본 다운로드 폴더 (비우면 OS 다운로드 폴더)",
+    errorReports: "오류 보고 보내기",
+    errorReportsDesc:
+      "오류가 나면 오류 종류, 경로·주소를 가린 메시지, OS·앱 버전을 개발자의 오류 추적 서버(GlitchTip)로 보내고, 실행할 때 익명 세션 신호를 보냅니다. 입력한 내용·화면·명령 출력·AI 대화는 보내지 않습니다.",
     chooseDir: "선택…",
     applyNote: "변경 즉시 모든 터미널에 적용됩니다.",
     readonlyNote: "v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.",
@@ -228,6 +237,9 @@ const STR: LangDict<{
     logDir: "Carpeta de registros (vacío = ~/wowterminal-logs)",
     startDir: "Carpeta inicial de nuevos terminales (vacío = inicio)",
     downloadDir: "Carpeta de descargas predeterminada (vacío = Descargas del SO)",
+    errorReports: "Enviar informes de errores",
+    errorReportsDesc:
+      "Cuando algo falla, la app envía al servidor de errores del desarrollador (GlitchTip) el tipo de error, el mensaje sin rutas ni direcciones y la versión del sistema y de la app, además de una señal anónima al iniciar. Nunca envía lo que escribes, la pantalla, la salida de comandos ni las conversaciones con la IA.",
     chooseDir: "Elegir…",
     applyNote: "Aplicado a todas las terminales de inmediato.",
     readonlyNote: "v1 es de solo lectura. Atajos personalizados más adelante.",
@@ -284,6 +296,9 @@ const STR: LangDict<{
     logDir: "日志文件夹（留空 = ~/wowterminal-logs）",
     startDir: "新终端起始文件夹（留空 = 主目录）",
     downloadDir: "默认下载文件夹（留空 = 系统下载文件夹）",
+    errorReports: "发送错误报告",
+    errorReportsDesc:
+      "出错时，应用会把错误类型、去除路径和地址后的错误信息、操作系统和应用版本发送到开发者的错误跟踪服务器（GlitchTip），并在启动时发送一个匿名会话信号。绝不发送你输入的内容、屏幕内容、命令输出或 AI 对话。",
     chooseDir: "选择…",
     applyNote: "立即应用到所有终端。",
     readonlyNote: "v1 为只读。自定义按键绑定稍后推出。",
@@ -340,6 +355,9 @@ const STR: LangDict<{
     logDir: "ログフォルダ（空欄 = ~/wowterminal-logs）",
     startDir: "新しいターミナルの開始フォルダ（空欄 = ホーム）",
     downloadDir: "既定のダウンロードフォルダ（空欄 = OSのダウンロード）",
+    errorReports: "エラーレポートを送信",
+    errorReportsDesc:
+      "問題が起きると、エラーの種類、パスやアドレスを伏せたメッセージ、OS とアプリのバージョンを開発者のエラー追跡サーバー（GlitchTip）に送り、起動時に匿名のセッション信号を送ります。入力内容・画面・コマンド出力・AI との会話は送りません。",
     chooseDir: "選択…",
     applyNote: "すべてのターミナルに即座に適用されます。",
     readonlyNote: "v1 は読み取り専用です。カスタムキーバインドは後日。",
@@ -396,6 +414,9 @@ const STR: LangDict<{
     logDir: "Папка логов (пусто = ~/wowterminal-logs)",
     startDir: "Начальная папка новых терминалов (пусто = домашняя)",
     downloadDir: "Папка загрузок по умолчанию (пусто = системная «Загрузки»)",
+    errorReports: "Отправлять отчёты об ошибках",
+    errorReportsDesc:
+      "При сбое приложение отправляет на сервер отслеживания ошибок разработчика (GlitchTip) тип ошибки, сообщение без путей и адресов, версии ОС и приложения, а при запуске — анонимный сигнал сеанса. Оно никогда не отправляет то, что вы вводите, содержимое экрана, вывод команд или разговоры с ИИ.",
     chooseDir: "Выбрать…",
     applyNote: "Применяется ко всем терминалам мгновенно.",
     readonlyNote: "v1 только для чтения. Пользовательские сочетания клавиш позже.",
@@ -452,6 +473,9 @@ const STR: LangDict<{
     logDir: "Dossier des journaux (vide = ~/wowterminal-logs)",
     startDir: "Dossier de départ des nouveaux terminaux (vide = accueil)",
     downloadDir: "Dossier de téléchargement par défaut (vide = Téléchargements du système)",
+    errorReports: "Envoyer les rapports d'erreur",
+    errorReportsDesc:
+      "En cas de problème, l'application envoie au serveur de suivi des erreurs du développeur (GlitchTip) le type d'erreur, le message sans chemins ni adresses, et les versions du système et de l'app, ainsi qu'un signal anonyme au démarrage. Elle n'envoie jamais ce que vous tapez, l'écran, la sortie des commandes ni les conversations avec l'IA.",
     chooseDir: "Choisir…",
     applyNote: "Appliqué immédiatement à tous les terminaux.",
     readonlyNote: "v1 est en lecture seule. Raccourcis personnalisés plus tard.",
@@ -508,6 +532,9 @@ const STR: LangDict<{
     logDir: "Log-Ordner (leer = ~/wowterminal-logs)",
     startDir: "Startordner neuer Terminals (leer = Home)",
     downloadDir: "Standard-Download-Ordner (leer = System-Downloads)",
+    errorReports: "Fehlerberichte senden",
+    errorReportsDesc:
+      "Wenn etwas schiefgeht, sendet die App den Fehlertyp, die Fehlermeldung ohne Pfade und Adressen sowie System- und App-Version an den Fehler-Tracker des Entwicklers (GlitchTip) und beim Start ein anonymes Sitzungssignal. Eingaben, Bildschirminhalt, Befehlsausgaben und KI-Unterhaltungen werden nie gesendet.",
     chooseDir: "Wählen…",
     applyNote: "Wird sofort auf alle Terminals angewendet.",
     readonlyNote: "v1 ist schreibgeschützt. Benutzerdefinierte Tastenbelegungen später.",
@@ -564,6 +591,9 @@ const STR: LangDict<{
     logDir: "Thư mục log (trống = ~/wowterminal-logs)",
     startDir: "Thư mục bắt đầu của terminal mới (trống = home)",
     downloadDir: "Thư mục tải xuống mặc định (trống = thư mục Tải xuống của hệ điều hành)",
+    errorReports: "Gửi báo cáo lỗi",
+    errorReportsDesc:
+      "Khi có lỗi, ứng dụng gửi loại lỗi, thông báo lỗi đã ẩn đường dẫn và địa chỉ, phiên bản hệ điều hành và ứng dụng đến máy chủ theo dõi lỗi của nhà phát triển (GlitchTip), kèm một tín hiệu phiên ẩn danh khi khởi động. Ứng dụng không bao giờ gửi những gì bạn gõ, nội dung màn hình, đầu ra lệnh hay cuộc trò chuyện với AI.",
     chooseDir: "Chọn…",
     applyNote: "Áp dụng ngay cho tất cả các terminal.",
     readonlyNote: "v1 chỉ đọc. Tùy chỉnh phím tắt sẽ có sau.",
@@ -620,6 +650,9 @@ const STR: LangDict<{
     logDir: "Folder log (kosong = ~/wowterminal-logs)",
     startDir: "Folder awal terminal baru (kosong = home)",
     downloadDir: "Folder unduhan bawaan (kosong = folder Unduhan OS)",
+    errorReports: "Kirim laporan galat",
+    errorReportsDesc:
+      "Saat terjadi masalah, aplikasi mengirim jenis galat, pesan galat tanpa jalur dan alamat, serta versi OS dan aplikasi ke server pelacak galat pengembang (GlitchTip), ditambah sinyal sesi anonim saat aplikasi dimulai. Aplikasi tidak pernah mengirim apa yang Anda ketik, isi layar, keluaran perintah, atau percakapan AI.",
     chooseDir: "Pilih…",
     applyNote: "Diterapkan ke semua terminal segera.",
     readonlyNote: "v1 hanya-baca. Pengikatan tombol khusus nanti.",
@@ -676,6 +709,9 @@ const STR: LangDict<{
     logDir: "लॉग फ़ोल्डर (खाली = ~/wowterminal-logs)",
     startDir: "नए टर्मिनल का प्रारंभ फ़ोल्डर (खाली = होम)",
     downloadDir: "डिफ़ॉल्ट डाउनलोड फ़ोल्डर (खाली = OS डाउनलोड)",
+    errorReports: "त्रुटि रिपोर्ट भेजें",
+    errorReportsDesc:
+      "कुछ गड़बड़ होने पर ऐप त्रुटि का प्रकार, पथ और पते हटाकर त्रुटि संदेश, तथा OS और ऐप संस्करण डेवलपर के त्रुटि ट्रैकर (GlitchTip) को भेजता है, और शुरू होने पर एक गुमनाम सत्र संकेत भेजता है। आप जो टाइप करते हैं, स्क्रीन, कमांड आउटपुट या AI बातचीत कभी नहीं भेजी जाती।",
     chooseDir: "चुनें…",
     applyNote: "सभी टर्मिनलों पर तुरंत लागू।",
     readonlyNote: "v1 केवल-पढ़ने के लिए है। कस्टम की बाइंडिंग बाद में।",
@@ -961,6 +997,20 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   </button>
                 </div>
               </Row>
+
+              <Row label={t.errorReports}>
+                <input
+                  type="checkbox"
+                  checked={settings.general.errorReports}
+                  onChange={(e) => {
+                    patchGeneral({ errorReports: e.target.checked });
+                    setErrorReporting(e.target.checked); // 곧바로 적용(#178)
+                  }}
+                />
+              </Row>
+              <div style={{ color: "#789", fontSize: 11, marginTop: -4, lineHeight: 1.5 }}>
+                {t.errorReportsDesc}
+              </div>
 
               {/* About (S-068) */}
               <div

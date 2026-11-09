@@ -46,6 +46,9 @@ These diagnostics do **not** include anything you type, what is on the terminal 
 command output, AI conversations, your computer's name, passwords, private keys or API
 keys.
 
+You can turn all of this off in **Settings → General → Send error reports** (from version
+0.21.7). When it is off, the app sends neither error reports nor the session signal.
+
 **Correction (2026-11-09):** versions 0.14.4 to 0.21.5 on macOS (and on iPad before 0.20.19)
 also sent a temporary input diagnostic to the same tracker, up to four times per app run. It
 included recently typed input, which could contain a password typed at a terminal password

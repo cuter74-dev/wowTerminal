@@ -3,6 +3,54 @@
 //! sentry의 `contexts` 통합은 컴퓨터 이름을 `server_name`으로 붙인다(iOS는 기기 이름).
 //! panic 메시지에는 홈 폴더 경로나 컴퓨터 이름이 섞일 수 있다. 보내기 직전에 그 둘을 가리고,
 //! 사용자·extra·breadcrumb·요청 정보는 지운다. OS·기기 종류·스택 위치(소스 파일:줄)는 남긴다.
+//!
+//! 설정의 "오류 보고 보내기"를 끄면(#178) 아무것도 보내지 않는다. 그 선택은 설정 폴더의
+//! `error-reports-off` 파일로 남겨 다음 실행에도 지킨다(프런트 설정은 localStorage라 Rust가
+//! 시작 때 읽을 수 없다). 실행 중 바꾸면 `before_send`가 곧바로 모든 이벤트를 버린다.
+
+use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::OnceLock;
+
+/// 오류 보고를 보낼지. 기본은 보낸다.
+static ENABLED: AtomicBool = AtomicBool::new(true);
+/// 끔 표시 파일이 있는 설정 폴더(앱 시작 때 정해진다).
+static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
+const OFF_FILE: &str = "error-reports-off";
+
+/// 설정 폴더에 끔 표시가 있는지.
+pub fn is_off_in(dir: &Path) -> bool {
+    dir.join(OFF_FILE).exists()
+}
+
+/// 끔 표시를 남기거나 지운다.
+pub fn write_pref(dir: &Path, enabled: bool) -> std::io::Result<()> {
+    let f = dir.join(OFF_FILE);
+    if enabled {
+        match std::fs::remove_file(&f) {
+            Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e),
+            _ => Ok(()),
+        }
+    } else {
+        std::fs::write(f, b"")
+    }
+}
+
+/// 앱 시작 때 한 번: 설정 폴더를 기억하고 저장된 선택을 적용한다.
+pub fn load_pref(dir: &Path) {
+    let _ = CONFIG_DIR.set(dir.to_path_buf());
+    ENABLED.store(!is_off_in(dir), Ordering::SeqCst);
+}
+
+/// 설정 화면에서 "오류 보고 보내기"를 바꿀 때(#178).
+#[tauri::command]
+pub fn set_error_reporting(enabled: bool) -> Result<(), String> {
+    ENABLED.store(enabled, Ordering::SeqCst);
+    if let Some(dir) = CONFIG_DIR.get() {
+        write_pref(dir, enabled).map_err(|e| e.to_string())?;
+    }
+    Ok(())
+}
 
 /// 문자열 하나에서 홈 폴더 경로와 컴퓨터 이름을 가린다.
 pub fn scrub(text: &str, home: Option<&str>, host: Option<&str>) -> String {
@@ -38,10 +86,21 @@ fn local_host_name() -> Option<String> {
     }
 }
 
-/// sentry `before_send` — 개인 정보 필드를 지우고 글자를 가린다.
+/// sentry `before_send` — 꺼져 있으면 버리고, 아니면 개인 정보를 걷어 낸다.
 pub fn scrub_event(
-    mut ev: sentry::protocol::Event<'static>,
+    ev: sentry::protocol::Event<'static>,
 ) -> Option<sentry::protocol::Event<'static>> {
+    filter_event(ev, ENABLED.load(Ordering::SeqCst))
+}
+
+/// 개인 정보 필드를 지우고 글자를 가린다. `enabled`가 false면 보내지 않는다.
+fn filter_event(
+    mut ev: sentry::protocol::Event<'static>,
+    enabled: bool,
+) -> Option<sentry::protocol::Event<'static>> {
+    if !enabled {
+        return None;
+    }
     let home = dirs::home_dir().map(|p| p.to_string_lossy().into_owned());
     let mut hosts: Vec<String> = local_host_name().into_iter().collect();
     if let Some(sn) = ev.server_name.take() {
@@ -122,7 +181,7 @@ mod tests {
             value: Some(format!("cannot read {home}/.ssh/id_ed25519")),
             ..Default::default()
         });
-        let out = scrub_event(ev).unwrap();
+        let out = filter_event(ev, true).unwrap();
         let json = serde_json::to_string(&out).unwrap();
         assert!(!json.contains(&home), "{json}");
         assert!(!json.contains(&host), "{json}");
@@ -137,5 +196,24 @@ mod tests {
             out.exception.values[0].value.as_deref(),
             Some("cannot read ~/.ssh/id_ed25519")
         );
+    }
+
+    #[test]
+    fn turned_off_sends_nothing_and_survives_restart() {
+        let dir = tempfile::tempdir().unwrap();
+        assert!(!is_off_in(dir.path()), "기본은 보낸다");
+        write_pref(dir.path(), false).unwrap();
+        assert!(
+            is_off_in(dir.path()),
+            "끔이 파일로 남아 다음 실행에도 지켜진다"
+        );
+        let ev = sentry::protocol::Event {
+            message: Some("boom".into()),
+            ..Default::default()
+        };
+        assert!(filter_event(ev, false).is_none());
+        write_pref(dir.path(), true).unwrap();
+        write_pref(dir.path(), true).unwrap(); // 이미 켜져 있어도 오류 없음
+        assert!(!is_off_in(dir.path()));
     }
 }

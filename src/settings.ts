@@ -64,6 +64,8 @@ export interface GeneralSettings {
   aiContextLines: number;
   /** 파일 브라우저 기본 다운로드 폴더 (#148). 비우면 OS 다운로드 폴더(~/Downloads). */
   downloadDir: string;
+  /** 오류 보고(GlitchTip) 보내기 (#178). 끄면 오류 보고도 실행마다 가는 익명 세션 신호도 없다. */
+  errorReports: boolean;
 }
 
 /** UI 글꼴 프리셋. 시스템에 있을 법한 폰트 + 한글 폴백(Apple SD Gothic Neo 등). */
@@ -269,6 +271,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     uiFont: UI_FONTS[0].value,
     aiContextLines: 100,
     downloadDir: "",
+    errorReports: true,
   },
   terminal: {
     fontSize: 14,

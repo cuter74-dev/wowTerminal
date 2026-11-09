@@ -3,34 +3,12 @@ import * as Sentry from "@sentry/react";
 import App from "./App";
 import { isMacOS, isMobile } from "./platform";
 import { markAppTeardown } from "./terminalRegistry";
-import { dropBreadcrumb, scrubEvent } from "./telemetry";
+import { loadSettings } from "./settings";
+import { startErrorReporting } from "./telemetry";
 
-// 에러·크래시 추적(GlitchTip = Sentry 호환). DSN은 공개 수집 키라 임베드해도 안전(비밀 아님).
-// VITE_GLITCHTIP_DSN 환경변수로 덮어쓰거나, 빈 값으로 두면 추적을 끈다(opt-out).
-const GLITCHTIP_DSN =
-  import.meta.env.VITE_GLITCHTIP_DSN ??
-  "https://663f23ace357492887f838d73b57a50c@glitchtip.oopnwow.com/1";
-
-if (GLITCHTIP_DSN) {
-  Sentry.init({
-    dsn: GLITCHTIP_DSN,
-    release: `wowterminal@${__APP_VERSION__}`,
-    environment: import.meta.env.MODE, // development | production
-    // 빌드 출처로 같은 버전의 공식(ci) vs 자체/게이트(local) 빌드를 구분한다 — 로컬 게이트
-    // 실행이 실 사용자 진단을 오염시키지 않도록(#100). GlitchTip에서 dist=local 필터로 분리.
-    dist: __BUILD_CHANNEL__,
-    // 백엔드/프론트를 한 GlitchTip 프로젝트에서 태그로 구분한다.
-    initialScope: {
-      tags: { component: "frontend", build: `${__BUILD_CHANNEL__}.${__BUILD_REV__}` },
-    },
-    // 개인 정보는 보내지 않는다(#177): breadcrumb(콘솔 글자·클릭·IPC 주소) 없음, 이벤트의
-    // extra·사용자·요청 정보를 지우고 메시지 속 경로·주소·계정을 가린다(src/telemetry.ts).
-    sendDefaultPii: false,
-    maxBreadcrumbs: 0,
-    beforeBreadcrumb: dropBreadcrumb,
-    beforeSend: scrubEvent,
-  });
-}
+// 에러·크래시 추적(GlitchTip) — 설정의 "오류 보고 보내기"가 꺼져 있으면 시작하지 않는다(#178).
+const errorReports = loadSettings().general.errorReports;
+startErrorReporting(errorReports);
 
 // (#153) 창이 닫히거나 앱이 재시작되면 "앱 종료 중"으로 표시한다. 이 플래그가 서 있으면
 // Terminal 언마운트 정리가 세션 kill을 보내지 않아, 세션이 데몬에 남아 다음 실행에서
@@ -68,7 +46,8 @@ if (isMacOS()) {
 // PTY/SSH 세션은 mount당 1개 생성되므로 이 이중 실행이 세션 인계 도중
 // 잘못된 kill(인계된 세션 사망)과 detached_init 이중 호출을 유발한다.
 // prod 빌드에는 StrictMode가 없으므로(1회 실행) 동작 일관성을 위해 제거.
-// Sentry.ErrorBoundary로 감싸 React 렌더 단계의 미처리 에러도 GlitchTip에 보고한다.
+// Sentry.ErrorBoundary로 감싸 React 렌더 단계의 미처리 에러도 GlitchTip에 보고한다(오류 보고가
+// 꺼져 있으면 SDK가 없어 보내지 않는다).
 ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <Sentry.ErrorBoundary
     fallback={
@@ -84,7 +63,9 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
         <div style={{ fontSize: 40 }}>⚠️</div>
         <div style={{ fontSize: 18, fontWeight: 600 }}>An unexpected error occurred</div>
         <div style={{ color: "#9a9aa5", fontSize: 13 }}>
-          The error was reported automatically. Restart the app to continue.
+          {errorReports
+            ? "The error was reported automatically. Restart the app to continue."
+            : "Restart the app to continue."}
         </div>
         <button
           onClick={() => location.reload()}

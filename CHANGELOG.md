@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- **Settings → General → "Send error reports"** (on by default). Turning it off stops everything the app sends to the developer's error tracker (GlitchTip) — error reports and the anonymous signal sent at launch — right away and on later launches. The setting explains what is sent and what never is (what you type, the screen, command output, AI conversations). (#178)
+
 ## [0.21.6] — 2026-11-09
 
 ### Fixed
