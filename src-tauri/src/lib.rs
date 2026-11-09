@@ -3,6 +3,7 @@ pub mod daemon;
 pub mod pty;
 pub mod secrets;
 pub mod ssh;
+mod telemetry;
 pub mod windows;
 
 use std::sync::Arc;
@@ -51,6 +52,12 @@ fn init_error_tracking() -> Option<sentry::ClientInitGuard> {
             environment: Some(
                 if cfg!(debug_assertions) { "development" } else { "production" }.into(),
             ),
+            // 개인 정보는 보내지 않는다(#177): 컴퓨터 이름(server_name) 없음, panic 메시지의
+            // 홈 경로·컴퓨터 이름은 가리고 사용자·extra·breadcrumb은 지운다(telemetry.rs).
+            send_default_pii: false,
+            server_name: Some("".into()),
+            max_breadcrumbs: 0,
+            before_send: Some(std::sync::Arc::new(telemetry::scrub_event)),
             ..Default::default()
         },
     ));

@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/react";
 import App from "./App";
 import { isMacOS, isMobile } from "./platform";
 import { markAppTeardown } from "./terminalRegistry";
+import { dropBreadcrumb, scrubEvent } from "./telemetry";
 
 // 에러·크래시 추적(GlitchTip = Sentry 호환). DSN은 공개 수집 키라 임베드해도 안전(비밀 아님).
 // VITE_GLITCHTIP_DSN 환경변수로 덮어쓰거나, 빈 값으로 두면 추적을 끈다(opt-out).
@@ -22,6 +23,12 @@ if (GLITCHTIP_DSN) {
     initialScope: {
       tags: { component: "frontend", build: `${__BUILD_CHANNEL__}.${__BUILD_REV__}` },
     },
+    // 개인 정보는 보내지 않는다(#177): breadcrumb(콘솔 글자·클릭·IPC 주소) 없음, 이벤트의
+    // extra·사용자·요청 정보를 지우고 메시지 속 경로·주소·계정을 가린다(src/telemetry.ts).
+    sendDefaultPii: false,
+    maxBreadcrumbs: 0,
+    beforeBreadcrumb: dropBreadcrumb,
+    beforeSend: scrubEvent,
   });
 }
 

@@ -18,7 +18,6 @@ import {
   isAppTeardown,
 } from "../terminalRegistry";
 import { emitCommandDone, emitTitleChange } from "../commandBus";
-import * as Sentry from "@sentry/react";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
@@ -30,10 +29,6 @@ import {
   recordTracePty,
   releaseTraceRecording,
 } from "../imeTraceRecorder";
-
-// [진단 #83 — M5 영문 잔상] writingsuggestions=false로도 안 잡혀 재계측. 구조 카운터만
-// (타이핑 내용 없음) 입력 유휴 시 GlitchTip 전송. macOS 한정, 세션당 최대 4회. 해결 후 제거.
-let imeDiagSends = 0;
 
 // 비밀번호 프롬프트 감지 (#118) — 명령 히스토리/자동완성에 비밀번호가 새지 않게 한다.
 // 출력의 마지막 줄이 "...password:", "[sudo] password for user:", "Enter passphrase ...:",
@@ -553,9 +548,6 @@ export function Terminal({
     // WebGL 렌더러(GPU 가속). 컨텍스트 손실/실패 시 dispose하면 xterm이 자동으로 DOM
     // 렌더러로 폴백한다. (#83 잔상 수정 시도로 도입했으나 원인은 렌더러가 아니라 위
     // writingsuggestions였다 — 성능 이점이 있어 유지.)
-    // [진단 #83] 렌더러 상태 — M5 잔상은 입력 경로 결백으로 판명(0.14.7 실측: `df -h`가
-    // onData 6자뿐, 미러 미개입). 남은 용의자(렌더러 vs 에코/파싱)를 가리기 위해 수집.
-    const rendDiag = { webgl: false, ctxLost: 0 };
     // 윈도우 디스플레이 배율 125%/150%/175%처럼 devicePixelRatio가 소수면 WebGL 렌더러가
     // 셀 높이를 정수 픽셀로 반올림하며 커서 레이어와 글자 레이어가 세로로 어긋나, 커서가
     // 글자 위/아래에 그려진다(150%에서 제보). 소수 DPR에선 GPU 가속을 포기하고 기본 DOM
@@ -566,12 +558,9 @@ export function Terminal({
       try {
         const webgl = new WebglAddon();
         webgl.onContextLoss(() => {
-          rendDiag.ctxLost++;
-          rendDiag.webgl = false;
           webgl.dispose();
         });
         term.loadAddon(webgl);
-        rendDiag.webgl = true;
       } catch {
         // WebGL 미지원 환경 — 기본 DOM 렌더러 유지.
       }
@@ -717,17 +706,6 @@ export function Terminal({
     let disposed = false;
 
     const encoder = new TextEncoder();
-    // [진단 #100 임시] PTY로 실제 보낸 입력 바이트 링 + 특수키 keydown 링. "백스페이스가
-    // 스페이스처럼 동작" 류 버그에서 백스페이스가 무슨 바이트(\x7f? \x20? 없음?)를 보내는지,
-    // 그 keydown이 어떤 key/keyCode/isComposing/imeActive였는지 본다. composition 머신은
-    // 로컬(미서명=229-only)에서 재현 불가라 서명 빌드로 실측한다. #100 종결 시 제거.
-    const escCtl = (s: string) =>
-      s.replace(
-        /[\x00-\x1f\x7f]/g,
-        (c) => "\\x" + c.charCodeAt(0).toString(16).padStart(2, "0"),
-      );
-    const inputRing: string[] = [];
-    const kdRing: string[] = [];
     // 쓰기를 순서대로 직렬화한다. IME 미러는 "ㄱ" 다음 "\x7f가"처럼 연속 전송하는데,
     // await 없이 invoke를 발사하면 PTY 도착 순서가 뒤바뀌어(백스페이스가 먼저 가는 등)
     // 자모가 남는다. 프로미스 체인으로 직전 쓰기 완료 후 다음을 보낸다.
@@ -735,11 +713,6 @@ export function Terminal({
     const writeToSession = (text: string) => {
       if (!sessionId) return;
       recordTracePty(term.textarea, text); // #158 — 녹화 중인 터미널만 쌓인다
-      // [진단 #100] 보낸 바이트 기록(macOS 한정, 최근 30건).
-      if (isMacWebView) {
-        if (inputRing.length >= 30) inputRing.shift();
-        inputRing.push(escCtl(text));
-      }
       const dataB64 = bytesToBase64(encoder.encode(text));
       const sid = sessionId;
       writeChain = writeChain.then(() =>
@@ -879,32 +852,6 @@ export function Terminal({
       mirrorChars: 0,
       bsSuppressed: 0, // ASCII 다중 백스페이스 재작성 억제량 (이번 수정의 효과 지표)
     };
-    // [진단 #83] 최근 미러 전이 내용 링버퍼(최대 14건). 카운터만으로는 "textarea 조합
-    // 자체가 깨지는" 부류(자모+공백 유입)를 판별할 수 없어 내용을 본다 — 제보 머신의
-    // 한글 자모·공백 잔상 진단용. 전송 후 비움.
-    const imeRing: { s: string; f: string }[] = [];
-    const ringPush = (sent: string, full: string) => {
-      if (imeRing.length >= 14) imeRing.shift();
-      imeRing.push({ s: sent, f: full });
-    };
-    // [진단 #83] 최근 PTY 에코 청크 링(최대 10건, 청크당 160자, 이스케이프 표기) — zsh
-    // 구문강조 재그리기가 실제로 무슨 시퀀스를 그리는지 본다. 입력 결백이 확정된 M5 잔상의
-    // 남은 분기: 에코가 잔상 글자를 포함(셸/파싱 쪽)하는지, 버퍼는 깨끗한데 화면만
-    // 더러운지(렌더러 쪽). #83 종결 시 제거.
-    const echoRing: string[] = [];
-    const echoDecoder = new TextDecoder();
-    const echoPush = (bytes: Uint8Array) => {
-      if (!isMacWebView) return;
-      let s: string;
-      try {
-        s = echoDecoder.decode(bytes);
-      } catch {
-        return;
-      }
-      if (s.length > 160) s = s.slice(0, 160) + `…(+${s.length - 160})`;
-      if (echoRing.length >= 10) echoRing.shift();
-      echoRing.push(JSON.stringify(s));
-    };
     let imeDiagTimer = 0;
     const scheduleImeDiag = () => {
       if (!isMacWebView) return;
@@ -919,7 +866,9 @@ export function Terminal({
           imeDiag.mirrorChars +
           imeDiag.bsSuppressed;
         if (any === 0) return;
-        // 로컬 누적 덤프 — 전송 한도와 무관하게 localStorage에 합산(로컬 디버깅용).
+        // 로컬 누적 덤프 — 숫자 카운터만 localStorage에 합산한다(로컬 디버깅용). 예전에는
+        // 여기서 입력·화면·출력 텍스트까지 GlitchTip으로 보냈다 — 비밀번호가 섞일 수 있어
+        // 원격 전송은 없앴다(#177). 이 기기 밖으로 나가는 것은 없다.
         try {
           const k = "wt.ime.local-diag";
           const prev = JSON.parse(localStorage.getItem(k) ?? "{}") as Record<
@@ -933,49 +882,9 @@ export function Terminal({
           merged.at = Date.now();
           localStorage.setItem(k, JSON.stringify(merged));
         } catch {}
-        if (imeDiagSends < 4) {
-          imeDiagSends++;
-          // [진단 #83] 전송 시점의 커서 줄 + 위 3줄의 **버퍼 텍스트**. 화면의 잔상이
-          // 버퍼에 실재하면(파싱/에코 쪽) 여기 그대로 찍히고, 버퍼가 깨끗하면 렌더러가
-          // 못 지운 것이다 — M5 잔상의 결정적 분기점.
-          const bufTail = (): string[] => {
-            try {
-              const b = term.buffer.active;
-              const end = b.baseY + b.cursorY;
-              const out: string[] = [];
-              for (let i = Math.max(0, end - 3); i <= end; i++) {
-                out.push(b.getLine(i)?.translateToString(true) ?? "");
-              }
-              return out;
-            } catch {
-              return [];
-            }
-          };
-          try {
-            Sentry.captureMessage("wt-ime-diag2", {
-              level: "info",
-              extra: {
-                ua: navigator.userAgent,
-                ws: term.textarea?.getAttribute("writingsuggestions") ?? null,
-                ...imeDiag,
-                ring: imeRing.slice(),
-                rend: { ...rendDiag, cols: term.cols, rows: term.rows },
-                echo: echoRing.slice(),
-                lines: bufTail(),
-                input: inputRing.slice(), // [진단 #100] PTY로 보낸 바이트
-                kd: kdRing.slice(), // [진단 #100] 특수키 keydown
-                lang: navigator.language,
-              },
-            });
-          } catch {}
-        }
         imeDiag.n229 = imeDiag.nCS = imeDiag.nCU = imeDiag.nCE = 0;
         imeDiag.onDataChars = 0;
         imeDiag.mirrorBs = imeDiag.mirrorChars = imeDiag.bsSuppressed = 0;
-        imeRing.length = 0;
-        echoRing.length = 0;
-        inputRing.length = 0;
-        kdRing.length = 0;
       }, 3000);
     };
 
@@ -1123,7 +1032,6 @@ export function Terminal({
       // 터미널은 raw 키 입력을 원하므로 그런 재작성은 PTY로 보내지 않고 추적값만 동기화
       // 한다(이후 append는 정상 전송). 한글/CJK가 섞인 값은 진짜 조합 되감기이므로 종전대로
       // 전부 미러링. (백스페이스 1개는 실제 Backspace 키/단일 교정이라 허용.)
-      ringPush(imeSent, full); // [진단 #83]
       const asciiOnly =
         /^[\x20-\x7e]*$/.test(full) && /^[\x20-\x7e]*$/.test(imeSent);
       if (asciiOnly && bs > 1) {
@@ -1255,14 +1163,8 @@ export function Terminal({
           return false;
         }
       }
-      // [진단 #100] 특수키(Backspace/Enter/Space/방향키 등) keydown 기록 — 백스페이스가
-      // 어떤 key/keyCode/isComposing/imeActive로 들어오는지(스페이스로 둔갑하는지) 본다.
-      if (isMacWebView && (e.key.length !== 1 || e.key === " ")) {
-        const tag = `${e.key}/${e.keyCode}${e.isComposing ? "/c" : ""}${imeActive ? "/A" : ""}`;
-        if (kdRing.length >= 30) kdRing.shift();
-        kdRing.push(tag);
-        scheduleImeDiag();
-      }
+      // 특수키(Backspace/Enter/Space/방향키 등)도 로컬 IME 카운터 누적을 깨운다.
+      if (isMacWebView && (e.key.length !== 1 || e.key === " ")) scheduleImeDiag();
       // 세션이 죽었으면(절전 후 SSH 단절·셸 종료) Enter로 제자리 재접속 (#96).
       // 재접속 시 onSshConnected가 다시 발화하므로 호스트 tmux 자동 attach도 복원된다.
       if (sessionDead && e.key === "Enter") {
@@ -1723,7 +1625,6 @@ export function Terminal({
           if (!sessionId || payload.session_id !== sessionId) return;
           const bytes = base64ToBytes(payload.data_b64);
           term.write(bytes);
-          echoPush(bytes);
           loggerRef.current?.append(bytes);
           // 비밀번호 프롬프트 감지(#118): 출력 꼬리를 유지하며 마지막 줄이 비밀번호 프롬프트면
           // 다음 입력 라인을 비밀번호로 보고 히스토리/제안에서 제외한다.

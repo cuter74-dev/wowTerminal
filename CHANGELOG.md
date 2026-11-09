@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Privacy: error reports no longer include what you type or what's on screen.** On macOS, a leftover input (IME) diagnostic sent up to 4 reports per app run to the project's error tracker (GlitchTip) with recently typed input — which could include a password typed at a `sudo`/`ssh` prompt — a few lines of terminal text and recent output. It is removed. Error reports also no longer carry the computer's name (on iOS, the device name), breadcrumbs (console messages, clicks), or paths, addresses and account names inside error messages. (#177)
+
 ## [0.21.5] — 2026-11-09
 
 ### Fixed
