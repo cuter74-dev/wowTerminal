@@ -58,6 +58,9 @@ an SSH host manager, and a dual-pane SFTP file browser, in one fast desktop app.
     (the live session and screen are handed over).
   - **Session restore** — on restart the previous tabs reopen: layout, local shells in their
     previous working directory, SSH tabs reconnecting, tmux panes re-attaching.
+
+    <img src="docs/media/demo-restart-session.gif" alt="Quitting and relaunching wowTerminal: the tmux job keeps counting and the tabs come back" width="720" />
+
   - **tmux integration** — per-host auto-attach on SSH connect, a `⌘K` tmux session picker
     (local or remote, with attach/switch/create), and tab titles that follow the session.
   - Dead-session detection — if the connection drops (e.g. after sleep), the tab says so
