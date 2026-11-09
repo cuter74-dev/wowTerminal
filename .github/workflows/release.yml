@@ -142,31 +142,66 @@ jobs:
             gh release upload "${{ github.ref_name }}" "$DMG" --clobber
           fi
 
-  # Windows 자동 업데이트를 NSIS(-setup.exe)로 강제한다.
-  # tauri-action이 만든 latest.json의 windows-x86_64가 기본적으로 MSI를 가리키는데,
-  # MSI는 기존 NSIS 설치 위에 제자리 업그레이드가 안 돼(별도 설치돼 구버전이 남음)
-  # 자동 업데이트가 무한 반복된다. windows-x86_64를 windows-x86_64-nsis로 덮어쓴다.
-  finalize-windows-updater:
+  # 자동 업데이트 목록(latest.json)을 올라간 서명 파일로 다시 만든다 (#176).
+  # publish-tauri의 네 작업이 각자 latest.json을 받아 자기 플랫폼을 더해 다시 올리므로, 거의
+  # 동시에 끝나면 서로 덮어써 플랫폼이 빠진다(v0.21.5: 리눅스 4개만 남음 → macOS·Windows에
+  # 업데이트가 안 뜸). 모든 빌드가 끝난 뒤 .sig 파일로 11개 항목을 전부 다시 쓰고, 빠진 서명이
+  # 있으면 실패시켜 깨진 목록이 조용히 나가지 않게 한다.
+  # Windows는 NSIS(-setup.exe)로 강제한다 — tauri-action의 windows-x86_64는 기본으로 MSI를
+  # 가리키는데, MSI는 기존 NSIS 설치 위에 제자리 업그레이드가 안 돼(별도 설치돼 구버전이 남음)
+  # 자동 업데이트가 무한 반복된다.
+  finalize-updater-json:
     needs: publish-tauri
     runs-on: ubuntu-22.04
     permissions:
       contents: write
     steps:
-      - name: Point latest.json windows-x86_64 at the NSIS installer
+      - name: Rebuild latest.json from the uploaded signatures
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+          REPO: ${{ github.repository }}
         run: |
           set -e
-          gh release download "${{ github.ref_name }}" -R "${{ github.repository }}" -p latest.json -O latest.json --clobber
+          mkdir -p updater && cd updater
+          gh release download "$TAG" -R "$REPO" -p latest.json -O latest.json --clobber || echo '{}' > latest.json
+          gh release download "$TAG" -R "$REPO" -p '*.sig' --clobber
           python3 - <<'PY'
-          import json
-          d = json.load(open("latest.json"))
-          p = d.get("platforms", {})
-          if "windows-x86_64-nsis" in p:
-              p["windows-x86_64"] = dict(p["windows-x86_64-nsis"])
-              json.dump(d, open("latest.json", "w"), indent=2, ensure_ascii=False)
-              print("patched windows-x86_64 ->", p["windows-x86_64"]["url"].split("/")[-1])
-          else:
-              print("no nsis entry; left as-is")
+          import datetime, json, os, sys
+          tag, repo = os.environ["TAG"], os.environ["REPO"]
+          v = tag.lstrip("v")
+          names = {
+              "darwin-aarch64": "wowTerminal_aarch64.app.tar.gz",
+              "darwin-aarch64-app": "wowTerminal_aarch64.app.tar.gz",
+              "darwin-x86_64": "wowTerminal_x64.app.tar.gz",
+              "darwin-x86_64-app": "wowTerminal_x64.app.tar.gz",
+              "linux-x86_64": f"wowTerminal_{v}_amd64.AppImage",
+              "linux-x86_64-appimage": f"wowTerminal_{v}_amd64.AppImage",
+              "linux-x86_64-deb": f"wowTerminal_{v}_amd64.deb",
+              "linux-x86_64-rpm": f"wowTerminal-{v}-1.x86_64.rpm",
+              "windows-x86_64": f"wowTerminal_{v}_x64-setup.exe",
+              "windows-x86_64-msi": f"wowTerminal_{v}_x64_en-US.msi",
+              "windows-x86_64-nsis": f"wowTerminal_{v}_x64-setup.exe",
+          }
+          old = json.load(open("latest.json"))
+          missing = [n for n in sorted(set(names.values())) if not os.path.exists(n + ".sig")]
+          if missing:
+              sys.exit("missing signatures: " + ", ".join(missing))
+          out = {
+              "version": old.get("version") or v,
+              "notes": old.get("notes", ""),
+              "pub_date": old.get("pub_date")
+              or datetime.datetime.now(datetime.timezone.utc).isoformat().replace("+00:00", "Z"),
+              "platforms": {
+                  k: {
+                      "signature": open(n + ".sig").read().strip(),
+                      "url": f"https://github.com/{repo}/releases/latest/download/{n}",
+                  }
+                  for k, n in names.items()
+              },
+          }
+          before = sorted(old.get("platforms", {}))
+          json.dump(out, open("latest.json", "w"), indent=2, ensure_ascii=False)
+          print(f"latest.json: {len(before)} -> {len(out['platforms'])} platforms")
           PY
-          gh release upload "${{ github.ref_name }}" -R "${{ github.repository }}" latest.json --clobber
+          gh release upload "$TAG" -R "$REPO" latest.json --clobber
