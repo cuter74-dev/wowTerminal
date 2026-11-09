@@ -9,6 +9,7 @@ import {
 } from "@tauri-apps/api/path";
 import { LangDict, useT } from "../i18n";
 import { loadSettings } from "../settings";
+import { isMobile } from "../platform";
 import { Eol, toFileEol } from "../eol";
 import { FileEntry, Listing, SearchHit } from "../types";
 
@@ -45,6 +46,7 @@ const STR: LangDict<{
     ctxPreview: string;
     ctxDownload: string;
     ctxDownloadTo: string;
+    noFolderPicker: string;
     ctxRename: string;
     ctxProps: string;
     ctxDelete: string;
@@ -124,6 +126,7 @@ const STR: LangDict<{
     ctxPreview: "Preview",
     ctxDownload: "← Download",
     ctxDownloadTo: "← Download to…",
+    noFolderPicker: "Choosing a folder isn't available on this device.",
     ctxRename: "Rename",
     ctxProps: "Properties/Permissions",
     ctxDelete: "Delete",
@@ -203,6 +206,7 @@ const STR: LangDict<{
     ctxPreview: "미리보기",
     ctxDownload: "← 다운로드",
     ctxDownloadTo: "← 폴더 지정 다운로드…",
+    noFolderPicker: "이 기기에서는 폴더를 고를 수 없습니다.",
     ctxRename: "이름 변경",
     ctxProps: "속성/권한",
     ctxDelete: "삭제",
@@ -282,6 +286,7 @@ const STR: LangDict<{
     ctxPreview: "Vista previa",
     ctxDownload: "← Descargar",
     ctxDownloadTo: "← Descargar en…",
+    noFolderPicker: "No se puede elegir una carpeta en este dispositivo.",
     ctxRename: "Renombrar",
     ctxProps: "Propiedades/Permisos",
     ctxDelete: "Eliminar",
@@ -361,6 +366,7 @@ const STR: LangDict<{
     ctxPreview: "预览",
     ctxDownload: "← 下载",
     ctxDownloadTo: "← 下载到…",
+    noFolderPicker: "此设备无法选择文件夹。",
     ctxRename: "重命名",
     ctxProps: "属性/权限",
     ctxDelete: "删除",
@@ -440,6 +446,7 @@ const STR: LangDict<{
     ctxPreview: "プレビュー",
     ctxDownload: "← ダウンロード",
     ctxDownloadTo: "← 保存先を指定…",
+    noFolderPicker: "この端末ではフォルダーを選べません。",
     ctxRename: "名前変更",
     ctxProps: "プロパティ/権限",
     ctxDelete: "削除",
@@ -519,6 +526,7 @@ const STR: LangDict<{
     ctxPreview: "Предпросмотр",
     ctxDownload: "← Скачать",
     ctxDownloadTo: "← Скачать в…",
+    noFolderPicker: "На этом устройстве нельзя выбрать папку.",
     ctxRename: "Переименовать",
     ctxProps: "Свойства/Права",
     ctxDelete: "Удалить",
@@ -598,6 +606,7 @@ const STR: LangDict<{
     ctxPreview: "Aperçu",
     ctxDownload: "← Télécharger",
     ctxDownloadTo: "← Télécharger vers…",
+    noFolderPicker: "Impossible de choisir un dossier sur cet appareil.",
     ctxRename: "Renommer",
     ctxProps: "Propriétés/Permissions",
     ctxDelete: "Supprimer",
@@ -677,6 +686,7 @@ const STR: LangDict<{
     ctxPreview: "Vorschau",
     ctxDownload: "← Herunterladen",
     ctxDownloadTo: "← Herunterladen nach…",
+    noFolderPicker: "Auf diesem Gerät kann kein Ordner gewählt werden.",
     ctxRename: "Umbenennen",
     ctxProps: "Eigenschaften/Berechtigungen",
     ctxDelete: "Löschen",
@@ -756,6 +766,7 @@ const STR: LangDict<{
     ctxPreview: "Xem trước",
     ctxDownload: "← Tải xuống",
     ctxDownloadTo: "← Tải xuống vào…",
+    noFolderPicker: "Không thể chọn thư mục trên thiết bị này.",
     ctxRename: "Đổi tên",
     ctxProps: "Thuộc tính/Quyền",
     ctxDelete: "Xóa",
@@ -835,6 +846,7 @@ const STR: LangDict<{
     ctxPreview: "Pratinjau",
     ctxDownload: "← Unduh",
     ctxDownloadTo: "← Unduh ke…",
+    noFolderPicker: "Tidak bisa memilih folder di perangkat ini.",
     ctxRename: "Ganti nama",
     ctxProps: "Properti/Izin",
     ctxDelete: "Hapus",
@@ -914,6 +926,7 @@ const STR: LangDict<{
     ctxPreview: "पूर्वावलोकन",
     ctxDownload: "← डाउनलोड",
     ctxDownloadTo: "← यहाँ डाउनलोड करें…",
+    noFolderPicker: "इस डिवाइस पर फ़ोल्डर नहीं चुना जा सकता।",
     ctxRename: "नाम बदलें",
     ctxProps: "गुण/अनुमतियां",
     ctxDelete: "हटाएं",
@@ -1635,11 +1648,17 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
       }
     }
     if (askDir || !dir) {
-      const picked = await openDialog({
-        directory: true,
-        multiple: false,
-        defaultPath: dir || undefined,
-      });
+      // 폴더 선택은 데스크톱에서만 된다 — 모바일은 "Folder picker is not implemented on
+      // mobile"로 실패한다(#179). 실패는 안내로 돌리고 처리되지 않은 오류로 남기지 않는다.
+      let picked: string | string[] | null = null;
+      try {
+        picked = isMobile
+          ? null
+          : await openDialog({ directory: true, multiple: false, defaultPath: dir || undefined });
+      } catch {
+        picked = null;
+      }
+      if (isMobile) setError(t.noFolderPicker);
       if (typeof picked !== "string") return;
       dir = picked;
     }
@@ -2240,7 +2259,8 @@ function ContextMenu({
   if (side === "remote") {
     items.push({ label: t.ctxPreview, action: onPreview, disabled: entry.is_dir });
     items.push({ label: t.ctxDownload, action: onDownload });
-    items.push({ label: t.ctxDownloadTo, action: onDownloadTo });
+    // 폴더 지정은 데스크톱 전용(#179).
+    if (!isMobile) items.push({ label: t.ctxDownloadTo, action: onDownloadTo });
     items.push({ label: t.ctxRename, action: onRename });
     items.push({ label: t.ctxProps, action: onProps });
     items.push({ label: t.ctxDelete, action: onDelete });

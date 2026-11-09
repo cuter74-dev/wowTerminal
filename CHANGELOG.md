@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **iOS/Android: "Choose…" folder buttons and "Download to…" did nothing.** Choosing a folder isn't available on mobile, so these are no longer shown there (the download folder is set automatically), and a failed folder picker no longer ends up as an unreported error. (#179)
+
 ## [0.21.7] — 2026-11-09
 
 ### Added

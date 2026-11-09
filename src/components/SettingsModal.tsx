@@ -975,26 +975,25 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                     onChange={(e) => patchGeneral({ downloadDir: e.target.value })}
                     style={{ ...inputStyle, flex: 1 }}
                   />
-                  <button
-                    onClick={async () => {
-                      const dir = await open({
-                        directory: true,
-                        multiple: false,
-                      });
-                      if (typeof dir === "string") patchGeneral({ downloadDir: dir });
-                    }}
-                    style={{
-                      background: "#2a2a2e",
-                      border: "1px solid #444",
-                      color: "#ddd",
-                      borderRadius: 4,
-                      padding: "0 10px",
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    {t.chooseDir}
-                  </button>
+                  {!isMobile && (
+                    <button
+                      onClick={async () => {
+                        const dir = await pickFolder();
+                        if (dir) patchGeneral({ downloadDir: dir });
+                      }}
+                      style={{
+                        background: "#2a2a2e",
+                        border: "1px solid #444",
+                        color: "#ddd",
+                        borderRadius: 4,
+                        padding: "0 10px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {t.chooseDir}
+                    </button>
+                  )}
                 </div>
               </Row>
 
@@ -1150,23 +1149,25 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                     onChange={(e) => patchTerminal({ startDir: e.target.value })}
                     style={{ ...inputStyle, flex: 1 }}
                   />
-                  <button
-                    onClick={async () => {
-                      const dir = await open({ directory: true, multiple: false });
-                      if (typeof dir === "string") patchTerminal({ startDir: dir });
-                    }}
-                    style={{
-                      background: "#2a2a2e",
-                      border: "1px solid #444",
-                      color: "#ddd",
-                      borderRadius: 4,
-                      padding: "0 10px",
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    …
-                  </button>
+                  {!isMobile && (
+                    <button
+                      onClick={async () => {
+                        const dir = await pickFolder();
+                        if (dir) patchTerminal({ startDir: dir });
+                      }}
+                      style={{
+                        background: "#2a2a2e",
+                        border: "1px solid #444",
+                        color: "#ddd",
+                        borderRadius: 4,
+                        padding: "0 10px",
+                        cursor: "pointer",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      …
+                    </button>
+                  )}
                 </div>
               </Row>
               <Row label={t.altScreenWheelScroll}>
@@ -1195,26 +1196,25 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                       onChange={(e) => patchTerminal({ logDir: e.target.value })}
                       style={{ ...inputStyle, flex: 1 }}
                     />
-                    <button
-                      onClick={async () => {
-                        const dir = await open({
-                          directory: true,
-                          multiple: false,
-                        });
-                        if (typeof dir === "string") patchTerminal({ logDir: dir });
-                      }}
-                      style={{
-                        background: "#2a2a2e",
-                        border: "1px solid #444",
-                        color: "#ddd",
-                        borderRadius: 4,
-                        padding: "0 10px",
-                        cursor: "pointer",
-                        whiteSpace: "nowrap",
-                      }}
-                    >
-                      {t.chooseDir}
-                    </button>
+                    {!isMobile && (
+                      <button
+                        onClick={async () => {
+                          const dir = await pickFolder();
+                          if (dir) patchTerminal({ logDir: dir });
+                        }}
+                        style={{
+                          background: "#2a2a2e",
+                          border: "1px solid #444",
+                          color: "#ddd",
+                          borderRadius: 4,
+                          padding: "0 10px",
+                          cursor: "pointer",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {t.chooseDir}
+                      </button>
+                    )}
                   </div>
                 </Row>
               )}
@@ -1731,6 +1731,18 @@ function SnippetsTab() {
 
 function Section({ children }: { children: React.ReactNode }) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 6 }}>{children}</div>;
+}
+
+/** 폴더 선택(데스크톱 전용 — 모바일 플러그인은 "Folder picker is not implemented on mobile"로
+ *  실패한다, #179). 취소·실패는 null. */
+async function pickFolder(): Promise<string | null> {
+  if (isMobile) return null;
+  try {
+    const dir = await open({ directory: true, multiple: false });
+    return typeof dir === "string" ? dir : null;
+  } catch {
+    return null;
+  }
 }
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
