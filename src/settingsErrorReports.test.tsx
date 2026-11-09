@@ -38,7 +38,7 @@ it("스위치를 끄면 설정이 바뀌고 백엔드에 끔이 간다", async (
   expect(container.textContent).toContain("It never sends what you type");
   await act(async () => box.click());
   await act(async () => {});
-  expect(changes.at(-1)?.general.errorReports).toBe(false);
+  expect(changes[changes.length - 1]?.general.errorReports).toBe(false);
   expect(backend).toContain(false);
   await act(async () => root.unmount());
   container.remove();
