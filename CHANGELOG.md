@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.5] — 2026-11-09
+
 ### Fixed
 - **Stray text like `^[[?1;2c` was typed into the running program after the app restarted or updated.** When a tab re-attached to its still-running session, the terminal replayed the old output — including queries a program such as tmux had sent at startup — and sent the answers again, into whatever was running (a tmux pane, an editor, a Claude Code prompt). Replayed output is no longer answered; live queries still are. (#174)
 
@@ -614,7 +616,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.4...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.5...HEAD
+[0.21.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.4...v0.21.5
 [0.21.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.3...v0.21.4
 [0.21.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.2...v0.21.3
 [0.21.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.1...v0.21.2
