@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.7] — 2026-11-09
+
 ### Added
 - **Settings → General → "Send error reports"** (on by default). Turning it off stops everything the app sends to the developer's error tracker (GlitchTip) — error reports and the anonymous signal sent at launch — right away and on later launches. The setting explains what is sent and what never is (what you type, the screen, command output, AI conversations). (#178)
 
@@ -624,7 +626,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.6...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.7...HEAD
+[0.21.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.6...v0.21.7
 [0.21.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.5...v0.21.6
 [0.21.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.4...v0.21.5
 [0.21.4]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.3...v0.21.4
