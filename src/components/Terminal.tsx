@@ -591,6 +591,16 @@ export function Terminal({
       restoreSessionId,
     );
     let sessionId: string | null = null;
+    // (#174) 다시 붙을 때 재생하는 옛 출력에는 프로그램이 예전에 보낸 터미널 질의(예: tmux 시작 때의
+    // 장치 속성 질의 ESC[c, ESC[>c)가 들어 있다. xterm이 그 질의에 다시 답하면 onData가 답을 살아
+    // 있는 세션에 보내 실행 중인 프로그램에 입력된다. 재생분을 해석하는 동안에는 보내지 않는다.
+    let replaying = 0;
+    const replay = (data: string | Uint8Array) => {
+      replaying++;
+      term.write(data, () => {
+        replaying--;
+      });
+    };
     let unlistenOutput: UnlistenFn | null = null;
     // OSC 7로 추적하는 셸 현재 작업 디렉토리 (파일 브라우저 시작 위치용).
     let currentCwd: string | null = null;
@@ -971,6 +981,7 @@ export function Terminal({
 
     const onDataDisposable = term.onData((rawData) => {
       if (!sessionId) return;
+      if (replaying > 0) return; // 재생한 옛 질의에 대한 응답 (#174)
       // IME 미러 세션 중에는 xterm이 비동기로 보내는 (깨진) 데이터를 무시한다.
       // 한글 입력은 아래 textarea input 미러만 PTY로 보낸다.
       if (imeActive) return;
@@ -1642,7 +1653,7 @@ export function Terminal({
         if (restoreSessionId && sessionId === restoreSessionId) {
           try {
             const b64 = await invoke<string>("session_history", { sessionId });
-            if (b64) term.write(base64ToBytes(b64));
+            if (b64) replay(base64ToBytes(b64));
           } catch {
             /* 히스토리 실패는 치명적이지 않다 — 빈 화면에서 계속 */
           }
@@ -1740,12 +1751,12 @@ export function Terminal({
               sessionId: attachSessionId,
             });
             if (b64) {
-              term.write(base64ToBytes(b64));
+              replay(base64ToBytes(b64));
               replayed = true;
             }
           } catch {}
           if (!replayed) {
-            if (attachScreen) term.write(attachScreen);
+            if (attachScreen) replay(attachScreen);
             else term.writeln(tRef.current.sessionHandover);
           }
           const finishAttach = () => {

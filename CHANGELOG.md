@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Stray text like `^[[?1;2c` was typed into the running program after the app restarted or updated.** When a tab re-attached to its still-running session, the terminal replayed the old output — including queries a program such as tmux had sent at startup — and sent the answers again, into whatever was running (a tmux pane, an editor, a Claude Code prompt). Replayed output is no longer answered; live queries still are. (#174)
+
 ## [0.21.4] — 2026-11-08
 
 ### Fixed
