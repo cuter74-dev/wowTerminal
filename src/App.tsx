@@ -12,7 +12,7 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { onCommandDone, onTitleChange } from "./commandBus";
+import { onAiActivity, onCommandDone, onTitleChange } from "./commandBus";
 import { getHistory } from "./commandHistory";
 import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
@@ -149,6 +149,7 @@ const STR: LangDict<{
     aiExpand: string;
     aiCollapse: string;
     resizeWidth: string;
+    aiDone: string;
   }
 > = {
   en: {
@@ -167,6 +168,7 @@ const STR: LangDict<{
     aiExpand: "Expand AI panel",
     aiCollapse: "Collapse AI panel",
     resizeWidth: "Drag to resize width",
+    aiDone: "AI finished — waiting for you",
   },
   ko: {
     localShell: "로컬 셸",
@@ -184,6 +186,7 @@ const STR: LangDict<{
     aiExpand: "AI 패널 펴기",
     aiCollapse: "AI 패널 접기",
     resizeWidth: "너비 조절 (드래그)",
+    aiDone: "AI 작업이 끝났습니다 — 확인해 주세요",
   },
   es: {
     localShell: "Shell local",
@@ -201,6 +204,7 @@ const STR: LangDict<{
     aiExpand: "Expandir panel de IA",
     aiCollapse: "Contraer panel de IA",
     resizeWidth: "Arrastra para ajustar el ancho",
+    aiDone: "La IA terminó — te espera",
   },
   zh: {
     localShell: "本地终端",
@@ -218,6 +222,7 @@ const STR: LangDict<{
     aiExpand: "展开 AI 面板",
     aiCollapse: "收起 AI 面板",
     resizeWidth: "拖动以调整宽度",
+    aiDone: "AI 已完成 — 等待你的操作",
   },
   ja: {
     localShell: "ローカルシェル",
@@ -235,6 +240,7 @@ const STR: LangDict<{
     aiExpand: "AI パネルを開く",
     aiCollapse: "AI パネルを閉じる",
     resizeWidth: "ドラッグして幅を調整",
+    aiDone: "AI の作業が終わりました — 確認してください",
   },
   ru: {
     localShell: "Локальная оболочка",
@@ -252,6 +258,7 @@ const STR: LangDict<{
     aiExpand: "Развернуть панель ИИ",
     aiCollapse: "Свернуть панель ИИ",
     resizeWidth: "Перетащите, чтобы изменить ширину",
+    aiDone: "ИИ закончил — ждёт вас",
   },
   fr: {
     localShell: "Shell local",
@@ -269,6 +276,7 @@ const STR: LangDict<{
     aiExpand: "Développer le panneau IA",
     aiCollapse: "Réduire le panneau IA",
     resizeWidth: "Faites glisser pour ajuster la largeur",
+    aiDone: "L'IA a terminé — elle vous attend",
   },
   de: {
     localShell: "Lokale Shell",
@@ -286,6 +294,7 @@ const STR: LangDict<{
     aiExpand: "KI-Panel ausklappen",
     aiCollapse: "KI-Panel einklappen",
     resizeWidth: "Zum Anpassen der Breite ziehen",
+    aiDone: "KI ist fertig — wartet auf dich",
   },
   vi: {
     localShell: "Shell cục bộ",
@@ -303,6 +312,7 @@ const STR: LangDict<{
     aiExpand: "Mở rộng bảng AI",
     aiCollapse: "Thu gọn bảng AI",
     resizeWidth: "Kéo để chỉnh chiều rộng",
+    aiDone: "AI đã xong — đang chờ bạn",
   },
   id: {
     localShell: "Shell lokal",
@@ -320,6 +330,7 @@ const STR: LangDict<{
     aiExpand: "Perluas panel AI",
     aiCollapse: "Ciutkan panel AI",
     resizeWidth: "Seret untuk mengubah lebar",
+    aiDone: "AI selesai — menunggu Anda",
   },
   hi: {
     localShell: "लोकल शेल",
@@ -337,6 +348,7 @@ const STR: LangDict<{
     aiExpand: "AI पैनल विस्तृत करें",
     aiCollapse: "AI पैनल संक्षिप्त करें",
     resizeWidth: "चौड़ाई बदलने के लिए खींचें",
+    aiDone: "AI ने काम पूरा किया — आपकी प्रतीक्षा है",
   },
 };
 
@@ -1085,6 +1097,47 @@ function App() {
     });
     return off;
   }, []);
+
+  // AI 에이전트 작업 표시 (#180): Terminal이 화면으로 판정해 버스로 알린다. 일하는 패널이 있는
+  // 탭엔 회전 표시, 앞에 없는 탭에서 끝나면 알림 점 + 데스크톱 알림(긴 명령 완료와 같은 길).
+  const [aiWorkingPanes, setAiWorkingPanes] = useState<Set<string>>(() => new Set());
+  const aiDoneTextRef = useRef(tr.aiDone);
+  aiDoneTextRef.current = tr.aiDone;
+  useEffect(() => {
+    return onAiActivity(({ paneId, working }) => {
+      if (!paneId) return;
+      setAiWorkingPanes((prev) => {
+        if (prev.has(paneId) === working) return prev;
+        const n = new Set(prev);
+        if (working) n.add(paneId);
+        else n.delete(paneId);
+        return n;
+      });
+      if (working) return;
+      const tab = tabsRef.current.find((t) => findLeaf(t.root, paneId));
+      if (!tab) return; // 닫힌 패널
+      if (tab.id === activeTabIdRef.current && document.hasFocus()) return;
+      setTabAlerts((prev) => new Set(prev).add(tab.id));
+      if (IS_DETACHED_WINDOW) return;
+      void (async () => {
+        if (!(await isPermissionGranted())) return;
+        sendNotification({ title: tab.label || "wowTerminal", body: aiDoneTextRef.current });
+      })();
+    });
+  }, []);
+  const aiWorkingTabIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (aiWorkingPanes.size === 0) return ids;
+    for (const t of tabs) {
+      for (const p of aiWorkingPanes) {
+        if (findLeaf(t.root, p)) {
+          ids.add(t.id);
+          break;
+        }
+      }
+    }
+    return ids;
+  }, [tabs, aiWorkingPanes]);
 
   // 탭이 활성화되면 그 탭의 알림 배지를 지운다.
   useEffect(() => {
@@ -2269,6 +2322,7 @@ function App() {
         tabs={tabs}
         activeTabId={activeFileId ? null : activeTabId}
         alertedTabIds={tabAlerts}
+        aiWorkingTabIds={aiWorkingTabIds}
         editingTabId={editingTabId}
         onActivate={activateTerminalTab}
         onActivateByKey={(id) => {

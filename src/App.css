@@ -57,3 +57,19 @@ body.plat-mac:not(.wt-native-ime) .xterm .composition-view,
 body.plat-mac:not(.wt-native-ime) .xterm .composition-view.active {
   display: none !important;
 }
+
+/* 탭의 AI 작업 표시 (#180) — 별표가 천천히 돈다. 움직임 줄이기 설정이면 멈춰 둔다. */
+@keyframes wt-ai-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.wt-ai-working {
+  display: inline-block;
+  animation: wt-ai-spin 1.6s linear infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .wt-ai-working {
+    animation: none;
+  }
+}

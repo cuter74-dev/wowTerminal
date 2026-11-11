@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Added
+- **Tabs show when an AI agent is working.** A slowly turning ✻ appears on a tab while Claude Code, Codex or Gemini CLI is working in it (also inside tmux and over SSH — it reads the agent's own status line on screen, no setup needed). When the agent finishes in a tab you aren't looking at, the tab gets the alert dot and a desktop notification. (#180)
+
 ## [0.21.8] — 2026-11-11
 
 ### Fixed

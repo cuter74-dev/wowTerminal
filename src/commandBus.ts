@@ -37,3 +37,15 @@ export function onTitleChange(cb: TitleListener): () => void {
 export function emitTitleChange(info: TitleInfo): void {
   titleListeners.forEach((l) => l(info));
 }
+
+// --- AI 에이전트 작업 상태 버스 (#180) — Terminal(화면 판정) → App(탭 표시·완료 알림). ---
+export type AiActivityInfo = { paneId: string; working: boolean };
+type AiActivityListener = (info: AiActivityInfo) => void;
+const aiActivityListeners = new Set<AiActivityListener>();
+export function onAiActivity(cb: AiActivityListener): () => void {
+  aiActivityListeners.add(cb);
+  return () => aiActivityListeners.delete(cb);
+}
+export function emitAiActivity(info: AiActivityInfo): void {
+  aiActivityListeners.forEach((l) => l(info));
+}

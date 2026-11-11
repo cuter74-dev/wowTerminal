@@ -17,7 +17,8 @@ import {
   broadcastInput,
   isAppTeardown,
 } from "../terminalRegistry";
-import { emitCommandDone, emitTitleChange } from "../commandBus";
+import { emitCommandDone, emitTitleChange, emitAiActivity } from "../commandBus";
+import { looksWorking } from "../aiActivity";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
@@ -591,6 +592,46 @@ export function Terminal({
       });
     };
     let unlistenOutput: UnlistenFn | null = null;
+    // (#180) AI 에이전트 작업 표시 — 출력이 오면 잠시 뒤 보이는 화면에서 에이전트 상태 줄
+    // ("… esc to interrupt)" / "(esc to cancel, 3s)")을 찾는다. 일하는 중 → 끝남은 1.5초 동안 문구가 계속 없을 때만 알린다(도구 호출 사이에
+    // 상태 줄이 잠깐 사라지는 것 때문에 완료 알림이 튀지 않게).
+    let aiWorking = false;
+    let aiScanTimer = 0;
+    let aiIdleTimer = 0;
+    const aiScan = () => {
+      aiScanTimer = 0;
+      let working = false;
+      try {
+        // 보이는 화면 전체(스크롤해 올려 봐도 판정은 맨 아래 화면 기준).
+        const b = term.buffer.active;
+        const lines: string[] = [];
+        for (let i = b.baseY; i < b.baseY + term.rows; i++) {
+          lines.push(b.getLine(i)?.translateToString(true) ?? "");
+        }
+        working = looksWorking(lines);
+      } catch {
+        return;
+      }
+      if (working) {
+        if (aiIdleTimer) {
+          clearTimeout(aiIdleTimer);
+          aiIdleTimer = 0;
+        }
+        if (!aiWorking) {
+          aiWorking = true;
+          emitAiActivity({ paneId: paneId ?? "", working: true });
+        }
+      } else if (aiWorking && !aiIdleTimer) {
+        aiIdleTimer = window.setTimeout(() => {
+          aiIdleTimer = 0;
+          aiWorking = false;
+          emitAiActivity({ paneId: paneId ?? "", working: false });
+        }, 1500);
+      }
+    };
+    const scheduleAiScan = () => {
+      if (!aiScanTimer) aiScanTimer = window.setTimeout(aiScan, 300);
+    };
     // OSC 7로 추적하는 셸 현재 작업 디렉토리 (파일 브라우저 시작 위치용).
     let currentCwd: string | null = null;
     // (#152) 재접속 시 마지막 원격 위치로 복귀하기 위한 캐시. 연결이 끊기면 원격을 조회할 수
@@ -1624,7 +1665,7 @@ export function Terminal({
           // 상단에 엉뚱한 프롬프트/내용이 찍힌다. 설정 후엔 자기 세션 것만 쓴다.
           if (!sessionId || payload.session_id !== sessionId) return;
           const bytes = base64ToBytes(payload.data_b64);
-          term.write(bytes);
+          term.write(bytes, scheduleAiScan);
           loggerRef.current?.append(bytes);
           // 비밀번호 프롬프트 감지(#118): 출력 꼬리를 유지하며 마지막 줄이 비밀번호 프롬프트면
           // 다음 입력 라인을 비밀번호로 보고 히스토리/제안에서 제외한다.
@@ -1696,6 +1737,10 @@ export function Terminal({
       clearTimeout(fitT2);
       clearTimeout(imeDiagTimer); // [진단 #83]
       if (cwdProbeTimer) clearTimeout(cwdProbeTimer); // (#152)
+      clearTimeout(aiScanTimer); // (#180)
+      clearTimeout(aiIdleTimer);
+      // 패널이 사라지면 작업 표시도 내린다(완료 알림은 App이 패널이 없는 걸 보고 띄우지 않는다).
+      if (aiWorking) emitAiActivity({ paneId: paneId ?? "", working: false });
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();

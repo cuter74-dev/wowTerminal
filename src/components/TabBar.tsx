@@ -7,51 +7,63 @@ import { isMobile } from "../platform";
 const STR: LangDict<{
     closeTab: string;
     newTab: string;
+    aiWorking: string;
   }
 > = {
   en: {
     closeTab: "Close tab (Ctrl+W)",
     newTab: "New local shell tab (Ctrl+T)",
+    aiWorking: "AI is working",
   },
   ko: {
     closeTab: "탭 닫기 (Ctrl+W)",
     newTab: "새 로컬 셸 탭 (Ctrl+T)",
+    aiWorking: "AI 작업 중",
   },
   es: {
     closeTab: "Cerrar pestaña (Ctrl+W)",
     newTab: "Nueva pestaña de shell local (Ctrl+T)",
+    aiWorking: "La IA está trabajando",
   },
   zh: {
     closeTab: "关闭标签页 (Ctrl+W)",
     newTab: "新建本地 shell 标签页 (Ctrl+T)",
+    aiWorking: "AI 正在工作",
   },
   ja: {
     closeTab: "タブを閉じる (Ctrl+W)",
     newTab: "新しいローカルシェルタブ (Ctrl+T)",
+    aiWorking: "AI が作業中",
   },
   ru: {
     closeTab: "Закрыть вкладку (Ctrl+W)",
     newTab: "Новая вкладка локального shell (Ctrl+T)",
+    aiWorking: "ИИ работает",
   },
   fr: {
     closeTab: "Fermer l'onglet (Ctrl+W)",
     newTab: "Nouvel onglet shell local (Ctrl+T)",
+    aiWorking: "L'IA travaille",
   },
   de: {
     closeTab: "Tab schließen (Ctrl+W)",
     newTab: "Neuer lokaler Shell-Tab (Ctrl+T)",
+    aiWorking: "KI arbeitet",
   },
   vi: {
     closeTab: "Đóng tab (Ctrl+W)",
     newTab: "Tab shell cục bộ mới (Ctrl+T)",
+    aiWorking: "AI đang làm việc",
   },
   id: {
     closeTab: "Tutup tab (Ctrl+W)",
     newTab: "Tab shell lokal baru (Ctrl+T)",
+    aiWorking: "AI sedang bekerja",
   },
   hi: {
     closeTab: "टैब बंद करें (Ctrl+W)",
     newTab: "नया लोकल shell टैब (Ctrl+T)",
+    aiWorking: "AI काम कर रहा है",
   },
 };
 
@@ -100,6 +112,8 @@ interface Props {
   activeTabId: string | null;
   /** 백그라운드에서 긴 명령이 끝나 알림 배지를 표시할 탭 id들 (#55). */
   alertedTabIds?: Set<string>;
+  /** AI 에이전트가 일하는 중인 탭 (#180). */
+  aiWorkingTabIds?: Set<string>;
   /** 인라인 편집 중인 탭 (이름 변경). null이면 편집 중 아님. */
   editingTabId: string | null;
   onActivate: (id: string) => void;
@@ -127,6 +141,7 @@ export function TabBar({
   tabs,
   activeTabId,
   alertedTabIds,
+  aiWorkingTabIds,
   editingTabId,
   onActivate,
   onActivateByKey,
@@ -225,6 +240,7 @@ export function TabBar({
         const active = t.id === activeTabId;
         const editing = t.id === editingTabId;
         const alerted = !!alertedTabIds?.has(t.id);
+        const aiWorking = !!aiWorkingTabIds?.has(t.id);
         const split = t.root.kind === "split";
         return (
           <div
@@ -286,6 +302,16 @@ export function TabBar({
           >
             <TermChip split={split} />
             {hostOf && <HostDot hostId={hostOf(t)} />}
+            {aiWorking && (
+              <span
+                className="wt-ai-working"
+                title={tr.aiWorking}
+                aria-label={tr.aiWorking}
+                style={{ flexShrink: 0, color: "#c792ea", fontSize: 11, lineHeight: 1 }}
+              >
+                ✻
+              </span>
+            )}
             {alerted && (
               <span
                 title="command finished"
