@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.8] — 2026-11-11
+
 ### Fixed
 - **iOS/Android: "Choose…" folder buttons and "Download to…" did nothing.** Choosing a folder isn't available on mobile, so these are no longer shown there (the download folder is set automatically), and a failed folder picker no longer ends up as an unreported error. (#179)
 
@@ -629,7 +631,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.7...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.8...HEAD
+[0.21.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.7...v0.21.8
 [0.21.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.6...v0.21.7
 [0.21.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.5...v0.21.6
 [0.21.5]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.4...v0.21.5
