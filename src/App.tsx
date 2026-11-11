@@ -29,6 +29,7 @@ import { AIPanel } from "./components/AIPanel";
 import { PaneView } from "./components/PaneView";
 import { FileBrowser } from "./components/FileBrowser";
 import { FilePanel, isOverFilePanel } from "./components/FilePanel";
+import { UsageBar } from "./components/UsageBar";
 import { LeftPanel, LeftMode, loadLeftMode, saveLeftMode } from "./components/LeftPanel";
 import { UnsavedDialog } from "./components/UnsavedDialog";
 import {
@@ -2598,6 +2599,9 @@ function App() {
           </MobileSheet>
         )}
       </div>
+
+      {/* 하단 AI 사용량(#181) — 데스크톱 메인 창에서만. */}
+      <UsageBar enabled={settings.general.aiUsageBar && !isMobile && !IS_DETACHED_WINDOW} />
 
       {unsavedAsk && (
         <UnsavedDialog

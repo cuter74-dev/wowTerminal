@@ -1,6 +1,6 @@
 # Privacy Policy — wowTerminal
 
-_Last updated: 2026-11-09_
+_Last updated: 2026-11-11_
 
 wowTerminal is an SSH / SFTP client and AI assistant terminal. This policy explains what
 data the app handles. The short version: **your credentials and the servers you connect to
@@ -28,6 +28,16 @@ This data never leaves your device except to make the connections you initiate.
   choose to attach) are sent **directly to the AI provider you configured** (e.g. OpenAI, a
   self-hosted/OpenAI-compatible endpoint, or a local model). Their handling of that data is
   governed by that provider's privacy policy. The developer does not receive this data.
+
+## AI plan usage (desktop)
+
+If Claude Code, OpenAI Codex or Gemini CLI is signed in on your computer, the app shows that
+plan's usage limits at the bottom of the window (from version 0.21.9). To do this it reads the
+CLI's existing sign-in — Claude Code's macOS Keychain item or `~/.claude/.credentials.json`,
+Codex's `~/.codex/auth.json`, Gemini CLI's `~/.gemini/oauth_creds.json` — and asks **only that
+company's own usage endpoint** (Anthropic, OpenAI, Google). The sign-in is used for that request
+only: it is never stored by the app, never refreshed, and never sent to the developer or anyone
+else. You can turn this off in **Settings → General → Show AI plan usage**.
 
 ## Diagnostics sent to the developer
 

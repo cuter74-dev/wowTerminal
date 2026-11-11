@@ -303,6 +303,7 @@ pub fn run() {
             telemetry::set_error_reporting,
             greet,
             ai::commands::ai_list_backends,
+            ai::usage::ai_usage,
             ai::commands::ai_complete,
             ai::commands::ai_complete_stream,
             ai::commands::ai_list_backend_configs,

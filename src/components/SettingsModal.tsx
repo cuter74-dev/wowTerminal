@@ -65,6 +65,8 @@ const STR: LangDict<{
     downloadDir: string;
     errorReports: string;
     errorReportsDesc: string;
+    aiUsageBar: string;
+    aiUsageBarDesc: string;
     chooseDir: string;
     applyNote: string;
     readonlyNote: string;
@@ -122,6 +124,9 @@ const STR: LangDict<{
     errorReports: "Send error reports",
     errorReportsDesc:
       "When something goes wrong, the app sends the error type, the error message with paths and addresses removed, and the OS and app version to the developer's error tracker (GlitchTip), plus an anonymous signal when the app starts. It never sends what you type, the screen, command output or AI conversations.",
+    aiUsageBar: "Show AI plan usage",
+    aiUsageBarDesc:
+      "Shows Claude, OpenAI (Codex) and Gemini plan usage at the bottom of the window. It uses the login of each CLI already on this computer and asks only that company's own server; the login is never stored or sent anywhere else.",
     chooseDir: "Choose…",
     applyNote: "Applied to all terminals immediately.",
     readonlyNote: "v1 is read-only. Custom key bindings later.",
@@ -181,6 +186,9 @@ const STR: LangDict<{
     errorReports: "오류 보고 보내기",
     errorReportsDesc:
       "오류가 나면 오류 종류, 경로·주소를 가린 메시지, OS·앱 버전을 개발자의 오류 추적 서버(GlitchTip)로 보내고, 실행할 때 익명 세션 신호를 보냅니다. 입력한 내용·화면·명령 출력·AI 대화는 보내지 않습니다.",
+    aiUsageBar: "AI 사용량 표시",
+    aiUsageBarDesc:
+      "창 아래쪽에 Claude·OpenAI(Codex)·Gemini 요금제 사용량을 보여 줍니다. 이 컴퓨터에 이미 로그인된 각 CLI의 로그인 정보로 그 회사 서버에만 묻고, 로그인 정보는 저장하거나 다른 곳에 보내지 않습니다.",
     chooseDir: "선택…",
     applyNote: "변경 즉시 모든 터미널에 적용됩니다.",
     readonlyNote: "v1은 읽기 전용입니다. 사용자 정의 키 바인딩은 후속.",
@@ -240,6 +248,9 @@ const STR: LangDict<{
     errorReports: "Enviar informes de errores",
     errorReportsDesc:
       "Cuando algo falla, la app envía al servidor de errores del desarrollador (GlitchTip) el tipo de error, el mensaje sin rutas ni direcciones y la versión del sistema y de la app, además de una señal anónima al iniciar. Nunca envía lo que escribes, la pantalla, la salida de comandos ni las conversaciones con la IA.",
+    aiUsageBar: "Mostrar el uso del plan de IA",
+    aiUsageBarDesc:
+      "Muestra el uso de los planes de Claude, OpenAI (Codex) y Gemini en la parte inferior. Usa el inicio de sesión de cada CLI que ya está en este equipo y solo consulta el servidor de esa empresa; nunca se guarda ni se envía a otro sitio.",
     chooseDir: "Elegir…",
     applyNote: "Aplicado a todas las terminales de inmediato.",
     readonlyNote: "v1 es de solo lectura. Atajos personalizados más adelante.",
@@ -299,6 +310,9 @@ const STR: LangDict<{
     errorReports: "发送错误报告",
     errorReportsDesc:
       "出错时，应用会把错误类型、去除路径和地址后的错误信息、操作系统和应用版本发送到开发者的错误跟踪服务器（GlitchTip），并在启动时发送一个匿名会话信号。绝不发送你输入的内容、屏幕内容、命令输出或 AI 对话。",
+    aiUsageBar: "显示 AI 套餐用量",
+    aiUsageBarDesc:
+      "在窗口底部显示 Claude、OpenAI（Codex）和 Gemini 的套餐用量。它使用本机上各 CLI 已有的登录信息，只向该公司自己的服务器查询；登录信息不会被保存或发送到别处。",
     chooseDir: "选择…",
     applyNote: "立即应用到所有终端。",
     readonlyNote: "v1 为只读。自定义按键绑定稍后推出。",
@@ -358,6 +372,9 @@ const STR: LangDict<{
     errorReports: "エラーレポートを送信",
     errorReportsDesc:
       "問題が起きると、エラーの種類、パスやアドレスを伏せたメッセージ、OS とアプリのバージョンを開発者のエラー追跡サーバー（GlitchTip）に送り、起動時に匿名のセッション信号を送ります。入力内容・画面・コマンド出力・AI との会話は送りません。",
+    aiUsageBar: "AI プランの使用量を表示",
+    aiUsageBarDesc:
+      "ウィンドウ下部に Claude・OpenAI（Codex）・Gemini のプラン使用量を表示します。このコンピューターに既にある各 CLI のログインを使い、その会社のサーバーにだけ問い合わせます。ログイン情報は保存も他所への送信もしません。",
     chooseDir: "選択…",
     applyNote: "すべてのターミナルに即座に適用されます。",
     readonlyNote: "v1 は読み取り専用です。カスタムキーバインドは後日。",
@@ -417,6 +434,9 @@ const STR: LangDict<{
     errorReports: "Отправлять отчёты об ошибках",
     errorReportsDesc:
       "При сбое приложение отправляет на сервер отслеживания ошибок разработчика (GlitchTip) тип ошибки, сообщение без путей и адресов, версии ОС и приложения, а при запуске — анонимный сигнал сеанса. Оно никогда не отправляет то, что вы вводите, содержимое экрана, вывод команд или разговоры с ИИ.",
+    aiUsageBar: "Показывать использование тарифов ИИ",
+    aiUsageBarDesc:
+      "Показывает использование тарифов Claude, OpenAI (Codex) и Gemini внизу окна. Использует уже имеющийся на этом компьютере вход каждой CLI и обращается только к серверу этой компании; данные входа не сохраняются и никуда больше не отправляются.",
     chooseDir: "Выбрать…",
     applyNote: "Применяется ко всем терминалам мгновенно.",
     readonlyNote: "v1 только для чтения. Пользовательские сочетания клавиш позже.",
@@ -476,6 +496,9 @@ const STR: LangDict<{
     errorReports: "Envoyer les rapports d'erreur",
     errorReportsDesc:
       "En cas de problème, l'application envoie au serveur de suivi des erreurs du développeur (GlitchTip) le type d'erreur, le message sans chemins ni adresses, et les versions du système et de l'app, ainsi qu'un signal anonyme au démarrage. Elle n'envoie jamais ce que vous tapez, l'écran, la sortie des commandes ni les conversations avec l'IA.",
+    aiUsageBar: "Afficher l'utilisation des forfaits IA",
+    aiUsageBarDesc:
+      "Affiche l'utilisation des forfaits Claude, OpenAI (Codex) et Gemini en bas de la fenêtre. Utilise la connexion de chaque CLI déjà présente sur cet ordinateur et n'interroge que le serveur de l'éditeur ; elle n'est jamais enregistrée ni envoyée ailleurs.",
     chooseDir: "Choisir…",
     applyNote: "Appliqué immédiatement à tous les terminaux.",
     readonlyNote: "v1 est en lecture seule. Raccourcis personnalisés plus tard.",
@@ -535,6 +558,9 @@ const STR: LangDict<{
     errorReports: "Fehlerberichte senden",
     errorReportsDesc:
       "Wenn etwas schiefgeht, sendet die App den Fehlertyp, die Fehlermeldung ohne Pfade und Adressen sowie System- und App-Version an den Fehler-Tracker des Entwicklers (GlitchTip) und beim Start ein anonymes Sitzungssignal. Eingaben, Bildschirminhalt, Befehlsausgaben und KI-Unterhaltungen werden nie gesendet.",
+    aiUsageBar: "KI-Tarifnutzung anzeigen",
+    aiUsageBarDesc:
+      "Zeigt die Tarifnutzung von Claude, OpenAI (Codex) und Gemini unten im Fenster. Nutzt die vorhandene Anmeldung der jeweiligen CLI auf diesem Computer und fragt nur den Server dieses Anbieters; die Anmeldung wird nie gespeichert oder anderswohin gesendet.",
     chooseDir: "Wählen…",
     applyNote: "Wird sofort auf alle Terminals angewendet.",
     readonlyNote: "v1 ist schreibgeschützt. Benutzerdefinierte Tastenbelegungen später.",
@@ -594,6 +620,9 @@ const STR: LangDict<{
     errorReports: "Gửi báo cáo lỗi",
     errorReportsDesc:
       "Khi có lỗi, ứng dụng gửi loại lỗi, thông báo lỗi đã ẩn đường dẫn và địa chỉ, phiên bản hệ điều hành và ứng dụng đến máy chủ theo dõi lỗi của nhà phát triển (GlitchTip), kèm một tín hiệu phiên ẩn danh khi khởi động. Ứng dụng không bao giờ gửi những gì bạn gõ, nội dung màn hình, đầu ra lệnh hay cuộc trò chuyện với AI.",
+    aiUsageBar: "Hiện mức dùng gói AI",
+    aiUsageBarDesc:
+      "Hiện mức dùng gói Claude, OpenAI (Codex) và Gemini ở cuối cửa sổ. Dùng thông tin đăng nhập có sẵn của từng CLI trên máy này và chỉ hỏi máy chủ của chính công ty đó; thông tin đăng nhập không bao giờ được lưu hay gửi đi nơi khác.",
     chooseDir: "Chọn…",
     applyNote: "Áp dụng ngay cho tất cả các terminal.",
     readonlyNote: "v1 chỉ đọc. Tùy chỉnh phím tắt sẽ có sau.",
@@ -653,6 +682,9 @@ const STR: LangDict<{
     errorReports: "Kirim laporan galat",
     errorReportsDesc:
       "Saat terjadi masalah, aplikasi mengirim jenis galat, pesan galat tanpa jalur dan alamat, serta versi OS dan aplikasi ke server pelacak galat pengembang (GlitchTip), ditambah sinyal sesi anonim saat aplikasi dimulai. Aplikasi tidak pernah mengirim apa yang Anda ketik, isi layar, keluaran perintah, atau percakapan AI.",
+    aiUsageBar: "Tampilkan pemakaian paket AI",
+    aiUsageBarDesc:
+      "Menampilkan pemakaian paket Claude, OpenAI (Codex), dan Gemini di bagian bawah jendela. Memakai login tiap CLI yang sudah ada di komputer ini dan hanya bertanya ke server perusahaan tersebut; login tidak pernah disimpan atau dikirim ke tempat lain.",
     chooseDir: "Pilih…",
     applyNote: "Diterapkan ke semua terminal segera.",
     readonlyNote: "v1 hanya-baca. Pengikatan tombol khusus nanti.",
@@ -712,6 +744,9 @@ const STR: LangDict<{
     errorReports: "त्रुटि रिपोर्ट भेजें",
     errorReportsDesc:
       "कुछ गड़बड़ होने पर ऐप त्रुटि का प्रकार, पथ और पते हटाकर त्रुटि संदेश, तथा OS और ऐप संस्करण डेवलपर के त्रुटि ट्रैकर (GlitchTip) को भेजता है, और शुरू होने पर एक गुमनाम सत्र संकेत भेजता है। आप जो टाइप करते हैं, स्क्रीन, कमांड आउटपुट या AI बातचीत कभी नहीं भेजी जाती।",
+    aiUsageBar: "AI प्लान का उपयोग दिखाएँ",
+    aiUsageBarDesc:
+      "विंडो के नीचे Claude, OpenAI (Codex) और Gemini प्लान का उपयोग दिखाता है। यह इस कंप्यूटर पर पहले से मौजूद हर CLI के लॉगिन से सिर्फ़ उसी कंपनी के सर्वर से पूछता है; लॉगिन कभी सहेजा या कहीं और भेजा नहीं जाता।",
     chooseDir: "चुनें…",
     applyNote: "सभी टर्मिनलों पर तुरंत लागू।",
     readonlyNote: "v1 केवल-पढ़ने के लिए है। कस्टम की बाइंडिंग बाद में।",
@@ -1010,6 +1045,21 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
               <div style={{ color: "#789", fontSize: 11, marginTop: -4, lineHeight: 1.5 }}>
                 {t.errorReportsDesc}
               </div>
+
+              {!isMobile && (
+                <>
+                  <Row label={t.aiUsageBar}>
+                    <input
+                      type="checkbox"
+                      checked={settings.general.aiUsageBar}
+                      onChange={(e) => patchGeneral({ aiUsageBar: e.target.checked })}
+                    />
+                  </Row>
+                  <div style={{ color: "#789", fontSize: 11, marginTop: -4, lineHeight: 1.5 }}>
+                    {t.aiUsageBarDesc}
+                  </div>
+                </>
+              )}
 
               {/* About (S-068) */}
               <div

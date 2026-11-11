@@ -13,6 +13,7 @@ pub mod config;
 pub mod registry;
 pub mod store;
 pub mod types;
+pub mod usage;
 
 pub use registry::AiRegistry;
 pub use types::*;

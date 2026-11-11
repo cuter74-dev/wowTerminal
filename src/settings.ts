@@ -66,6 +66,8 @@ export interface GeneralSettings {
   downloadDir: string;
   /** 오류 보고(GlitchTip) 보내기 (#178). 끄면 오류 보고도 실행마다 가는 익명 세션 신호도 없다. */
   errorReports: boolean;
+  /** 하단 AI 사용량 표시(#181) — 로그인된 Claude·Codex·Gemini CLI의 요금제 한도 사용률. */
+  aiUsageBar: boolean;
 }
 
 /** UI 글꼴 프리셋. 시스템에 있을 법한 폰트 + 한글 폴백(Apple SD Gothic Neo 등). */
@@ -272,6 +274,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     aiContextLines: 100,
     downloadDir: "",
     errorReports: true,
+    aiUsageBar: true,
   },
   terminal: {
     fontSize: 14,
