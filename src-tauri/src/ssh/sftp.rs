@@ -45,6 +45,37 @@ struct SftpConn {
     my_uid: tokio::sync::OnceCell<Option<u32>>,
 }
 
+impl SftpConn {
+    /// 아직 쓸 수 있는 연결인지 — SSH 연결이 닫혔거나 짧은 확인(3초)에 답하지 않으면 죽은 것.
+    async fn is_alive(&self) -> bool {
+        if self.handle.is_closed() {
+            return false;
+        }
+        matches!(
+            tokio::time::timeout(
+                std::time::Duration::from_secs(3),
+                self.sftp.canonicalize(".")
+            )
+            .await,
+            Ok(Ok(_))
+        )
+    }
+}
+
+/// SFTP·SSH 오류 문구가 "연결이 닫혔다"는 뜻인지(#183).
+fn is_closed_error(msg: &str) -> bool {
+    let m = msg.to_ascii_lowercase();
+    [
+        "session closed",
+        "channel closed",
+        "connection closed",
+        "disconnected",
+        "broken pipe",
+    ]
+    .iter()
+    .any(|k| m.contains(k))
+}
+
 /// 전송 진행 콜백: (transfer_id, transferred_bytes, total_bytes).
 pub type ProgressSink = Arc<dyn Fn(String, u64, u64) + Send + Sync>;
 
@@ -104,11 +135,14 @@ impl SftpManager {
         host: &SshHost,
         auth: ResolvedAuth,
     ) -> Result<Arc<SftpConn>, SshError> {
-        {
-            let guard = self.conns.lock().await;
-            if let Some(c) = guard.get(&host.id) {
-                return Ok(c.clone());
+        // 기억해 둔 연결은 살아 있을 때만 다시 쓴다(#183). 네트워크가 끊긴 뒤(잠자기·Wi-Fi 변경)
+        // 죽은 연결을 계속 쓰면 모든 요청이 "session closed"로 실패했다.
+        let cached = self.conns.lock().await.get(&host.id).cloned();
+        if let Some(c) = cached {
+            if c.is_alive().await {
+                return Ok(c);
             }
+            self.evict(&host.id).await;
         }
 
         let handle = SshSession::establish(
@@ -152,18 +186,15 @@ impl SftpManager {
     }
 
     pub async fn list_dir(&self, host_id: &str, path: &str) -> Result<Vec<FileEntry>, SshError> {
-        let conn = {
-            let guard = self.conns.lock().await;
-            guard
-                .get(host_id)
-                .cloned()
-                .ok_or_else(|| SshError::NotFound(host_id.into()))?
+        let conn = self.conn(host_id).await?;
+        let entries = match conn.sftp.read_dir(path).await {
+            Ok(e) => e,
+            Err(e) => {
+                return Err(self
+                    .closed_to_not_found(host_id, format!("read_dir {path}: {e}"))
+                    .await)
+            }
         };
-        let entries = conn
-            .sftp
-            .read_dir(path)
-            .await
-            .map_err(|e| SshError::Channel(format!("read_dir {path}: {e}")))?;
 
         let mut out = Vec::new();
         for entry in entries {
@@ -182,10 +213,12 @@ impl SftpManager {
     /// 원격 홈 또는 시작 디렉토리 (canonicalize)를 반환.
     pub async fn canonicalize(&self, host_id: &str, path: &str) -> Result<String, SshError> {
         let conn = self.conn(host_id).await?;
-        conn.sftp
-            .canonicalize(path)
-            .await
-            .map_err(|e| SshError::Channel(format!("canonicalize: {e}")))
+        match conn.sftp.canonicalize(path).await {
+            Ok(p) => Ok(p),
+            Err(e) => Err(self
+                .closed_to_not_found(host_id, format!("canonicalize: {e}"))
+                .await),
+        }
     }
 
     /// 편집 탭 파일 연산용 원격 파일시스템(#166). 연결돼 있어야 한다(sftp_open 이후).
@@ -196,12 +229,33 @@ impl SftpManager {
     }
 
     async fn conn(&self, host_id: &str) -> Result<Arc<SftpConn>, SshError> {
-        self.conns
+        let c = self
+            .conns
             .lock()
             .await
             .get(host_id)
             .cloned()
-            .ok_or_else(|| SshError::NotFound(host_id.into()))
+            .ok_or_else(|| SshError::NotFound(host_id.into()))?;
+        // 닫힌 연결은 버리고 "session not found"로 알린다 — 프런트가 한 번 다시 연결한다(#183).
+        if c.handle.is_closed() {
+            self.evict(host_id).await;
+            return Err(SshError::NotFound(host_id.into()));
+        }
+        Ok(c)
+    }
+
+    async fn evict(&self, host_id: &str) {
+        self.conns.lock().await.remove(host_id);
+    }
+
+    /// 요청 실패가 연결이 닫혀서였으면 연결을 버리고 "session not found"로 바꾼다(#183).
+    async fn closed_to_not_found(&self, host_id: &str, msg: String) -> SshError {
+        if is_closed_error(&msg) {
+            self.evict(host_id).await;
+            SshError::NotFound(host_id.into())
+        } else {
+            SshError::Channel(msg)
+        }
     }
 
     /// 원격 → 로컬. 파일이면 단일 스트리밍, 디렉토리면 재귀 다운로드(#135).
@@ -1114,14 +1168,18 @@ mod e2e {
             name: "e2e".into(),
             host: "127.0.0.1".into(),
             port,
-            user: "test".into(),
+            user: std::env::var("WT_TEST_SFTP_USER").unwrap_or_else(|_| "test".into()),
             auth: SshAuthMethod::PasswordPrompt,
             tags: vec![],
             group_id: None,
             proxy_jump: None,
             tmux_session: None,
         };
-        let pw = || ResolvedAuth::Password("x".into());
+        let pw = || {
+            ResolvedAuth::Password(
+                std::env::var("WT_TEST_SFTP_PASS").unwrap_or_else(|_| "x".into()),
+            )
+        };
         if let Err(SshError::FirstContactRequired {
             algorithm,
             fingerprint,
@@ -1133,6 +1191,55 @@ mod e2e {
         }
         mgr.connect(&host, pw()).await.expect("connect");
         (mgr, root, dir)
+    }
+
+    /// #183: 서버 쪽에서 연결이 끊기면(WT_TEST_SFTP_DROP 명령, 예: `docker restart <컨테이너>`)
+    /// 죽은 연결을 버리고 "session not found"를 내며, 다시 열면 새로 연결된다.
+    #[tokio::test]
+    #[ignore]
+    async fn sftp_e2e_reconnects_after_drop() {
+        let Ok(drop_cmd) = std::env::var("WT_TEST_SFTP_DROP") else {
+            return;
+        };
+        let (mgr, _root, _keep) = connect().await;
+        assert!(mgr.canonicalize("e2e", ".").await.is_ok());
+        let ok = std::process::Command::new("sh")
+            .args(["-c", &drop_cmd])
+            .status()
+            .unwrap()
+            .success();
+        assert!(ok, "drop command failed");
+        tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        match mgr.canonicalize("e2e", ".").await {
+            Err(SshError::NotFound(_)) => {}
+            other => panic!("죽은 연결은 session not found여야 한다: {other:?}"),
+        }
+        // 다시 열면(프런트의 withSftp 재시도) 새 연결로 동작한다 — 서버가 다시 뜰 때까지 잠깐 기다린다.
+        let mut connected = false;
+        for _ in 0..20 {
+            let host = SshHost {
+                id: "e2e".into(),
+                name: "e2e".into(),
+                host: "127.0.0.1".into(),
+                port: std::env::var("WT_TEST_SFTP_PORT").unwrap().parse().unwrap(),
+                user: std::env::var("WT_TEST_SFTP_USER").unwrap_or_else(|_| "test".into()),
+                auth: SshAuthMethod::PasswordPrompt,
+                tags: vec![],
+                group_id: None,
+                proxy_jump: None,
+                tmux_session: None,
+            };
+            let pw = ResolvedAuth::Password(
+                std::env::var("WT_TEST_SFTP_PASS").unwrap_or_else(|_| "x".into()),
+            );
+            if mgr.connect(&host, pw).await.is_ok() {
+                connected = true;
+                break;
+            }
+            tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+        }
+        assert!(connected, "다시 연결되지 않았다");
+        assert!(mgr.canonicalize("e2e", ".").await.is_ok());
     }
 
     #[tokio::test]
@@ -1335,5 +1442,19 @@ mod e2e {
         assert_eq!(m.mtime(), before, "mtime must not change");
         r.expect("chmod");
         assert_eq!(m.permissions().mode() & 0o777, 0o600);
+    }
+}
+
+#[cfg(test)]
+mod closed_error_tests {
+    use super::is_closed_error;
+
+    #[test]
+    fn closed_errors_are_recognized() {
+        assert!(is_closed_error("canonicalize: session closed"));
+        assert!(is_closed_error("read_dir /x: Channel closed"));
+        assert!(is_closed_error("io: Broken pipe (os error 32)"));
+        assert!(!is_closed_error("canonicalize: No such file"));
+        assert!(!is_closed_error("read_dir /root: Permission denied"));
     }
 }

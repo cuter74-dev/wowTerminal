@@ -516,6 +516,7 @@ function sortEntries(es: FileEntry[]): FileEntry[] {
 
 async function listDir(hostId: string | null, path: string | null): Promise<Listing> {
   if (!hostId) return invoke<Listing>("local_list_dir", { path });
+  // sftp_open은 기억해 둔 연결이 죽었으면 스스로 다시 연결한다(#183).
   if (path === null) return invoke<Listing>("sftp_open", { hostId, path: null });
   return withSftp(hostId, () => invoke<Listing>("sftp_list", { hostId, path }));
 }

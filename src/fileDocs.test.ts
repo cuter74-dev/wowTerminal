@@ -194,6 +194,30 @@ describe("withSftp / openDoc", () => {
     expect(fd.getDoc(id)?.state).toBe("ready");
   });
 
+  it("연결이 닫혔으면(네트워크가 끊긴 뒤) 다시 연결하고 다시 시도한다 (#183)", async () => {
+    let first = true;
+    const seen: string[] = [];
+    setInvokeHandler(async (cmd) => {
+      seen.push(cmd);
+      if (cmd === "file_open" && first) {
+        first = false;
+        throw "channel: canonicalize: session closed";
+      }
+      if (cmd === "file_open") return opened("ok\n");
+      return null;
+    });
+    const id = fd.openDoc("h", "/srv/b.conf");
+    await flush();
+    await flush();
+    expect(seen).toEqual(["file_open", "sftp_open", "file_open"]);
+    expect(fd.getDoc(id)?.state).toBe("ready");
+  });
+
+  it("권한 오류처럼 다시 연결해도 안 될 오류는 그대로 낸다", () => {
+    expect(fd.SFTP_RECONNECT_RE.test("channel: canonicalize: session closed")).toBe(true);
+    expect(fd.SFTP_RECONNECT_RE.test("read_dir /root: Permission denied")).toBe(false);
+  });
+
   it("같은 경로는 같은 탭, 링크로 연 같은 실제 파일은 기존 탭으로 합친다", async () => {
     const { id } = await openReady("x\n");
     expect(fd.openDoc("h", "/srv/a.conf")).toBe(id);

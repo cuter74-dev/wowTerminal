@@ -130,16 +130,20 @@ export function baseName(p: string): string {
 
 // ---- 원격 연결 ------------------------------------------------------------
 
+/** 다시 연결하면 나을 SFTP 오류 — 연결이 없거나(앱 재시작 뒤) 닫힌 경우(네트워크가 끊긴 뒤, #183). */
+export const SFTP_RECONNECT_RE =
+  /session not found|session closed|channel closed|connection closed|disconnected|broken pipe/i;
+
 /**
- * 원격 명령을 실행하되, SFTP 연결이 없으면(앱 재시작 뒤, 또는 "양쪽 보기"를 닫으며 연결이
- * 끊긴 뒤) 한 번 연결하고 다시 시도한다.
+ * 원격 명령을 실행하되, SFTP 연결이 없거나 닫혔으면(앱 재시작 뒤, "양쪽 보기"를 닫으며 연결이
+ * 끊긴 뒤, 잠자기·네트워크 변경으로 끊긴 뒤) 한 번 연결하고 다시 시도한다.
  */
 export async function withSftp<T>(hostId: string | null, run: () => Promise<T>): Promise<T> {
   if (!hostId) return run();
   try {
     return await run();
   } catch (e) {
-    if (!/session not found/i.test(String(e))) throw e;
+    if (!SFTP_RECONNECT_RE.test(String(e))) throw e;
     await invoke("sftp_open", { hostId, path: null });
     return run();
   }
