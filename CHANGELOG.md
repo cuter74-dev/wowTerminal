@@ -7,9 +7,14 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.9] — 2026-11-12
+
 ### Added
 - **AI plan usage at the bottom of the window** (desktop). If Claude Code, OpenAI Codex or Gemini CLI is signed in on this computer, the bar shows how much of the plan's limits is used — Claude and Codex 5-hour and weekly, Gemini per model — with reset times on hover; click to refresh. It uses each CLI's existing sign-in and asks only that company's server; nothing is stored or sent elsewhere. Settings → General → "Show AI plan usage" turns it off. (#181)
 - **Tabs show when an AI agent is working.** A slowly turning ✻ appears on a tab while Claude Code, Codex or Gemini CLI is working in it (also inside tmux and over SSH — it reads the agent's own status line on screen, no setup needed). When the agent finishes in a tab you aren't looking at, the tab gets the alert dot and a desktop notification. (#180)
+
+### Fixed
+- **Files panel showed "channel: canonicalize: session closed" after reconnecting to a server.** After the network dropped (sleep, Wi-Fi change) the app kept reusing the dead file connection. It now checks the connection and reconnects. (#183)
 
 ## [0.21.8] — 2026-11-11
 
@@ -635,7 +640,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.8...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.9...HEAD
+[0.21.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.8...v0.21.9
 [0.21.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.7...v0.21.8
 [0.21.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.6...v0.21.7
 [0.21.6]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.5...v0.21.6
