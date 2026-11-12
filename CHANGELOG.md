@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.21.10] — 2026-11-12
+
 ### Changed
 - **The AI usage bar now draws a small meter for each limit** — green, amber from 60%, red from 85% — with each provider's name in its brand color, so you can read it at a glance. (#184)
 
@@ -643,7 +645,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.9...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.10...HEAD
+[0.21.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.9...v0.21.10
 [0.21.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.8...v0.21.9
 [0.21.8]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.7...v0.21.8
 [0.21.7]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.6...v0.21.7
