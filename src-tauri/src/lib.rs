@@ -35,16 +35,31 @@ fn machine_passphrase() -> String {
 
 /// GlitchTip(Sentry 호환) 에러 추적 DSN. 공개 수집 키라 임베드해도 안전(비밀 아님).
 /// 환경변수 `WOWTERMINAL_GLITCHTIP_DSN`로 덮어쓰거나, 빈 값으로 두면 추적을 끈다(opt-out).
-const GLITCHTIP_DSN: &str = "https://663f23ace357492887f838d73b57a50c@glitchtip.oopnwow.com/1";
+const GLITCHTIP_DSN: &str = "https://2ef14eda5436494bbc33413ed35ae9ed@glitchtip.oopnwow.com/1";
+
+/// 데스크톱·iOS 설정 폴더. Android는 Tauri의 app_config_dir을 쓴다(#142, setup 참고).
+#[cfg(not(target_os = "android"))]
+fn default_config_dir() -> std::path::PathBuf {
+    dirs::config_dir()
+        .map(|p| p.join("wowterminal"))
+        .unwrap_or_else(|| std::path::PathBuf::from("."))
+}
 
 /// Sentry/GlitchTip을 초기화하고 가드를 반환한다. 가드가 살아있는 동안만 이벤트가 전송되므로
-/// 호출부(run)에서 앱 수명 동안 보관해야 한다. DSN이 비면 None(추적 비활성).
+/// 호출부(run)에서 앱 수명 동안 보관해야 한다. DSN이 비거나 오류 보고가 꺼져 있으면 None.
 fn init_error_tracking() -> Option<sentry::ClientInitGuard> {
-    let dsn = std::env::var("WOWTERMINAL_GLITCHTIP_DSN")
-        .unwrap_or_else(|_| GLITCHTIP_DSN.to_string());
-    if dsn.trim().is_empty() {
-        return None;
-    }
+    // 설정에서 오류 보고를 꺼 두었으면 클라이언트를 만들지 않는다(#182). Android는 설정 폴더를
+    // Tauri에서 받아야 해 여기서는 모른다 — 그때는 setup의 load_pref가 선택을 읽기 전까지
+    // before_send가 모두 버리고, 읽은 뒤에는 그 선택을 따른다(telemetry::ENABLED).
+    #[cfg(not(target_os = "android"))]
+    let config_dir = Some(default_config_dir());
+    #[cfg(target_os = "android")]
+    let config_dir: Option<std::path::PathBuf> = None;
+    let dsn = telemetry::backend_dsn(
+        std::env::var("WOWTERMINAL_GLITCHTIP_DSN").ok(),
+        GLITCHTIP_DSN,
+        config_dir.as_deref(),
+    )?;
     let guard = sentry::init((
         dsn,
         sentry::ClientOptions {
@@ -168,9 +183,7 @@ pub fn run() {
                 .app_config_dir()
                 .expect("android app config dir");
             #[cfg(not(target_os = "android"))]
-            let config_dir = dirs::config_dir()
-                .map(|p| p.join("wowterminal"))
-                .unwrap_or_else(|| std::path::PathBuf::from("."));
+            let config_dir = default_config_dir();
             let _ = std::fs::create_dir_all(&config_dir);
             // 설정의 "오류 보고 보내기"(#178) — 끔 표시가 있으면 백엔드 오류 보고를 보내지 않는다.
             telemetry::load_pref(&config_dir);

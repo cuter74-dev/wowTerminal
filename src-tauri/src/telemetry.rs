@@ -6,14 +6,17 @@
 //!
 //! 설정의 "오류 보고 보내기"를 끄면(#178) 아무것도 보내지 않는다. 그 선택은 설정 폴더의
 //! `error-reports-off` 파일로 남겨 다음 실행에도 지킨다(프런트 설정은 localStorage라 Rust가
-//! 시작 때 읽을 수 없다). 실행 중 바꾸면 `before_send`가 곧바로 모든 이벤트를 버린다.
+//! 시작 때 읽을 수 없다). 시작할 때 끔 표시가 있으면 클라이언트를 아예 만들지 않고(#182,
+//! Android는 선택을 읽기 전까지 버림), 실행 중 바꾸면 `before_send`가 곧바로 모든 이벤트를 버린다.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 
-/// 오류 보고를 보낼지. 기본은 보낸다.
-static ENABLED: AtomicBool = AtomicBool::new(true);
+/// 오류 보고를 보낼지. 기본은 보낸다. 단 Android는 시작 때 설정 폴더를 몰라 클라이언트를 먼저
+/// 띄우므로, 저장된 선택을 읽기(`load_pref`) 전까지는 보내지 않는다(#182). 데스크톱·iOS는
+/// 끔이면 클라이언트 자체가 없다(`backend_dsn`).
+static ENABLED: AtomicBool = AtomicBool::new(cfg!(not(target_os = "android")));
 /// 끔 표시 파일이 있는 설정 폴더(앱 시작 때 정해진다).
 static CONFIG_DIR: OnceLock<PathBuf> = OnceLock::new();
 const OFF_FILE: &str = "error-reports-off";
@@ -34,6 +37,22 @@ pub fn write_pref(dir: &Path, enabled: bool) -> std::io::Result<()> {
     } else {
         std::fs::write(f, b"")
     }
+}
+
+/// 백엔드가 쓸 DSN을 고른다. 환경변수 값이 있으면 그것(빈 값이면 끔), 없으면 기본값.
+/// 설정 폴더에 끔 표시가 있으면 None — 클라이언트를 아예 만들지 않아, setup에서
+/// `load_pref`가 돌기 전에 난 panic도 보내지 않는다(#182). 실행 중에 다시 켜면 백엔드
+/// 보고는 다음 실행부터 나간다(프런트는 곧바로).
+pub fn backend_dsn(
+    env: Option<String>,
+    default: &str,
+    config_dir: Option<&Path>,
+) -> Option<String> {
+    if config_dir.is_some_and(is_off_in) {
+        return None;
+    }
+    let dsn = env.unwrap_or_else(|| default.to_string());
+    (!dsn.trim().is_empty()).then_some(dsn)
 }
 
 /// 앱 시작 때 한 번: 설정 폴더를 기억하고 저장된 선택을 적용한다.
@@ -215,5 +234,34 @@ mod tests {
         write_pref(dir.path(), true).unwrap();
         write_pref(dir.path(), true).unwrap(); // 이미 켜져 있어도 오류 없음
         assert!(!is_off_in(dir.path()));
+    }
+
+    #[test]
+    fn off_marker_keeps_the_backend_client_from_starting() {
+        let dir = tempfile::tempdir().unwrap();
+        let d = Some(dir.path());
+        let def = "https://k@example.invalid/1";
+        assert_eq!(backend_dsn(None, def, d).as_deref(), Some(def));
+        assert_eq!(backend_dsn(None, def, None).as_deref(), Some(def));
+        assert_eq!(
+            backend_dsn(Some("https://e@example.invalid/2".into()), def, d).as_deref(),
+            Some("https://e@example.invalid/2"),
+            "환경변수가 기본값을 덮는다"
+        );
+        assert_eq!(
+            backend_dsn(Some(" ".into()), def, d),
+            None,
+            "빈 환경변수는 끔"
+        );
+        write_pref(dir.path(), false).unwrap();
+        assert_eq!(
+            backend_dsn(None, def, d),
+            None,
+            "끔 표시가 있으면 시작부터 안 띄운다"
+        );
+        assert_eq!(
+            backend_dsn(Some("https://e@example.invalid/2".into()), def, d),
+            None
+        );
     }
 }

@@ -1,6 +1,6 @@
 # Privacy Policy — wowTerminal
 
-_Last updated: 2026-11-11_
+_Last updated: 2026-11-12_
 
 wowTerminal is an SSH / SFTP client and AI assistant terminal. This policy explains what
 data the app handles. The short version: **your credentials and the servers you connect to
@@ -57,13 +57,17 @@ command output, AI conversations, your computer's name, passwords, private keys 
 keys.
 
 You can turn all of this off in **Settings → General → Send error reports** (from version
-0.21.7). When it is off, the app sends neither error reports nor the session signal.
+0.21.7). When it is off, the app sends neither error reports nor the session signal. From
+version 0.21.11, an app started with it off does not start the error reporter at all, so
+nothing is sent even in the first moments of startup.
 
 **Correction (2026-11-09):** versions 0.14.4 to 0.21.5 on macOS (and on iPad before 0.20.19)
 also sent a temporary input diagnostic to the same tracker, up to four times per app run. It
 included recently typed input, which could contain a password typed at a terminal password
 prompt, and a few lines of terminal text and output. This contradicted this policy. It was
-removed in 0.21.6, and the stored reports are being deleted.
+removed in 0.21.6, and the stored reports are being deleted. Version 0.21.11 switches to a new
+reporting key and the old key is then retired, so builds that still carry that diagnostic can
+no longer deliver it.
 
 ## What the app does NOT do
 

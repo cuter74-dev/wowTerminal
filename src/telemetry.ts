@@ -10,7 +10,7 @@ import { invoke } from "@tauri-apps/api/core";
 // 빈 값으로 두면 빌드 자체에서 끈다.
 const GLITCHTIP_DSN: string =
   import.meta.env.VITE_GLITCHTIP_DSN ??
-  "https://663f23ace357492887f838d73b57a50c@glitchtip.oopnwow.com/1";
+  "https://2ef14eda5436494bbc33413ed35ae9ed@glitchtip.oopnwow.com/1";
 
 /** 메시지 한 줄의 최대 길이 — 긴 출력이 통째로 실리지 않게 자른다. */
 const MAX_TEXT = 300;

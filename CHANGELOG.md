@@ -8,7 +8,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Changed
+- **Error reports use a new collection key.** Versions up to 0.21.10 report to the old key, which will be switched off after this release — so the input diagnostic that builds up to 0.21.5 still carry (removed in 0.21.6, #177) can no longer deliver anything. Update to keep sending error reports. (#182)
 - **AI usage meters now use each provider's color** (Claude orange, Codex green, Gemini blue), turning red only when a limit is 85% used; the percentage still turns amber from 60% and red from 85%. (#185)
+
+### Fixed
+- **With "Send error reports" off, nothing is sent even right after launch.** The error reporter is no longer started at all when the setting is off; before, an error in the first moments of startup could still have been reported. (#182)
 
 ## [0.21.10] — 2026-11-12
 
