@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Changed
+- **AI usage meters now use each provider's color** (Claude orange, Codex green, Gemini blue), turning red only when a limit is 85% used; the percentage still turns amber from 60% and red from 85%. (#185)
+
 ## [0.21.10] — 2026-11-12
 
 ### Changed

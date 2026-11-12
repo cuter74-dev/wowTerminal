@@ -56,15 +56,20 @@ const STR: LangDict<{
   hi: { fiveHour: "5 घं.", week: "साप्ताहिक", resets: (w) => `${w} पर रीसेट`, expired: "लॉगिन समाप्त — ताज़ा करने के लिए CLI एक बार खोलें", failed: (w) => `लोड नहीं हुआ (${w})`, refreshHint: "ताज़ा करने के लिए क्लिक करें" },
 };
 
-/** 사용률 색 — 넉넉함(초록)·주의(노랑, 60% 이상)·임박(빨강, 85% 이상). */
+/** 퍼센트 숫자 색 — 넉넉함(무채색)·주의(노랑, 60% 이상)·임박(빨강, 85% 이상). */
 export function usageColor(pct: number): string {
   if (pct >= 85) return "#f85149";
   if (pct >= 60) return "#e3b341";
-  return "#3fb950";
+  return "#c9d1d9";
+}
+
+/** 막대 색 — 회사 대표색, 거의 다 썼으면(85% 이상) 빨강(#185). */
+export function meterColor(pct: number, brand: string): string {
+  return pct >= 85 ? "#f85149" : brand;
 }
 
 /** 작은 막대 게이지(#184). 조금이라도 썼으면 최소 2px은 보이게 채운다. */
-function Meter({ pct, label }: { pct: number; label: string }) {
+function Meter({ pct, label, color }: { pct: number; label: string; color: string }) {
   const v = Math.max(0, Math.min(100, pct));
   return (
     <span
@@ -94,7 +99,7 @@ function Meter({ pct, label }: { pct: number; label: string }) {
           width: `${v}%`,
           minWidth: v > 0 ? 2 : 0,
           borderRadius: 3,
-          background: usageColor(v),
+          background: meterColor(v, color),
           transition: "width 0.4s ease",
         }}
       />
@@ -206,7 +211,11 @@ export function UsageBar({ enabled }: { enabled: boolean }) {
             {shown.map((w, i) => (
               <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
                 <span>{windowLabel(w, t)}</span>
-                <Meter pct={w.usedPercent} label={`${name} ${windowLabel(w, t)}`} />
+                <Meter
+                  pct={w.usedPercent}
+                  label={`${name} ${windowLabel(w, t)}`}
+                  color={BRAND[p.provider]}
+                />
                 <b
                   style={{
                     color: usageColor(w.usedPercent),
