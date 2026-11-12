@@ -44,11 +44,18 @@ it("로그인된 회사의 사용률을 보여 준다", async () => {
   ];
   await render(true);
   const bar = container.querySelector('[data-testid="usage-bar"]');
-  expect(bar?.textContent).toContain("Claude7d 29%");
-  expect(bar?.textContent).toContain("Codex5h 0%7d 91%");
+  expect(bar?.textContent).toContain("Claude7d29%");
+  expect(bar?.textContent).toContain("Codex5h0%7d91%");
   expect(bar?.textContent).toContain("Gemini —");
   const hot = Array.from(bar!.querySelectorAll("b")).find((b) => b.textContent === "91%") as HTMLElement;
   expect(hot.style.color).toMatch(/#f85149|rgb\(248, 81, 73\)/);
+  // 막대 게이지(#184): 한도마다 하나, 사용률만큼 차고 단계 색을 쓴다.
+  const meters = Array.from(bar!.querySelectorAll<HTMLElement>('[role="meter"]'));
+  expect(meters.map((m) => m.getAttribute("aria-valuenow"))).toEqual(["29", "0", "91"]);
+  const fill = (m: HTMLElement) => m.querySelector<HTMLElement>("[data-fill]")!.style;
+  expect(fill(meters[0]).width).toBe("29%");
+  expect(fill(meters[1]).width).toBe("0%");
+  expect(fill(meters[2]).background).toMatch(/#f85149|rgb\(248, 81, 73\)/);
 });
 
 it("로그인된 곳이 없으면 줄을 그리지 않고, 꺼져 있으면 묻지도 않는다", async () => {
@@ -64,7 +71,7 @@ it("창 이름과 색", () => {
   const t = { fiveHour: "5h", week: "7d" };
   expect(windowLabel({ name: null, usedPercent: 1, windowMinutes: 300, resetsAtMs: null }, t)).toBe("5h");
   expect(windowLabel({ name: "2.5 Pro", usedPercent: 1, windowMinutes: null, resetsAtMs: null }, t)).toBe("2.5 Pro");
-  expect(usageColor(10)).toBe("#8b949e");
+  expect(usageColor(10)).toBe("#3fb950");
   expect(usageColor(70)).toBe("#e3b341");
   expect(usageColor(90)).toBe("#f85149");
 });

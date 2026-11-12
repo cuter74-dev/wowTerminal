@@ -28,6 +28,13 @@ const NAMES: Record<ProviderUsage["provider"], string> = {
   gemini: "Gemini",
 };
 
+/** 회사 이름 색 — 각 회사의 대표색을 어두운 바탕에서 읽히게 맞춘 것(#184). */
+const BRAND: Record<ProviderUsage["provider"], string> = {
+  claude: "#d97757",
+  codex: "#10a37f",
+  gemini: "#8ab4f8",
+};
+
 const STR: LangDict<{
   fiveHour: string;
   week: string;
@@ -49,11 +56,50 @@ const STR: LangDict<{
   hi: { fiveHour: "5 घं.", week: "साप्ताहिक", resets: (w) => `${w} पर रीसेट`, expired: "लॉगिन समाप्त — ताज़ा करने के लिए CLI एक बार खोलें", failed: (w) => `लोड नहीं हुआ (${w})`, refreshHint: "ताज़ा करने के लिए क्लिक करें" },
 };
 
-/** 사용률 색 — 넉넉함·주의·임박. */
+/** 사용률 색 — 넉넉함(초록)·주의(노랑, 60% 이상)·임박(빨강, 85% 이상). */
 export function usageColor(pct: number): string {
   if (pct >= 85) return "#f85149";
   if (pct >= 60) return "#e3b341";
-  return "#8b949e";
+  return "#3fb950";
+}
+
+/** 작은 막대 게이지(#184). 조금이라도 썼으면 최소 2px은 보이게 채운다. */
+function Meter({ pct, label }: { pct: number; label: string }) {
+  const v = Math.max(0, Math.min(100, pct));
+  return (
+    <span
+      role="meter"
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(v)}
+      style={{
+        display: "inline-block",
+        position: "relative",
+        width: 46,
+        height: 6,
+        borderRadius: 3,
+        background: "#2d333b",
+        overflow: "hidden",
+        flexShrink: 0,
+      }}
+    >
+      <span
+        data-fill
+        style={{
+          position: "absolute",
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: `${v}%`,
+          minWidth: v > 0 ? 2 : 0,
+          borderRadius: 3,
+          background: usageColor(v),
+          transition: "width 0.4s ease",
+        }}
+      />
+    </span>
+  );
 }
 
 /** 창 이름: 모델 이름이 있으면 그것, 아니면 5시간·주간. */
@@ -120,7 +166,7 @@ export function UsageBar({ enabled }: { enabled: boolean }) {
         display: "flex",
         justifyContent: "flex-end",
         alignItems: "center",
-        gap: 14,
+        gap: 18,
         height: 22,
         padding: "0 10px",
         borderTop: "1px solid #2a2a30",
@@ -155,12 +201,21 @@ export function UsageBar({ enabled }: { enabled: boolean }) {
           ),
         ].join("\n");
         return (
-          <span key={p.provider} title={tip} style={{ display: "inline-flex", gap: 6 }}>
-            <span style={{ color: "#c9d1d9" }}>{name}</span>
+          <span key={p.provider} title={tip} style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
+            <span style={{ color: BRAND[p.provider], fontWeight: 600 }}>{name}</span>
             {shown.map((w, i) => (
-              <span key={i}>
-                {windowLabel(w, t)}{" "}
-                <b style={{ color: usageColor(w.usedPercent), fontWeight: 600 }}>
+              <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span>{windowLabel(w, t)}</span>
+                <Meter pct={w.usedPercent} label={`${name} ${windowLabel(w, t)}`} />
+                <b
+                  style={{
+                    color: usageColor(w.usedPercent),
+                    fontWeight: 600,
+                    minWidth: 28,
+                    textAlign: "right",
+                    fontVariantNumeric: "tabular-nums",
+                  }}
+                >
                   {Math.round(w.usedPercent)}%
                 </b>
               </span>

@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Changed
+- **The AI usage bar now draws a small meter for each limit** — green, amber from 60%, red from 85% — with each provider's name in its brand color, so you can read it at a glance. (#184)
+
 ## [0.21.9] — 2026-11-12
 
 ### Added
