@@ -18,6 +18,8 @@
 ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?logo=typescript&logoColor=white)
 ![xterm.js](https://img.shields.io/badge/xterm.js-2D2D2D?logo=gnometerminal&logoColor=white)
 
+<a href="https://www.saashub.com/wowterminal?utm_source=badge&utm_campaign=badge&utm_content=wowterminal&badge_variant=color&badge_kind=approved" target="_blank"><img src="https://cdn-b.saashub.com/img/badges/approved-color.png?v=1" alt="wowTerminal on SaaSHub" width="150" /></a>
+
 A context-aware AI terminal — a chat assistant that reads your terminal,<br/>
 an SSH host manager, and a dual-pane SFTP file browser, in one fast desktop app.
 
