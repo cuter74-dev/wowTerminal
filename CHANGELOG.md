@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-11-13
+
 ### Added
 - **Agents list in the left panel.** A third segment next to Servers and Files lists every AI coding agent running in your terminals (Claude Code, Codex, Gemini CLI) with its state (waiting for you, finished, working or idle) and for how long. Click a row to jump to that tab and pane. (#187)
 - **See when an agent is waiting for you.** Permission prompts and questions from Claude Code, Codex and Gemini CLI are recognised on screen: the tab shows an amber "?", and you get a desktop notification when an agent in another tab starts waiting. Works locally, over SSH and inside tmux, with nothing to set up. (#187)
@@ -664,7 +666,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.11...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.0...HEAD
+[0.22.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.11...v0.22.0
 [0.21.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.10...v0.21.11
 [0.21.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.9...v0.21.10
 [0.21.9]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.8...v0.21.9
