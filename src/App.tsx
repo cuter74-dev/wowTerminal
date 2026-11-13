@@ -12,7 +12,9 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { onAiActivity, onCommandDone, onTitleChange } from "./commandBus";
+import { onAgentStatus, onCommandDone, onTitleChange } from "./commandBus";
+import { AGENT_NAMES } from "./aiActivity";
+import { AgentPanel, type AgentRow, type PaneAgent } from "./components/AgentPanel";
 import { getHistory } from "./commandHistory";
 import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
@@ -145,6 +147,7 @@ const STR: LangDict<{
     aiCollapse: string;
     resizeWidth: string;
     aiDone: string;
+    aiBlocked: (agent: string) => string;
   }
 > = {
   en: {
@@ -164,6 +167,7 @@ const STR: LangDict<{
     aiCollapse: "Collapse AI panel",
     resizeWidth: "Drag to resize width",
     aiDone: "AI finished — waiting for you",
+    aiBlocked: (a) => `${a} is waiting for your answer`,
   },
   ko: {
     localShell: "로컬 셸",
@@ -182,6 +186,7 @@ const STR: LangDict<{
     aiCollapse: "AI 패널 접기",
     resizeWidth: "너비 조절 (드래그)",
     aiDone: "AI 작업이 끝났습니다 — 확인해 주세요",
+    aiBlocked: (a) => `${a} — 답을 기다리고 있습니다`,
   },
   es: {
     localShell: "Shell local",
@@ -200,6 +205,7 @@ const STR: LangDict<{
     aiCollapse: "Contraer panel de IA",
     resizeWidth: "Arrastra para ajustar el ancho",
     aiDone: "La IA terminó — te espera",
+    aiBlocked: (a) => `${a} espera tu respuesta`,
   },
   zh: {
     localShell: "本地终端",
@@ -218,6 +224,7 @@ const STR: LangDict<{
     aiCollapse: "收起 AI 面板",
     resizeWidth: "拖动以调整宽度",
     aiDone: "AI 已完成 — 等待你的操作",
+    aiBlocked: (a) => `${a} 正在等待你的回答`,
   },
   ja: {
     localShell: "ローカルシェル",
@@ -236,6 +243,7 @@ const STR: LangDict<{
     aiCollapse: "AI パネルを閉じる",
     resizeWidth: "ドラッグして幅を調整",
     aiDone: "AI の作業が終わりました — 確認してください",
+    aiBlocked: (a) => `${a} があなたの回答を待っています`,
   },
   ru: {
     localShell: "Локальная оболочка",
@@ -254,6 +262,7 @@ const STR: LangDict<{
     aiCollapse: "Свернуть панель ИИ",
     resizeWidth: "Перетащите, чтобы изменить ширину",
     aiDone: "ИИ закончил — ждёт вас",
+    aiBlocked: (a) => `${a} ждёт вашего ответа`,
   },
   fr: {
     localShell: "Shell local",
@@ -272,6 +281,7 @@ const STR: LangDict<{
     aiCollapse: "Réduire le panneau IA",
     resizeWidth: "Faites glisser pour ajuster la largeur",
     aiDone: "L'IA a terminé — elle vous attend",
+    aiBlocked: (a) => `${a} attend votre réponse`,
   },
   de: {
     localShell: "Lokale Shell",
@@ -290,6 +300,7 @@ const STR: LangDict<{
     aiCollapse: "KI-Panel einklappen",
     resizeWidth: "Zum Anpassen der Breite ziehen",
     aiDone: "KI ist fertig — wartet auf dich",
+    aiBlocked: (a) => `${a} wartet auf deine Antwort`,
   },
   vi: {
     localShell: "Shell cục bộ",
@@ -308,6 +319,7 @@ const STR: LangDict<{
     aiCollapse: "Thu gọn bảng AI",
     resizeWidth: "Kéo để chỉnh chiều rộng",
     aiDone: "AI đã xong — đang chờ bạn",
+    aiBlocked: (a) => `${a} đang chờ bạn trả lời`,
   },
   id: {
     localShell: "Shell lokal",
@@ -326,6 +338,7 @@ const STR: LangDict<{
     aiCollapse: "Ciutkan panel AI",
     resizeWidth: "Seret untuk mengubah lebar",
     aiDone: "AI selesai — menunggu Anda",
+    aiBlocked: (a) => `${a} menunggu jawaban Anda`,
   },
   hi: {
     localShell: "लोकल शेल",
@@ -344,6 +357,7 @@ const STR: LangDict<{
     aiCollapse: "AI पैनल संक्षिप्त करें",
     resizeWidth: "चौड़ाई बदलने के लिए खींचें",
     aiDone: "AI ने काम पूरा किया — आपकी प्रतीक्षा है",
+    aiBlocked: (a) => `${a} आपके जवाब की प्रतीक्षा कर रहा है`,
   },
 };
 
@@ -1093,46 +1107,114 @@ function App() {
     return off;
   }, []);
 
-  // AI 에이전트 작업 표시 (#180): Terminal이 화면으로 판정해 버스로 알린다. 일하는 패널이 있는
-  // 탭엔 회전 표시, 앞에 없는 탭에서 끝나면 알림 점 + 데스크톱 알림(긴 명령 완료와 같은 길).
-  const [aiWorkingPanes, setAiWorkingPanes] = useState<Set<string>>(() => new Set());
-  const aiDoneTextRef = useRef(tr.aiDone);
-  aiDoneTextRef.current = tr.aiDone;
+  // AI 에이전트 상태 (#180, #187): Terminal이 화면으로 판정해 버스로 알린다. 탭에는 일하는 중(✻)·
+  // 입력 기다림(?) 표시. 앞에 없는 탭에서 끝나면 알림 점 + 데스크톱 알림(긴 명령 완료와 같은 길),
+  // 기다리기 시작하면 데스크톱 알림. 왼쪽 패널의 에이전트 목록도 이 상태를 쓴다.
+  const [agentPanes, setAgentPanes] = useState<ReadonlyMap<string, PaneAgent>>(() => new Map());
+  const agentPanesRef = useRef<ReadonlyMap<string, PaneAgent>>(agentPanes);
+  const commitAgentPanes = (next: ReadonlyMap<string, PaneAgent>) => {
+    agentPanesRef.current = next;
+    setAgentPanes(next);
+  };
+  const agentTextRef = useRef(tr);
+  agentTextRef.current = tr;
   useEffect(() => {
-    return onAiActivity(({ paneId, working }) => {
+    return onAgentStatus(({ paneId, agent, state }) => {
       if (!paneId) return;
-      setAiWorkingPanes((prev) => {
-        if (prev.has(paneId) === working) return prev;
-        const n = new Set(prev);
-        if (working) n.add(paneId);
-        else n.delete(paneId);
-        return n;
-      });
-      if (working) return;
+      const prev = agentPanesRef.current.get(paneId);
+      if (!agent || !state) {
+        if (!prev) return;
+        const m = new Map(agentPanesRef.current);
+        m.delete(paneId);
+        commitAgentPanes(m);
+        return;
+      }
+      if (prev && prev.agent === agent && prev.state === state) return;
       const tab = tabsRef.current.find((t) => findLeaf(t.root, paneId));
-      if (!tab) return; // 닫힌 패널
-      if (tab.id === activeTabIdRef.current && document.hasFocus()) return;
-      setTabAlerts((prev) => new Set(prev).add(tab.id));
+      const looking = !!tab && tab.id === activeTabIdRef.current && document.hasFocus();
+      const finished = prev?.state === "working" && state === "idle";
+      const startedWaiting = state === "blocked" && prev?.state !== "blocked";
+      const m = new Map(agentPanesRef.current);
+      m.set(paneId, {
+        agent,
+        state,
+        since: prev?.state === state ? prev.since : Date.now(),
+        // 끝남 = 보지 않는 사이에 일을 마친 것. 다시 일하거나 기다리면 지운다.
+        unseen: state === "idle" ? (finished ? !looking : (prev?.unseen ?? false)) : false,
+      });
+      commitAgentPanes(m);
+      if (!tab || looking || !(finished || startedWaiting)) return; // 닫힌 패널이거나 보고 있음
+      if (finished) setTabAlerts((p) => new Set(p).add(tab.id));
       if (IS_DETACHED_WINDOW) return;
+      const t = agentTextRef.current;
       void (async () => {
         if (!(await isPermissionGranted())) return;
-        sendNotification({ title: tab.label || "wowTerminal", body: aiDoneTextRef.current });
+        sendNotification({
+          title: tab.label || "wowTerminal",
+          body: finished ? t.aiDone : t.aiBlocked(AGENT_NAMES[agent]),
+        });
       })();
     });
   }, []);
-  const aiWorkingTabIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (aiWorkingPanes.size === 0) return ids;
+  // 보고 있는 탭의 "끝남"은 본 것으로 친다(탭 전환·창 포커스).
+  useEffect(() => {
+    const clearSeen = () => {
+      const tab = tabsRef.current.find((t) => t.id === activeTabIdRef.current);
+      if (!tab || !document.hasFocus()) return;
+      let m: Map<string, PaneAgent> | null = null;
+      for (const [id, a] of agentPanesRef.current) {
+        if (!a.unseen || !findLeaf(tab.root, id)) continue;
+        m ??= new Map(agentPanesRef.current);
+        m.set(id, { ...a, unseen: false });
+      }
+      if (m) commitAgentPanes(m);
+    };
+    clearSeen();
+    window.addEventListener("focus", clearSeen);
+    return () => window.removeEventListener("focus", clearSeen);
+  }, [activeTabId]);
+  const agentTabMarks = useMemo(() => {
+    const marks = new Map<string, "working" | "blocked">();
+    if (agentPanes.size === 0) return marks;
     for (const t of tabs) {
-      for (const p of aiWorkingPanes) {
-        if (findLeaf(t.root, p)) {
-          ids.add(t.id);
+      for (const [p, a] of agentPanes) {
+        if (a.state === "idle" || !findLeaf(t.root, p)) continue;
+        if (a.state === "blocked") {
+          marks.set(t.id, "blocked");
           break;
         }
+        marks.set(t.id, "working");
       }
     }
-    return ids;
-  }, [tabs, aiWorkingPanes]);
+    return marks;
+  }, [tabs, agentPanes]);
+
+  // 왼쪽 패널 에이전트 목록의 행(#187) — 탭 순서대로, 패널이 있는 것만.
+  const agentRows: AgentRow[] = useMemo(() => {
+    const rows: AgentRow[] = [];
+    if (agentPanes.size === 0) return rows;
+    for (const tab of tabs) {
+      for (const leaf of collectLeaves(tab.root)) {
+        const a = agentPanes.get(leaf.id);
+        if (!a) continue;
+        rows.push({
+          ...a,
+          paneId: leaf.id,
+          tabId: tab.id,
+          tabLabel: tab.label,
+          hostLabel: leaf.source.kind === "ssh" ? labelForHost(leaf.source.hostId) : null,
+          active: tab.id === activeTabId && tab.focusedPaneId === leaf.id,
+        });
+      }
+    }
+    return rows;
+  }, [tabs, agentPanes, activeTabId, labelForHost]);
+  const agentWaiting = useMemo(() => agentRows.filter((r) => r.state === "blocked").length, [agentRows]);
+  const jumpToAgent = (tabId: string, paneId: string) => {
+    activateTerminalTab(tabId);
+    focusPane(tabId, paneId);
+    window.setTimeout(() => getTerminal(paneId)?.focus(), 0);
+  };
 
   // 탭이 활성화되면 그 탭의 알림 배지를 지운다.
   useEffect(() => {
@@ -2317,7 +2399,7 @@ function App() {
         tabs={tabs}
         activeTabId={activeFileId ? null : activeTabId}
         alertedTabIds={tabAlerts}
-        aiWorkingTabIds={aiWorkingTabIds}
+        agentTabMarks={agentTabMarks}
         editingTabId={editingTabId}
         onActivate={activateTerminalTab}
         onActivateByKey={(id) => {
@@ -2399,6 +2481,9 @@ function App() {
                   mode={leftMode}
                   onMode={setLeftMode}
                   servers={hostListEl}
+                  agents={<AgentPanel rows={agentRows} onJump={jumpToAgent} />}
+                  agentCount={agentRows.length}
+                  agentWaiting={agentWaiting}
                   files={
                     <div data-file-ui style={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
                       <FilePanel

@@ -17,8 +17,8 @@ import {
   broadcastInput,
   isAppTeardown,
 } from "../terminalRegistry";
-import { emitCommandDone, emitTitleChange, emitAiActivity } from "../commandBus";
-import { looksWorking } from "../aiActivity";
+import { emitCommandDone, emitTitleChange, emitAgentStatus } from "../commandBus";
+import { scanAgent, type AgentScan } from "../aiActivity";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
 import { addHistory, searchHistory, suggest } from "../commandHistory";
@@ -593,15 +593,21 @@ export function Terminal({
       });
     };
     let unlistenOutput: UnlistenFn | null = null;
-    // (#180) AI 에이전트 작업 표시 — 출력이 오면 잠시 뒤 보이는 화면에서 에이전트 상태 줄
-    // ("… esc to interrupt)" / "(esc to cancel, 3s)")을 찾는다. 일하는 중 → 끝남은 1.5초 동안 문구가 계속 없을 때만 알린다(도구 호출 사이에
-    // 상태 줄이 잠깐 사라지는 것 때문에 완료 알림이 튀지 않게).
-    let aiWorking = false;
+    // (#180, #187) AI 에이전트 상태 — 출력이 오면 잠시 뒤 보이는 화면에서 에이전트와 상태(일하는 중·
+    // 입력 기다림·쉬는 중)를 읽는다(aiActivity.ts). 올라가는 쪽(→ 일하는 중·기다림)은 바로 알리고,
+    // 내려가는 쪽(일하는 중 → 쉬는 중, 에이전트 → 없음)은 잠시 뒤 다시 봐서 그대로일 때만 알린다 —
+    // 도구 호출 사이에 상태 줄이 잠깐 사라지거나 화면을 다시 그리는 순간 때문에 끝남이 튀지 않게.
+    let agentNow: AgentScan | null = null;
     let aiScanTimer = 0;
-    let aiIdleTimer = 0;
-    const aiScan = () => {
+    let aiSettleTimer = 0;
+    const publishAgent = (next: AgentScan | null) => {
+      if (next?.agent === agentNow?.agent && next?.state === agentNow?.state) return;
+      agentNow = next;
+      emitAgentStatus({ paneId: paneId ?? "", agent: next?.agent ?? null, state: next?.state ?? null });
+    };
+    const aiScan = (settled = false) => {
       aiScanTimer = 0;
-      let working = false;
+      let next: AgentScan | null;
       try {
         // 보이는 화면 전체(스크롤해 올려 봐도 판정은 맨 아래 화면 기준).
         const b = term.buffer.active;
@@ -609,25 +615,24 @@ export function Terminal({
         for (let i = b.baseY; i < b.baseY + term.rows; i++) {
           lines.push(b.getLine(i)?.translateToString(true) ?? "");
         }
-        working = looksWorking(lines);
+        next = scanAgent(lines);
       } catch {
         return;
       }
-      if (working) {
-        if (aiIdleTimer) {
-          clearTimeout(aiIdleTimer);
-          aiIdleTimer = 0;
-        }
-        if (!aiWorking) {
-          aiWorking = true;
-          emitAiActivity({ paneId: paneId ?? "", working: true });
-        }
-      } else if (aiWorking && !aiIdleTimer) {
-        aiIdleTimer = window.setTimeout(() => {
-          aiIdleTimer = 0;
-          aiWorking = false;
-          emitAiActivity({ paneId: paneId ?? "", working: false });
-        }, 1500);
+      const lower =
+        agentNow !== null && (next === null || (agentNow.state === "working" && next.state === "idle"));
+      if (!lower || settled) {
+        clearTimeout(aiSettleTimer);
+        aiSettleTimer = 0;
+        publishAgent(next);
+      } else if (!aiSettleTimer) {
+        aiSettleTimer = window.setTimeout(
+          () => {
+            aiSettleTimer = 0;
+            aiScan(true);
+          },
+          next === null ? 3000 : 1500,
+        );
       }
     };
     const scheduleAiScan = () => {
@@ -1736,9 +1741,9 @@ export function Terminal({
       clearTimeout(imeDiagTimer); // [진단 #83]
       if (cwdProbeTimer) clearTimeout(cwdProbeTimer); // (#152)
       clearTimeout(aiScanTimer); // (#180)
-      clearTimeout(aiIdleTimer);
-      // 패널이 사라지면 작업 표시도 내린다(완료 알림은 App이 패널이 없는 걸 보고 띄우지 않는다).
-      if (aiWorking) emitAiActivity({ paneId: paneId ?? "", working: false });
+      clearTimeout(aiSettleTimer);
+      // 패널이 사라지면 에이전트도 목록에서 내린다(#187).
+      if (agentNow) emitAgentStatus({ paneId: paneId ?? "", agent: null, state: null });
       ro.disconnect();
       onDataDisposable.dispose();
       onResizeDisposable.dispose();

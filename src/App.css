@@ -68,8 +68,19 @@ body.plat-mac:not(.wt-native-ime) .xterm .composition-view.active {
   display: inline-block;
   animation: wt-ai-spin 1.6s linear infinite;
 }
+/* 답을 기다리는 에이전트(#187) — 눈에 띄게 천천히 깜박인다. */
+.wt-ai-blocked {
+  display: inline-block;
+  animation: wt-ai-pulse 1.2s ease-in-out infinite;
+}
+@keyframes wt-ai-pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
 @media (prefers-reduced-motion: reduce) {
-  .wt-ai-working {
+  .wt-ai-working,
+  .wt-ai-blocked {
     animation: none;
   }
 }

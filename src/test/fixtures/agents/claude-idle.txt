@@ -1,0 +1,30 @@
+
+ ▐▛███▛█   Claude Code v2.1.323
+▝▜██████▀  Opus 5.5 with xhigh effort · Claude Ultra
+ ▝▝   ▝▝   ~/project
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                                                                                 ◉ xhigh · /effort
+────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ Try "refactor <filepath>"
+────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⚠ Transcript saving is off — inherited CLAUDE_CODE_CHILD_SESSION marker · restart with CLAUDE_C…
+
+  ⏸ manual mode on

@@ -8,62 +8,74 @@ const STR: LangDict<{
     closeTab: string;
     newTab: string;
     aiWorking: string;
+    aiBlocked: string;
   }
 > = {
   en: {
     closeTab: "Close tab (Ctrl+W)",
     newTab: "New local shell tab (Ctrl+T)",
     aiWorking: "AI is working",
+    aiBlocked: "AI is waiting for your answer",
   },
   ko: {
     closeTab: "탭 닫기 (Ctrl+W)",
     newTab: "새 로컬 셸 탭 (Ctrl+T)",
     aiWorking: "AI 작업 중",
+    aiBlocked: "AI가 답을 기다림",
   },
   es: {
     closeTab: "Cerrar pestaña (Ctrl+W)",
     newTab: "Nueva pestaña de shell local (Ctrl+T)",
     aiWorking: "La IA está trabajando",
+    aiBlocked: "La IA espera tu respuesta",
   },
   zh: {
     closeTab: "关闭标签页 (Ctrl+W)",
     newTab: "新建本地 shell 标签页 (Ctrl+T)",
     aiWorking: "AI 正在工作",
+    aiBlocked: "AI 正在等待你的回答",
   },
   ja: {
     closeTab: "タブを閉じる (Ctrl+W)",
     newTab: "新しいローカルシェルタブ (Ctrl+T)",
     aiWorking: "AI が作業中",
+    aiBlocked: "AI が回答を待っています",
   },
   ru: {
     closeTab: "Закрыть вкладку (Ctrl+W)",
     newTab: "Новая вкладка локального shell (Ctrl+T)",
     aiWorking: "ИИ работает",
+    aiBlocked: "ИИ ждёт вашего ответа",
   },
   fr: {
     closeTab: "Fermer l'onglet (Ctrl+W)",
     newTab: "Nouvel onglet shell local (Ctrl+T)",
     aiWorking: "L'IA travaille",
+    aiBlocked: "L'IA attend votre réponse",
   },
   de: {
     closeTab: "Tab schließen (Ctrl+W)",
     newTab: "Neuer lokaler Shell-Tab (Ctrl+T)",
     aiWorking: "KI arbeitet",
+    aiBlocked: "KI wartet auf deine Antwort",
   },
   vi: {
     closeTab: "Đóng tab (Ctrl+W)",
     newTab: "Tab shell cục bộ mới (Ctrl+T)",
     aiWorking: "AI đang làm việc",
+    aiBlocked: "AI đang chờ bạn trả lời",
   },
   id: {
     closeTab: "Tutup tab (Ctrl+W)",
     newTab: "Tab shell lokal baru (Ctrl+T)",
     aiWorking: "AI sedang bekerja",
+    aiBlocked: "AI menunggu jawaban Anda",
   },
   hi: {
     closeTab: "टैब बंद करें (Ctrl+W)",
     newTab: "नया लोकल shell टैब (Ctrl+T)",
     aiWorking: "AI काम कर रहा है",
+    aiBlocked: "AI आपके जवाब की प्रतीक्षा कर रहा है",
   },
 };
 
@@ -112,8 +124,8 @@ interface Props {
   activeTabId: string | null;
   /** 백그라운드에서 긴 명령이 끝나 알림 배지를 표시할 탭 id들 (#55). */
   alertedTabIds?: Set<string>;
-  /** AI 에이전트가 일하는 중인 탭 (#180). */
-  aiWorkingTabIds?: Set<string>;
+  /** AI 에이전트가 일하는 중(✻)이거나 답을 기다리는(?) 탭 (#180, #187). */
+  agentTabMarks?: ReadonlyMap<string, "working" | "blocked">;
   /** 인라인 편집 중인 탭 (이름 변경). null이면 편집 중 아님. */
   editingTabId: string | null;
   onActivate: (id: string) => void;
@@ -141,7 +153,7 @@ export function TabBar({
   tabs,
   activeTabId,
   alertedTabIds,
-  aiWorkingTabIds,
+  agentTabMarks,
   editingTabId,
   onActivate,
   onActivateByKey,
@@ -240,7 +252,7 @@ export function TabBar({
         const active = t.id === activeTabId;
         const editing = t.id === editingTabId;
         const alerted = !!alertedTabIds?.has(t.id);
-        const aiWorking = !!aiWorkingTabIds?.has(t.id);
+        const agentMark = agentTabMarks?.get(t.id);
         const split = t.root.kind === "split";
         return (
           <div
@@ -302,7 +314,7 @@ export function TabBar({
           >
             <TermChip split={split} />
             {hostOf && <HostDot hostId={hostOf(t)} />}
-            {aiWorking && (
+            {agentMark === "working" && (
               <span
                 className="wt-ai-working"
                 title={tr.aiWorking}
@@ -310,6 +322,27 @@ export function TabBar({
                 style={{ flexShrink: 0, color: "#c792ea", fontSize: 11, lineHeight: 1 }}
               >
                 ✻
+              </span>
+            )}
+            {agentMark === "blocked" && (
+              <span
+                className="wt-ai-blocked"
+                title={tr.aiBlocked}
+                aria-label={tr.aiBlocked}
+                style={{
+                  flexShrink: 0,
+                  width: 13,
+                  height: 13,
+                  borderRadius: "50%",
+                  background: "#e3b341",
+                  color: "#1e1e1e",
+                  fontSize: 10,
+                  fontWeight: 700,
+                  lineHeight: "13px",
+                  textAlign: "center",
+                }}
+              >
+                ?
               </span>
             )}
             {alerted && (

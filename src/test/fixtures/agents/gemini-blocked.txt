@@ -1,0 +1,19 @@
+Tips for getting started:
+1. Ask questions, edit files, or run commands.
+2. Be specific for the best results.
+
+> create an empty file named wt_probe.txt
+
+╭──────────────────────────────────────────────────────────────────────────────────────────────╮
+│ ?  Shell touch wt_probe.txt                                                                  │
+│                                                                                              │
+│   touch wt_probe.txt                                                                         │
+│                                                                                              │
+│ Allow execution of: 'touch'?                                                                 │
+│                                                                                              │
+│ ● 1. Allow once                                                                              │
+│   2. Allow for this session                                                                  │
+│   3. No, suggest changes (esc)                                                               │
+│                                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────────────────────╯
+~/project (main*)               no sandbox (see /docs)                gemini-2.5-pro (3% used)

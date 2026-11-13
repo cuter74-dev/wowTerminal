@@ -1,12 +1,12 @@
-// AI 에이전트 작업 표시 시험 (#180). 실제 <Terminal>을 happy-dom에 띄워(Tauri만 목) 에이전트의
-// 상태 줄 출력을 흘려 보내고, 일하는 중/끝남 판정이 버스로 나가는지 본다.
+// AI 에이전트 상태 시험 (#180, #187). 실제 <Terminal>을 happy-dom에 띄워(Tauri만 목) 에이전트
+// 화면을 흘려 보내고, 일하는 중·입력 기다림·쉬는 중·종료 판정이 버스로 나가는지 본다.
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Terminal } from "./components/Terminal";
 import { DEFAULT_SETTINGS } from "./settings";
 import { looksWorking } from "./aiActivity";
-import { onAiActivity } from "./commandBus";
+import { onAgentStatus } from "./commandBus";
 import { SESSION_ID, emitEvent, invokeLog, resetTauriMock } from "./test/tauriMock";
 
 describe("looksWorking", () => {
@@ -37,15 +37,15 @@ const b64 = (s: string) => btoa(String.fromCharCode(...new TextEncoder().encode(
 
 let root: Root;
 let container: HTMLDivElement;
-const events: boolean[] = [];
+const events: string[] = [];
 let off: () => void;
 
 beforeEach(async () => {
   resetTauriMock();
   vi.useFakeTimers();
   events.length = 0;
-  off = onAiActivity(({ paneId, working }) => {
-    if (paneId === "ai-pane") events.push(working);
+  off = onAgentStatus(({ paneId, agent, state }) => {
+    if (paneId === "ai-pane") events.push(agent ? `${agent}:${state}` : "none");
   });
   container = document.createElement("div");
   document.body.appendChild(container);
@@ -70,28 +70,70 @@ async function output(text: string) {
   await act(async () => emitEvent("pty:output", { session_id: SESSION_ID, data_b64: b64(text) }));
 }
 
-it("상태 줄이 뜨면 일하는 중, 1.5초 넘게 사라지면 끝남 (#180)", async () => {
-  await output("\x1b[2J\x1b[H❯ fix the build\r\n\r\n✳ Wrangling… (3s · ↓ 229 tokens)\r\n");
+// Claude Code 화면 한 장을 통째로 다시 그린다 — 입력 상자(테두리 / ❯ / 테두리) 위에 본문 줄.
+const RULE = "─".repeat(60);
+const claude = (...body: string[]) =>
+  output("\x1b[2J\x1b[H" + [...body, RULE, "❯ ", RULE, "  ⏸ manual mode on"].join("\r\n"));
+
+it("상태 줄이 뜨면 일하는 중, 1.5초 넘게 사라지면 쉬는 중 (#180)", async () => {
+  await claude("❯ fix the build", "", "✳ Wrangling… (3s · ↓ 229 tokens)");
   await advance(400);
-  expect(events).toEqual([true]);
+  expect(events).toEqual(["claude:working"]);
 
   // 도구 호출 사이에 잠깐 사라졌다가 다시 뜨면 끝남으로 보지 않는다.
-  await output("\x1b[3;1H\x1b[2K");
+  await claude("❯ fix the build", "", "⏺ Bash(npm test)");
   await advance(700);
-  await output("\x1b[3;1H✶ Running tests… (9s · ↓ 1.1k tokens)");
+  await claude("❯ fix the build", "", "✶ Running tests… (9s · ↓ 1.1k tokens)");
   await advance(2000);
-  expect(events).toEqual([true]);
+  expect(events).toEqual(["claude:working"]);
 
-  // 상태 줄이 사라지고 그대로면 끝남.
-  await output("\x1b[3;1H\x1b[2K✻ Baked for 12s · done 3:44 PM\r\n❯ ");
+  // 상태 줄이 사라지고 그대로면 쉬는 중.
+  await claude("❯ fix the build", "", "✻ Baked for 12s · done 3:44 PM");
   await advance(400);
-  expect(events).toEqual([true]);
+  expect(events).toEqual(["claude:working"]);
   await advance(1500);
-  expect(events).toEqual([true, false]);
+  expect(events).toEqual(["claude:working", "claude:idle"]);
+});
+
+it("권한 확인 창은 바로 입력 기다림, 답하면 바로 풀린다 (#187)", async () => {
+  await claude("❯ clean up", "", "✳ Thinking… (2s)");
+  await advance(400);
+  await output(
+    "\x1b[2J\x1b[H" +
+      ["❯ clean up", RULE, " Bash command", " rm -rf build", " Do you want to proceed?", " ❯ 1. Yes", "   2. No", " Esc to cancel · Tab to amend"].join("\r\n"),
+  );
+  await advance(400);
+  expect(events).toEqual(["claude:working", "claude:blocked"]);
+  await claude("❯ clean up", "", "✶ Removing… (1s)");
+  await advance(400);
+  expect(events).toEqual(["claude:working", "claude:blocked", "claude:working"]);
+});
+
+it("에이전트가 끝나 셸로 돌아오면 3초 뒤 목록에서 빠진다 — 남은 상태 줄은 무시 (#187)", async () => {
+  await claude("❯ hi", "", "✻ Brewed for 1s · done 3:44 PM");
+  await advance(400);
+  expect(events).toEqual(["claude:idle"]);
+  // /exit 뒤: 마지막 상태 줄과 위 테두리가 남고, 셸 프롬프트가 아래 테두리를 덮는다.
+  await output(
+    "\x1b[2J\x1b[H" + ["❯ /exit", "✳ Bloviating…", RULE, "❯ %", "~/project % "].join("\r\n"),
+  );
+  await advance(400);
+  expect(events).toEqual(["claude:idle"]);
+  await advance(3000);
+  expect(events).toEqual(["claude:idle", "none"]);
 });
 
 it("에이전트가 없는 평범한 출력은 아무것도 알리지 않는다", async () => {
   await output("demo@macbook ~ % npm run build\r\nbuilding…\r\ndone in 3.2s\r\n");
   await advance(3000);
   expect(events).toEqual([]);
+});
+
+it("패널이 닫히면 에이전트도 내린다 (#187)", async () => {
+  await claude("❯ hi");
+  await advance(400);
+  expect(events).toEqual(["claude:idle"]);
+  await act(async () => root.unmount());
+  expect(events).toEqual(["claude:idle", "none"]);
+  root = createRoot(container); // afterEach가 다시 unmount한다
 });

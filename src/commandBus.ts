@@ -1,5 +1,6 @@
 // 터미널 명령 완료(OSC 133 D) 이벤트 버스 — Terminal → App(알림/탭 배지) 연결.
 // PaneView를 거치지 않도록 모듈 버스로 처리.
+import type { AgentKind, AgentState } from "./aiActivity";
 
 export type CommandDoneInfo = {
   paneId: string;
@@ -38,14 +39,15 @@ export function emitTitleChange(info: TitleInfo): void {
   titleListeners.forEach((l) => l(info));
 }
 
-// --- AI 에이전트 작업 상태 버스 (#180) — Terminal(화면 판정) → App(탭 표시·완료 알림). ---
-export type AiActivityInfo = { paneId: string; working: boolean };
-type AiActivityListener = (info: AiActivityInfo) => void;
-const aiActivityListeners = new Set<AiActivityListener>();
-export function onAiActivity(cb: AiActivityListener): () => void {
-  aiActivityListeners.add(cb);
-  return () => aiActivityListeners.delete(cb);
+// --- AI 에이전트 상태 버스 (#180, #187) — Terminal(화면 판정) → App(탭 표시·알림·에이전트 목록).
+// agent가 null이면 그 패널에 에이전트가 없다(끝났거나 패널이 닫힘). ---
+export type AgentStatusInfo = { paneId: string; agent: AgentKind | null; state: AgentState | null };
+type AgentStatusListener = (info: AgentStatusInfo) => void;
+const agentStatusListeners = new Set<AgentStatusListener>();
+export function onAgentStatus(cb: AgentStatusListener): () => void {
+  agentStatusListeners.add(cb);
+  return () => agentStatusListeners.delete(cb);
 }
-export function emitAiActivity(info: AiActivityInfo): void {
-  aiActivityListeners.forEach((l) => l(info));
+export function emitAgentStatus(info: AgentStatusInfo): void {
+  agentStatusListeners.forEach((l) => l(info));
 }

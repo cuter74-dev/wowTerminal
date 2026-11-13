@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { LangDict, useT } from "../i18n";
+import { AGENT_COLORS, AGENT_NAMES } from "../aiActivity";
 
 export type UsageWindow = {
   name: string | null;
@@ -22,18 +23,9 @@ export type ProviderUsage = {
 const REFRESH_MS = 5 * 60 * 1000;
 const FOCUS_MIN_GAP_MS = 60 * 1000;
 
-const NAMES: Record<ProviderUsage["provider"], string> = {
-  claude: "Claude",
-  codex: "Codex",
-  gemini: "Gemini",
-};
-
-/** 회사 이름 색 — 각 회사의 대표색을 어두운 바탕에서 읽히게 맞춘 것(#184). */
-const BRAND: Record<ProviderUsage["provider"], string> = {
-  claude: "#d97757",
-  codex: "#10a37f",
-  gemini: "#8ab4f8",
-};
+// 회사 이름과 대표색(#184) — 에이전트 목록(#187)과 같은 값을 쓴다.
+const NAMES = AGENT_NAMES;
+const BRAND = AGENT_COLORS;
 
 const STR: LangDict<{
   fiveHour: string;
