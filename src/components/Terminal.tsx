@@ -600,6 +600,10 @@ export function Terminal({
     let agentNow: AgentScan | null = null;
     let aiScanTimer = 0;
     let aiSettleTimer = 0;
+    // 셸 통합(OSC 133)이 있는 패널에서 셸이 프롬프트로 돌아왔으면(D 뒤, 다음 C 전) 전면 프로그램이
+    // 없다 — 화면에 에이전트 입력 상자가 그대로 남아 있어도(지우지 못하고 끝난 경우) 에이전트가 아니다.
+    // 통합이 없는 패널(SSH 등)은 화면 판정만 쓴다.
+    let shellAtPrompt = false;
     const publishAgent = (next: AgentScan | null) => {
       if (next?.agent === agentNow?.agent && next?.state === agentNow?.state) return;
       agentNow = next;
@@ -615,7 +619,7 @@ export function Terminal({
         for (let i = b.baseY; i < b.baseY + term.rows; i++) {
           lines.push(b.getLine(i)?.translateToString(true) ?? "");
         }
-        next = scanAgent(lines);
+        next = shellAtPrompt ? null : scanAgent(lines);
       } catch {
         return;
       }
@@ -713,9 +717,15 @@ export function Terminal({
       try {
       const kind = payload[0];
       if (kind === "C") {
+        shellAtPrompt = false; // (#187)
         cmdStart = Date.now();
         cMarker = term.registerMarker(0);
       } else if (kind === "D") {
+        // 명령이 끝났다 = 그 안에서 돌던 에이전트도 끝났다(#187). 바로 목록에서 내린다.
+        shellAtPrompt = true;
+        clearTimeout(aiSettleTimer);
+        aiSettleTimer = 0;
+        publishAgent(null);
         const exit = parseInt(payload.split(";")[1] ?? "", 10);
         if (cmdStart) {
           emitCommandDone({

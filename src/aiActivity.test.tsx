@@ -123,6 +123,24 @@ it("에이전트가 끝나 셸로 돌아오면 3초 뒤 목록에서 빠진다 �
   expect(events).toEqual(["claude:idle", "none"]);
 });
 
+it("셸 통합이 명령 끝(OSC 133 D)을 알리면 입력 상자가 남아 있어도 바로 내린다 (#187)", async () => {
+  await output("\x1b]133;C\x07");
+  await claude("❯ hi", "", "✻ Brewed for 1s · done 3:44 PM");
+  await advance(400);
+  expect(events).toEqual(["claude:idle"]);
+  // 상자를 지우지 못하고 끝난 경우: 상자 아래에 셸 프롬프트만 찍힌다.
+  await output("\r\n\x1b]133;D;0\x07demo@mac ~ % ");
+  await advance(400);
+  expect(events).toEqual(["claude:idle", "none"]);
+  await advance(5000);
+  expect(events).toEqual(["claude:idle", "none"]);
+  // 다음 명령(C)이 시작되면 다시 화면으로 판정한다.
+  await output("\x1b]133;C\x07");
+  await claude("❯ again", "", "✳ Thinking… (1s)");
+  await advance(400);
+  expect(events).toEqual(["claude:idle", "none", "claude:working"]);
+});
+
 it("에이전트가 없는 평범한 출력은 아무것도 알리지 않는다", async () => {
   await output("demo@macbook ~ % npm run build\r\nbuilding…\r\ndone in 3.2s\r\n");
   await advance(3000);
