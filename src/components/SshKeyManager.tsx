@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { LangDict, useT } from "../i18n";
 import { SshKeyEntry } from "../types";
+import { copyText } from "../clipboard";
 
 interface Props {
   onClose: () => void;
@@ -608,9 +609,11 @@ function KeyDetail({ entry, onBack }: { entry: SshKeyEntry; onBack: () => void }
         <button onClick={onBack} style={btnStyle}>{t.backToList}</button>
         <button
           onClick={() => {
-            void navigator.clipboard.writeText(entry.public_key);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
+            void copyText(entry.public_key).then((ok) => {
+              if (!ok) return;
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            });
           }}
           style={primaryBtnStyle}
         >

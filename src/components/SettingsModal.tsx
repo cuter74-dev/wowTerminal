@@ -21,6 +21,8 @@ import { LangDict, useT } from "../i18n";
 import { setErrorReporting } from "../telemetry";
 import { BackendInfo, Group, SshHost, Tag } from "../types";
 import { Snippet, loadSnippets, saveSnippets } from "../snippets";
+import { newId } from "../ids";
+import { copyText } from "../clipboard";
 
 interface Props {
   settings: AppSettings;
@@ -1547,7 +1549,7 @@ function BackupTab() {
       }
       for (const p of parsed) {
         const host: SshHost = {
-          id: crypto.randomUUID(),
+          id: newId(),
           name: p.name,
           host: p.host || p.name,
           port: p.port,
@@ -1652,7 +1654,7 @@ function BackupTab() {
         </button>
         <button
           onClick={() => {
-            void navigator.clipboard.writeText(text);
+            void copyText(text);
           }}
           disabled={!text}
           style={btnStyle}
@@ -1698,7 +1700,7 @@ function SnippetsTab() {
     if (!name.trim() || !command.trim()) return;
     persist([
       ...list,
-      { id: crypto.randomUUID(), name: name.trim(), command: command.trim() },
+      { id: newId(), name: name.trim(), command: command.trim() },
     ]);
     setName("");
     setCommand("");

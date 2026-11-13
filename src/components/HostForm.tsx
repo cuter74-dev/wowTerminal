@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Group, SshAuthMethod, SshHost, SshKeyEntry, Tag } from "../types";
 import { LangDict, useT } from "../i18n";
+import { newId } from "../ids";
 
 interface Props {
   initial: SshHost | null;
@@ -421,7 +422,7 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
       };
     }
 
-    const id = initial?.id ?? crypto.randomUUID();
+    const id = initial?.id ?? newId();
     // 빈 값이면 기본 22, 범위를 벗어나면 클램프.
     const portNum = Math.min(65535, Math.max(1, parseInt(port, 10) || 22));
     const payload: SshHost = {

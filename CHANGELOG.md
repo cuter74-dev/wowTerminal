@@ -7,6 +7,11 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Copying from tmux, vim or Claude Code in the terminal (OSC 52) now reaches the clipboard on macOS.** The macOS webview refuses clipboard writes that don't come straight from a key press or click, so these copies were silently lost; the app now writes them through the native clipboard instead. (#186)
+- **Saving, duplicating or importing SSH hosts and adding quick commands work on older Android WebViews.** They failed with "crypto.randomUUID is not a function" on WebViews older than Chrome 92. (#186)
+- **A refused clipboard copy or paste no longer turns into an error report**, and "Copied" only shows when the copy actually worked. (#186)
+
 ## [0.21.11] — 2026-11-12
 
 ### Changed

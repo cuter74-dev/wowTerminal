@@ -2,6 +2,7 @@
 // 공유할 필요도 적어 가볍게 브라우저 스토리지에 둔다.
 
 import { ChatMessage } from "./types";
+import { newId } from "./ids";
 
 export interface ChatSession {
   id: string;
@@ -34,10 +35,7 @@ export function saveSessions(sessions: ChatSession[]): void {
 }
 
 export function newSessionId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
+  return newId();
 }
 
 /** 첫 user 메시지로 세션 제목 생성 (최대 30자). */

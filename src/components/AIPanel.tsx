@@ -19,6 +19,7 @@ import {
   saveSessions,
   titleFromMessages,
 } from "../chatSessions";
+import { copyText } from "../clipboard";
 
 /**
  * AI 마크 — 그라데이션 스파클(✨ 모티프). 이모지 🤖 대신 고급스러운 인라인 SVG.
@@ -1403,9 +1404,11 @@ function CommandCard({
         </button>
         <button
           onClick={() => {
-            void navigator.clipboard.writeText(code);
-            setCopied(true);
-            setTimeout(() => setCopied(false), 1200);
+            void copyText(code).then((ok) => {
+              if (!ok) return;
+              setCopied(true);
+              setTimeout(() => setCopied(false), 1200);
+            });
           }}
           style={cardBtnStyle}
         >

@@ -11,6 +11,7 @@ import { LangDict, useT } from "../i18n";
 import { loadSettings } from "../settings";
 import { isMobile } from "../platform";
 import { Eol, toFileEol } from "../eol";
+import { newId } from "../ids";
 import { FileEntry, Listing, SearchHit } from "../types";
 
 const STR: LangDict<{
@@ -975,11 +976,6 @@ const STR: LangDict<{
   },
 };
 
-function newTransferId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
-  return Math.random().toString(36).slice(2);
-}
-
 interface TransferItem {
   id: string;
   label: string;
@@ -1512,7 +1508,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
           for (const item of plan) {
             const path = pathOf.get(item.entry);
             if (!path) continue;
-            const id = newTransferId();
+            const id = newId();
             setTransfers((prev) => [
               ...prev,
               {
@@ -1557,7 +1553,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
     destName: string | null = null,
   ) {
     if (!remote) return;
-    const id = newTransferId();
+    const id = newId();
     const remotePath = joinPosix(remote.cwd, entry.name);
     const slash = entry.is_dir ? "/" : "";
     setTransfers((prev) => [
@@ -1585,7 +1581,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
   // destName이 있으면 그 이름으로 올린다(이름 충돌 시 "새 이름으로 저장").
   function queueUpload(entry: FileEntry, remoteDir: string, destName: string | null = null) {
     if (!local) return;
-    const id = newTransferId();
+    const id = newId();
     const localPath = joinLocal(local.cwd, entry.name);
     const slash = entry.is_dir ? "/" : "";
     setTransfers((prev) => [

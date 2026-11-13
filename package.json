@@ -21,6 +21,7 @@
     "@codemirror/view": "^6.43.15",
     "@sentry/react": "^10.56.0",
     "@tauri-apps/api": "^2",
+    "@tauri-apps/plugin-clipboard-manager": "~2.3.3",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-fs": "^2",
     "@tauri-apps/plugin-notification": "^2.3.3",

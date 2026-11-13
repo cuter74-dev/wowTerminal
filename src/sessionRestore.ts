@@ -9,6 +9,7 @@
 //    죽었다"는 전제로 저장하지 않았으나, 데몬 도입으로 그 전제가 바뀌었다.
 
 import { Pane, Tab, TerminalSource } from "./types";
+import { newId } from "./ids";
 
 const KEY = "wowterminal.session.v1";
 
@@ -19,13 +20,6 @@ type SavedPane =
 type SavedTab = { label: string; root: SavedPane };
 
 type Snapshot = { v: 1; tabs: SavedTab[]; activeIndex: number };
-
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
 
 /** 저장 시 leaf의 cwd/tmux를 묻는 콜백 (App이 terminalRegistry/추적 ref로 답한다). */
 export interface LeafProbe {

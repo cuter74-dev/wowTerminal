@@ -13,6 +13,7 @@ import { DeleteHostModal } from "./DeleteHostModal";
 import { GroupTagManager } from "./GroupTagManager";
 import { SshKeyManager } from "./SshKeyManager";
 import { LangDict, useT } from "../i18n";
+import { newId } from "../ids";
 
 const STR: LangDict<{
     switchToLocal: string;
@@ -421,7 +422,7 @@ export function HostList({
     // 저장되므로 복제본은 첫 접속 시 다시 인증한다.
     const copy: SshHost = {
       ...h,
-      id: crypto.randomUUID(),
+      id: newId(),
       name: `${h.name} (copy)`,
     };
     try {

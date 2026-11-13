@@ -25,6 +25,7 @@ import {
 } from "../fileDocs";
 import { downloadRemote, newTransferId, uniqueName } from "../downloads";
 import { showToast } from "../toastBus";
+import { copyText } from "../clipboard";
 import { onCommandDone } from "../commandBus";
 import { ConflictModal, ConflictResolution } from "./FileBrowser";
 
@@ -831,7 +832,7 @@ export function FilePanel({
   };
 
   const copyPath = (p: string) => {
-    void navigator.clipboard.writeText(shellQuote(p)).then(() => showToast({ kind: "info", text: t.pathCopied }, 1500));
+    void copyText(shellQuote(p)).then((ok) => ok && showToast({ kind: "info", text: t.pathCopied }, 1500));
   };
 
   const doDownload = async (paths: string[]) => {

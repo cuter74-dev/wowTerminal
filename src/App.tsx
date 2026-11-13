@@ -98,6 +98,7 @@ import {
   setRatioByPath,
   splitLeaf,
 } from "./types";
+import { newId } from "./ids";
 import "./App.css";
 
 /** detached 윈도우는 라벨이 "detached-..."로 시작. 동기적으로 알아야 초기 탭을 안 띄울 수 있음. */
@@ -125,13 +126,6 @@ interface DetachedInit {
   sessionId?: string | null;
   screen?: string | null;
   aiSessionId?: string | null;
-}
-
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
 const STR: LangDict<{

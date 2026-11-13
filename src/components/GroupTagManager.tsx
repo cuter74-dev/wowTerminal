@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { Group, Tag, TAG_PALETTE } from "../types";
 import { LangDict, useT } from "../i18n";
+import { newId } from "../ids";
 
 interface Props {
   onClose: () => void;
@@ -201,13 +202,6 @@ const STR: LangDict<{
     newTagPlaceholder: "नए टैग का नाम",
   },
 };
-
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return Math.random().toString(36).slice(2) + Date.now().toString(36);
-}
 
 export function GroupTagManager({ onClose, onChanged }: Props) {
   const tr = useT(STR);

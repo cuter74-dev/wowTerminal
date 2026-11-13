@@ -28,6 +28,7 @@ const RULES: [RegExp, string[], string][] = [
   [/getCurrentWindow\(\)\.close\(/, ["core:window:allow-close"], "창 close"],
   [/\.setFocus\(/, ["core:window:allow-set-focus"], "창 setFocus"],
   [/from "@tauri-apps\/plugin-process"/, ["process:default", "process:allow-exit"], "앱 종료·재시작"],
+  [/from "@tauri-apps\/plugin-clipboard-manager"/, ["clipboard-manager:allow-write-text"], "네이티브 클립보드 쓰기"],
 ];
 
 describe("capabilities (#169)", () => {

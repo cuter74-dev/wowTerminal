@@ -30,6 +30,7 @@ import {
   recordTracePty,
   releaseTraceRecording,
 } from "../imeTraceRecorder";
+import { copyText, readClipboard } from "../clipboard";
 
 // 비밀번호 프롬프트 감지 (#118) — 명령 히스토리/자동완성에 비밀번호가 새지 않게 한다.
 // 출력의 마지막 줄이 "...password:", "[sudo] password for user:", "Enter passphrase ...:",
@@ -689,7 +690,7 @@ export function Terminal({
       if (data === "" || data === "?") return true; // 읽기 요청 — 응답 안 함
       try {
         const text = new TextDecoder().decode(base64ToBytes(data));
-        if (text) void navigator.clipboard.writeText(text);
+        if (text) void copyText(text);
       } catch {
         // 잘못된 base64 등은 무시.
       }
@@ -1254,7 +1255,7 @@ export function Terminal({
         if (term.hasSelection()) {
           e.preventDefault();
           const sel = term.getSelection();
-          if (sel) void navigator.clipboard.writeText(sel);
+          if (sel) void copyText(sel);
           return false;
         }
         return true;
@@ -1280,7 +1281,7 @@ export function Terminal({
         if (term.hasSelection()) {
           e.preventDefault();
           const sel = term.getSelection();
-          if (sel) void navigator.clipboard.writeText(sel);
+          if (sel) void copyText(sel);
           return false; // 복사
         }
         // 선택 없음: Ctrl+Shift+C는 무동작(소비), Ctrl+C는 SIGINT로 통과.
@@ -1288,12 +1289,9 @@ export function Terminal({
       }
       if (!isMacWebView && e.ctrlKey && !e.altKey && (e.key === "v" || e.key === "V")) {
         e.preventDefault();
-        void navigator.clipboard
-          .readText()
-          .then((t) => {
-            if (t) term.paste(t); // bracketed-paste 모드를 존중해 PTY로 전달.
-          })
-          .catch(() => {});
+        void readClipboard().then((t) => {
+          if (t) term.paste(t); // bracketed-paste 모드를 존중해 PTY로 전달.
+        });
         return false;
       }
       // 조합을 커밋하는 스페이스(#140): 그대로 두면 xterm이 음절을 두 번 보낸다 —
@@ -1789,13 +1787,13 @@ export function Terminal({
   const doCopy = () =>
     ctxAction(() => {
       const sel = termRef.current?.getSelection();
-      if (sel) void navigator.clipboard.writeText(sel);
+      if (sel) void copyText(sel);
     });
   const doPaste = () =>
     ctxAction(() => {
       // term.paste로 보내야 bracketed-paste 모드와 개행(\n→\r) 정규화가 적용된다 (#156).
       // PTY에 원문을 직접 쓰면 셸이 bracketed paste를 켜 놨어도 여러 줄이 한 줄씩 즉시 실행된다.
-      void navigator.clipboard.readText().then((txt) => {
+      void readClipboard().then((txt) => {
         if (txt) termRef.current?.paste(txt);
       });
     });

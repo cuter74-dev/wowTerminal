@@ -23,6 +23,7 @@
     "fs:allow-write-text-file",
     "notification:default",
     "updater:default",
-    "process:default"
+    "process:default",
+    "clipboard-manager:allow-write-text"
   ]
 }
