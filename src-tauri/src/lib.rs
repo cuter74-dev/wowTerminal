@@ -337,6 +337,7 @@ pub fn run() {
             ssh::commands::ssh_connect,
             ssh::commands::ssh_write,
             ssh::commands::ssh_remote_cwd,
+            ssh::commands::ssh_paste_upload,
             ssh::commands::ssh_tmux_sessions,
             ssh::commands::ssh_probe_system,
             pty::commands::local_tmux_sessions,

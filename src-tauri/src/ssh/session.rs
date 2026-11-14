@@ -237,6 +237,21 @@ const SYSTEM_PROBE_SCRIPT: &str = r#"uname -srm 2>/dev/null; printf 'shell=%s us
 /// Linux(/proc)에서만 동작하며, 그 외(macOS/BSD·hidepid 등)에서는 아무것도 출력하지 않는다(홈 폴백).
 const REMOTE_CWD_SCRIPT: &str = r##"sh -c 'st(){ _i=$2; s=$(cat /proc/$1/stat 2>/dev/null)||return 1; r=${s##*\) }; set -- $r; eval "printf %s \"\${$_i}\""; }; issshd(){ case "$(cat /proc/$1/comm 2>/dev/null)" in sshd|sshd-session|sshd-auth) return 0;; esac; return 1; }; self=$$; p=$self; ch=; while [ "$p" -gt 1 ] 2>/dev/null; do ch="$ch $p"; np=$(st $p 2)||break; [ "$np" = "$p" ] && break; p=$np; done; conn=; prev=; for q in $ch; do issshd $q || continue; pq=$(st $q 2); issshd $pq || { conn=$prev; [ -n "$conn" ] || conn=$q; break; }; prev=$q; done; [ -n "$conn" ] || exit 0; first=; fg=; for d in /proc/[0-9]*; do pid=${d#/proc/}; [ "$pid" = "$self" ] && continue; t=$(st $pid 5 2>/dev/null)||continue; [ -n "$t" ] && [ "$t" != 0 ] || continue; a=$pid; ok=0; while [ "$a" -gt 1 ] 2>/dev/null; do [ "$a" = "$conn" ] && { ok=1; break; }; na=$(st $a 2)||break; [ "$na" = "$a" ] && break; a=$na; done; [ "$ok" = 1 ] || continue; [ -n "$first" ] || first=$pid; [ "$(st $pid 6)" = "$pid" ] && { fg=$pid; break; }; done; if [ -n "$fg" ]; then case "$(cat /proc/$fg/comm 2>/dev/null)" in tmux*) tty=$(readlink /proc/$fg/fd/0 2>/dev/null); out=; [ -n "$tty" ] && out=$(tmux display-message -p -c "$tty" -F "#{pane_current_path}" 2>/dev/null); case "$out" in /*) printf "%s\n" "$out"; exit 0;; esac;; esac; cwd=$(readlink /proc/$fg/cwd 2>/dev/null) && { printf "%s\n" "$cwd"; exit 0; }; fi; [ -n "$first" ] && cwd=$(readlink /proc/$first/cwd 2>/dev/null) && printf "%s\n" "$cwd"'"##;
 
+/// 붙여넣기 이미지 상한 (#192). 세션 데몬 프레임(16MiB)에 base64로 들어가야 한다.
+pub const PASTE_MAX_BYTES: usize = 10 * 1024 * 1024;
+
+/// 붙여넣기 파일 이름을 안전한 글자로 거른다 (#192). 비거나 `.`으로 시작하면 오류.
+pub fn paste_file_name(name: &str) -> Result<String, SshError> {
+    let name: String = name
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+        .collect();
+    if name.is_empty() || name.starts_with('.') {
+        return Err(SshError::Channel("invalid file name".into()));
+    }
+    Ok(name)
+}
+
 impl SshSession {
     /// SSH 핸드셰이크 + 인증까지 수행하고 연결 핸들을 반환. PTY 세션과 SFTP가 공유.
     pub async fn establish(
@@ -571,6 +586,47 @@ impl SshSession {
         } else {
             Some(t.to_string())
         }
+    }
+
+    /// 붙여넣은 이미지를 원격에 올린다 (#192). 같은 연결에 exec 채널을 열어 stdin으로 바이트를
+    /// 보낸다 — 인증 방식(비밀번호 입력 포함)·점프 호스트와 상관없이 터미널과 같은 서버·사용자로
+    /// 올라간다. 사용자별 임시 폴더(`/tmp/wowterminal-paste-<uid>`, umask 077)에 두고 원격 경로를
+    /// 돌려준다. `name`은 호출자가 만든 안전한 파일 이름이다(다시 거른다).
+    pub async fn upload_bytes(&self, name: &str, data: &[u8]) -> Result<String, SshError> {
+        let name = paste_file_name(name)?;
+        let cmd = format!(
+            "umask 077; d=/tmp/wowterminal-paste-$(id -u); mkdir -p \"$d\" && cat > \"$d/{name}\" && printf '%s\\n' \"$d/{name}\""
+        );
+        let fut = async {
+            let mut ch = self
+                .handle
+                .channel_open_session()
+                .await
+                .map_err(|e| SshError::Channel(e.to_string()))?;
+            ch.exec(true, cmd.as_bytes())
+                .await
+                .map_err(|e| SshError::Channel(e.to_string()))?;
+            ch.data(data).await.map_err(|e| SshError::Channel(e.to_string()))?;
+            ch.eof().await.map_err(|e| SshError::Channel(e.to_string()))?;
+            let mut out: Vec<u8> = Vec::new();
+            let mut status: Option<u32> = None;
+            while let Some(msg) = ch.wait().await {
+                match msg {
+                    ChannelMsg::Data { ref data } => out.extend_from_slice(&data[..]),
+                    ChannelMsg::ExitStatus { exit_status } => status = Some(exit_status),
+                    ChannelMsg::Close => break,
+                    _ => {}
+                }
+            }
+            let path = String::from_utf8_lossy(&out).trim().to_string();
+            match status {
+                Some(0) if path.starts_with('/') => Ok(path),
+                s => Err(SshError::Channel(format!("upload failed (exit {s:?})"))),
+            }
+        };
+        tokio::time::timeout(std::time::Duration::from_secs(60), fut)
+            .await
+            .map_err(|_| SshError::Channel("upload timed out".into()))?
     }
 
     /// 별도 exec 채널에서 명령을 실행하고 stdout 전체를 돌려준다(2초 상한).

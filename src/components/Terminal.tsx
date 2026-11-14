@@ -31,7 +31,8 @@ import {
   recordTracePty,
   releaseTraceRecording,
 } from "../imeTraceRecorder";
-import { copyText, readClipboard } from "../clipboard";
+import { copyText, readClipboard, readClipboardImage } from "../clipboard";
+import { dismissToast, showToast } from "../toastBus";
 
 // 비밀번호 프롬프트 감지 (#118) — 명령 히스토리/자동완성에 비밀번호가 새지 않게 한다.
 // 출력의 마지막 줄이 "...password:", "[sudo] password for user:", "Enter passphrase ...:",
@@ -55,6 +56,10 @@ const STR: LangDict<{
     historyPlaceholder: string;
     noHistoryMatch: string;
     sessionClosed: string;
+    pasteUploading: string;
+    pasteUploaded: (path: string) => string;
+    pasteFailed: (why: string) => string;
+    pasteTooLarge: string;
     reconnecting: string;
     linkMismatch: (url: string) => string;
     traceRecording: string;
@@ -73,6 +78,10 @@ const STR: LangDict<{
     historyPlaceholder: "Search command history (Enter to select, ESC to cancel)",
     noHistoryMatch: "No matching history",
     sessionClosed: "\r\n\x1b[33m[disconnected — press Enter to reconnect]\x1b[0m",
+    pasteUploading: "Uploading the image to the server…",
+    pasteUploaded: (p) => `Image uploaded: ${p}`,
+    pasteFailed: (w) => `Couldn't upload the image: ${w}`,
+    pasteTooLarge: "Image too large (10 MB max)",
     reconnecting: "\r\n\x1b[36m[reconnecting…]\x1b[0m",
     linkMismatch: (url) => `This link's text does not match where it goes. Open it?\n\n${url}`,
     traceRecording: "\x1b[33m[Recording input trace — everything typed in this tab is saved to a file. Do not type passwords. Stop from the command palette.]\x1b[0m\r\n",
@@ -90,6 +99,10 @@ const STR: LangDict<{
     historyPlaceholder: "명령 히스토리 검색 (Enter 선택, ESC 취소)",
     noHistoryMatch: "일치하는 히스토리 없음",
     sessionClosed: "\r\n\x1b[33m[연결이 끊어졌습니다 — Enter 키로 다시 연결]\x1b[0m",
+    pasteUploading: "이미지를 서버에 올리는 중…",
+    pasteUploaded: (p) => `이미지를 올렸습니다: ${p}`,
+    pasteFailed: (w) => `이미지를 올리지 못했습니다: ${w}`,
+    pasteTooLarge: "이미지가 너무 큽니다 (10MB까지)",
     reconnecting: "\r\n\x1b[36m[다시 연결하는 중…]\x1b[0m",
     linkMismatch: (url) => `링크에 표시된 텍스트와 실제 주소가 다릅니다. 열까요?\n\n${url}`,
     traceRecording: "\x1b[33m[입력 트레이스 녹화 중 — 이 탭에 입력하는 모든 내용이 파일로 저장됩니다. 비밀번호를 입력하지 마세요. 명령 팔레트에서 중지합니다.]\x1b[0m\r\n",
@@ -107,6 +120,10 @@ const STR: LangDict<{
     historyPlaceholder: "Buscar en el historial de comandos (Enter para seleccionar, ESC para cancelar)",
     noHistoryMatch: "No hay coincidencias en el historial",
     sessionClosed: "\r\n\x1b[33m[desconectado — pulsa Enter para reconectar]\x1b[0m",
+    pasteUploading: "Subiendo la imagen al servidor…",
+    pasteUploaded: (p) => `Imagen subida: ${p}`,
+    pasteFailed: (w) => `No se pudo subir la imagen: ${w}`,
+    pasteTooLarge: "Imagen demasiado grande (máx. 10 MB)",
     reconnecting: "\r\n\x1b[36m[reconectando…]\x1b[0m",
     linkMismatch: (url) => `El texto de este enlace no coincide con su destino. ¿Abrirlo?\n\n${url}`,
     traceRecording: "\x1b[33m[Grabando traza de entrada: todo lo que escribas en esta pestaña se guarda en un archivo. No escribas contraseñas. Detenla desde la paleta de comandos.]\x1b[0m\r\n",
@@ -124,6 +141,10 @@ const STR: LangDict<{
     historyPlaceholder: "搜索命令历史（Enter 选择，ESC 取消）",
     noHistoryMatch: "没有匹配的历史记录",
     sessionClosed: "\r\n\x1b[33m[连接已断开 — 按 Enter 重新连接]\x1b[0m",
+    pasteUploading: "正在把图片上传到服务器…",
+    pasteUploaded: (p) => `图片已上传：${p}`,
+    pasteFailed: (w) => `图片上传失败：${w}`,
+    pasteTooLarge: "图片太大（最多 10 MB）",
     reconnecting: "\r\n\x1b[36m[正在重新连接…]\x1b[0m",
     linkMismatch: (url) => `此链接显示的文字与实际地址不一致。要打开吗？\n\n${url}`,
     traceRecording: "\x1b[33m[正在录制输入轨迹 — 在此标签页输入的所有内容都会保存到文件。请勿输入密码。在命令面板中停止。]\x1b[0m\r\n",
@@ -141,6 +162,10 @@ const STR: LangDict<{
     historyPlaceholder: "コマンド履歴を検索（Enter で選択、ESC でキャンセル）",
     noHistoryMatch: "一致する履歴がありません",
     sessionClosed: "\r\n\x1b[33m[切断されました — Enter キーで再接続]\x1b[0m",
+    pasteUploading: "画像をサーバーにアップロード中…",
+    pasteUploaded: (p) => `画像をアップロードしました: ${p}`,
+    pasteFailed: (w) => `画像をアップロードできませんでした: ${w}`,
+    pasteTooLarge: "画像が大きすぎます（10 MB まで）",
     reconnecting: "\r\n\x1b[36m[再接続中…]\x1b[0m",
     linkMismatch: (url) => `このリンクの表示テキストと実際の宛先が一致しません。開きますか？\n\n${url}`,
     traceRecording: "\x1b[33m[入力トレースを記録中 — このタブで入力した内容はすべてファイルに保存されます。パスワードは入力しないでください。コマンドパレットから停止します。]\x1b[0m\r\n",
@@ -158,6 +183,10 @@ const STR: LangDict<{
     historyPlaceholder: "Поиск по истории команд (Enter — выбрать, ESC — отменить)",
     noHistoryMatch: "Нет совпадений в истории",
     sessionClosed: "\r\n\x1b[33m[соединение разорвано — нажмите Enter для переподключения]\x1b[0m",
+    pasteUploading: "Загрузка изображения на сервер…",
+    pasteUploaded: (p) => `Изображение загружено: ${p}`,
+    pasteFailed: (w) => `Не удалось загрузить изображение: ${w}`,
+    pasteTooLarge: "Изображение слишком большое (до 10 МБ)",
     reconnecting: "\r\n\x1b[36m[переподключение…]\x1b[0m",
     linkMismatch: (url) => `Текст ссылки не совпадает с её адресом. Открыть?\n\n${url}`,
     traceRecording: "\x1b[33m[Идёт запись трассы ввода — всё, что вы вводите в этой вкладке, сохраняется в файл. Не вводите пароли. Остановите через палитру команд.]\x1b[0m\r\n",
@@ -175,6 +204,10 @@ const STR: LangDict<{
     historyPlaceholder: "Rechercher dans l'historique des commandes (Entrée pour sélectionner, ESC pour annuler)",
     noHistoryMatch: "Aucune correspondance dans l'historique",
     sessionClosed: "\r\n\x1b[33m[déconnecté — appuyez sur Entrée pour reconnecter]\x1b[0m",
+    pasteUploading: "Envoi de l'image au serveur…",
+    pasteUploaded: (p) => `Image envoyée : ${p}`,
+    pasteFailed: (w) => `Impossible d'envoyer l'image : ${w}`,
+    pasteTooLarge: "Image trop grande (10 Mo max.)",
     reconnecting: "\r\n\x1b[36m[reconnexion…]\x1b[0m",
     linkMismatch: (url) => `Le texte de ce lien ne correspond pas à sa destination. L'ouvrir ?\n\n${url}`,
     traceRecording: "\x1b[33m[Enregistrement de la trace de saisie — tout ce qui est tapé dans cet onglet est enregistré dans un fichier. Ne tapez pas de mot de passe. Arrêtez depuis la palette de commandes.]\x1b[0m\r\n",
@@ -192,6 +225,10 @@ const STR: LangDict<{
     historyPlaceholder: "Befehlsverlauf durchsuchen (Enter zum Auswählen, ESC zum Abbrechen)",
     noHistoryMatch: "Keine passenden Verlaufseinträge",
     sessionClosed: "\r\n\x1b[33m[getrennt — Enter zum erneuten Verbinden]\x1b[0m",
+    pasteUploading: "Bild wird auf den Server hochgeladen…",
+    pasteUploaded: (p) => `Bild hochgeladen: ${p}`,
+    pasteFailed: (w) => `Bild konnte nicht hochgeladen werden: ${w}`,
+    pasteTooLarge: "Bild zu groß (max. 10 MB)",
     reconnecting: "\r\n\x1b[36m[verbinde erneut…]\x1b[0m",
     linkMismatch: (url) => `Der Text dieses Links stimmt nicht mit seinem Ziel überein. Öffnen?\n\n${url}`,
     traceRecording: "\x1b[33m[Eingabe-Trace wird aufgezeichnet — alles, was in diesem Tab eingegeben wird, wird in einer Datei gespeichert. Keine Passwörter eingeben. Über die Befehlspalette beenden.]\x1b[0m\r\n",
@@ -209,6 +246,10 @@ const STR: LangDict<{
     historyPlaceholder: "Tìm trong lịch sử lệnh (Enter để chọn, ESC để hủy)",
     noHistoryMatch: "Không có lịch sử khớp",
     sessionClosed: "\r\n\x1b[33m[mất kết nối — nhấn Enter để kết nối lại]\x1b[0m",
+    pasteUploading: "Đang tải ảnh lên máy chủ…",
+    pasteUploaded: (p) => `Đã tải ảnh lên: ${p}`,
+    pasteFailed: (w) => `Không tải ảnh lên được: ${w}`,
+    pasteTooLarge: "Ảnh quá lớn (tối đa 10 MB)",
     reconnecting: "\r\n\x1b[36m[đang kết nối lại…]\x1b[0m",
     linkMismatch: (url) => `Văn bản của liên kết này không khớp với địa chỉ thật. Mở nó?\n\n${url}`,
     traceRecording: "\x1b[33m[Đang ghi vết nhập liệu — mọi thứ gõ trong tab này sẽ được lưu vào tệp. Đừng nhập mật khẩu. Dừng từ bảng lệnh.]\x1b[0m\r\n",
@@ -226,6 +267,10 @@ const STR: LangDict<{
     historyPlaceholder: "Cari riwayat perintah (Enter untuk memilih, ESC untuk membatalkan)",
     noHistoryMatch: "Tidak ada riwayat yang cocok",
     sessionClosed: "\r\n\x1b[33m[terputus — tekan Enter untuk menyambung ulang]\x1b[0m",
+    pasteUploading: "Mengunggah gambar ke server…",
+    pasteUploaded: (p) => `Gambar diunggah: ${p}`,
+    pasteFailed: (w) => `Gagal mengunggah gambar: ${w}`,
+    pasteTooLarge: "Gambar terlalu besar (maks. 10 MB)",
     reconnecting: "\r\n\x1b[36m[menyambung ulang…]\x1b[0m",
     linkMismatch: (url) => `Teks tautan ini tidak cocok dengan tujuannya. Buka?\n\n${url}`,
     traceRecording: "\x1b[33m[Merekam jejak input — semua yang diketik di tab ini disimpan ke file. Jangan mengetik kata sandi. Hentikan dari palet perintah.]\x1b[0m\r\n",
@@ -243,6 +288,10 @@ const STR: LangDict<{
     historyPlaceholder: "कमांड इतिहास खोजें (चुनने के लिए Enter, रद्द करने के लिए ESC)",
     noHistoryMatch: "कोई मेल खाता इतिहास नहीं",
     sessionClosed: "\r\n\x1b[33m[कनेक्शन टूट गया — पुनः जोड़ने के लिए Enter दबाएं]\x1b[0m",
+    pasteUploading: "छवि सर्वर पर अपलोड हो रही है…",
+    pasteUploaded: (p) => `छवि अपलोड हुई: ${p}`,
+    pasteFailed: (w) => `छवि अपलोड नहीं हो सकी: ${w}`,
+    pasteTooLarge: "छवि बहुत बड़ी है (10 MB तक)",
     reconnecting: "\r\n\x1b[36m[पुनः जोड़ रहा है…]\x1b[0m",
     linkMismatch: (url) => `इस लिंक का टेक्स्ट उसके असली पते से मेल नहीं खाता। खोलें?\n\n${url}`,
     traceRecording: "\x1b[33m[इनपुट ट्रेस रिकॉर्ड हो रहा है — इस टैब में टाइप की गई हर चीज़ फ़ाइल में सहेजी जाती है। पासवर्ड न टाइप करें। कमांड पैलेट से रोकें।]\x1b[0m\r\n",
@@ -301,6 +350,14 @@ function osc8TextMatches(text: string, uri: string): boolean {
     s.trim().replace(/^[a-z]+:(\/\/)?/i, "").replace(/\/$/, "").toLowerCase();
   return norm(text) === norm(uri);
 }
+
+/** 붙여넣기 이미지 확장자 (#192). */
+const PASTE_EXT: Record<string, string> = {
+  "image/png": "png",
+  "image/jpeg": "jpg",
+  "image/gif": "gif",
+  "image/webp": "webp",
+};
 
 function bytesToBase64(bytes: Uint8Array): string {
   let bin = "";
@@ -444,6 +501,8 @@ export function Terminal({
   const [ctxMenu, setCtxMenu] = useState<{ x: number; y: number } | null>(null);
   // 세션에 입력을 보내는 함수 (Ctrl-R 선택 / 제안 수락에서 사용). effect에서 채움.
   const sendToSessionRef = useRef<((text: string) => void) | null>(null);
+  // SSH 탭 이미지 붙여넣기(#192) — 우클릭 메뉴(effect 밖)에서도 쓰게.
+  const pasteImageRef = useRef<((b: Blob) => Promise<void>) | null>(null);
   // 세션 로깅 (#65). 설정 토글에 따라 생성/해제, 출력 핸들러가 ref로 참조.
   const loggerRef = useRef<SessionLogger | null>(null);
 
@@ -1389,6 +1448,7 @@ export function Terminal({
         e.preventDefault();
         void readClipboard().then((t) => {
           if (t) term.paste(t); // bracketed-paste 모드를 존중해 PTY로 전달.
+          else if (source.kind === "ssh") void readClipboardImage().then((b) => b && pasteImage(b)); // (#192)
         });
         return false;
       }
@@ -1615,6 +1675,56 @@ export function Terminal({
     };
     copyTarget.addEventListener("copy", onCopy);
 
+    // (#192) SSH 탭에 이미지를 붙여넣으면(글 없이 이미지만) 세션과 같은 연결로 원격 임시 폴더에
+    // 올리고 그 경로를 붙여넣는다 — 서버의 Claude Code 등에 화면 캡처를 줄 때.
+    let pasteBusy = false;
+    const pasteImage = async (blob: Blob) => {
+      if (source.kind !== "ssh" || !sessionId || pasteBusy) return;
+      const t = tRef.current;
+      if (blob.size > 10 * 1024 * 1024) {
+        showToast({ kind: "error", text: t.pasteTooLarge });
+        return;
+      }
+      pasteBusy = true;
+      const toastId = showToast({ kind: "info", text: t.pasteUploading }, 60_000);
+      try {
+        const bytes = new Uint8Array(await blob.arrayBuffer());
+        const ext = PASTE_EXT[blob.type] ?? "png";
+        const d = new Date();
+        const p2 = (n: number) => String(n).padStart(2, "0");
+        const stamp = `${d.getFullYear()}${p2(d.getMonth() + 1)}${p2(d.getDate())}-${p2(d.getHours())}${p2(d.getMinutes())}${p2(d.getSeconds())}`;
+        const name = `paste-${stamp}-${Math.random().toString(36).slice(2, 6)}.${ext}`;
+        const path = await invoke<string>("ssh_paste_upload", {
+          sessionId,
+          hostId: source.hostId,
+          name,
+          dataB64: bytesToBase64(bytes),
+        });
+        term.paste(`${path} `);
+        dismissToast(toastId);
+        showToast({ kind: "ok", text: t.pasteUploaded(path) }, 4000);
+      } catch (e) {
+        dismissToast(toastId);
+        showToast({ kind: "error", text: t.pasteFailed(String(e)) });
+      } finally {
+        pasteBusy = false;
+      }
+    };
+    pasteImageRef.current = pasteImage;
+    // ⌘V는 paste 이벤트로 온다 — xterm(textarea)보다 먼저 받도록 캡처 단계에서.
+    const onPasteImage = (ev: ClipboardEvent) => {
+      if (source.kind !== "ssh") return;
+      const dt = ev.clipboardData;
+      if (!dt || dt.getData("text/plain")) return; // 글이 있으면 글 붙여넣기
+      const item = Array.from(dt.items ?? []).find((it) => it.kind === "file" && it.type.startsWith("image/"));
+      const file = item?.getAsFile();
+      if (!file) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      void pasteImage(file);
+    };
+    copyTarget.addEventListener("paste", onPasteImage, true);
+
     // AIPanel이 이 패널의 출력을 컨텍스트로 가져가거나 명령을 주입할 수 있도록 등록.
     if (paneId) {
       registerTerminal(paneId, {
@@ -1825,6 +1935,8 @@ export function Terminal({
       disposed = true;
       if (paneId) unregisterTerminal(paneId);
       copyTarget.removeEventListener("copy", onCopy);
+      copyTarget.removeEventListener("paste", onPasteImage, true); // (#192)
+      pasteImageRef.current = null;
       onBufChange.dispose();
       onBellDisposable.dispose(); // (#189)
       window.removeEventListener("resize", onWinResize);
@@ -1895,6 +2007,7 @@ export function Terminal({
       // PTY에 원문을 직접 쓰면 셸이 bracketed paste를 켜 놨어도 여러 줄이 한 줄씩 즉시 실행된다.
       void readClipboard().then((txt) => {
         if (txt) termRef.current?.paste(txt);
+        else if (source.kind === "ssh") void readClipboardImage().then((b) => b && pasteImageRef.current?.(b)); // (#192)
       });
     });
   const doSelectAll = () => ctxAction(() => termRef.current?.selectAll());

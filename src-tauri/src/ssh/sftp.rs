@@ -725,6 +725,23 @@ impl SftpManager {
         Ok(())
     }
 
+    /// 바이트를 원격 파일에 쓴다(덮어씀) — 붙여넣기 이미지의 SFTP 대체 경로(#192).
+    pub async fn write_bytes(&self, host_id: &str, path: &str, data: &[u8]) -> Result<(), SshError> {
+        use tokio::io::AsyncWriteExt;
+        let conn = self.conn(host_id).await?;
+        let mut rf = conn
+            .sftp
+            .create(path)
+            .await
+            .map_err(|e| SshError::Channel(format!("create {path}: {e}")))?;
+        rf.write_all(data)
+            .await
+            .map_err(|e| SshError::Channel(format!("write {path}: {e}")))?;
+        let _ = rf.flush().await;
+        let _ = rf.shutdown().await;
+        Ok(())
+    }
+
     /// 원격 파일을 최대 max_bytes까지 읽어 base64로 반환 (이미지 미리보기용).
     /// 파일이 max_bytes보다 크면 too-large 에러.
     pub async fn read_bytes_base64(

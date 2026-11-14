@@ -260,6 +260,7 @@ fn is_slow(req: &Req) -> bool {
             | Req::SshTmuxSessions { .. }
             | Req::SshProbeSystem { .. }
             | Req::PtyCwd { .. }
+            | Req::SshUploadBytes { .. }
     )
 }
 
@@ -351,6 +352,16 @@ async fn handle(d: &Daemon, req: Req) -> ReplyResult {
             Err(e) => err(e),
         },
         Req::SshRemoteCwd { session_id } => ReplyResult::ok(d.ssh.remote_cwd(&session_id).await),
+        Req::SshUploadBytes { session_id, name, data_b64 } => {
+            use base64::Engine;
+            match base64::engine::general_purpose::STANDARD.decode(data_b64.as_bytes()) {
+                Ok(data) => match d.ssh.upload_bytes(&session_id, &name, &data).await {
+                    Ok(path) => ReplyResult::ok(path),
+                    Err(e) => err(e),
+                },
+                Err(e) => err(e),
+            }
+        }
         // 프로세스 조회·tmux 질의(최대 2초)는 블로킹이라 전용 스레드에서.
         Req::PtyCwd { session_id } => {
             let pty = Arc::clone(&d.pty);
@@ -405,9 +416,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn hello_reports_protocol_3_and_socket_is_owner_only() {
+    async fn hello_reports_protocol_4_and_socket_is_owner_only() {
         let (_dir, sock, client) = start().await;
-        assert_eq!(client.protocol(), 3);
+        assert_eq!(client.protocol(), 4);
         use std::os::unix::fs::PermissionsExt;
         let mode = std::fs::metadata(&sock).unwrap().permissions().mode() & 0o777;
         assert_eq!(mode, 0o600, "socket must be owner-only");

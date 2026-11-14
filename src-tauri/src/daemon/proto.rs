@@ -73,6 +73,13 @@ pub enum Req {
     PtyCwd {
         session_id: String,
     },
+    // ── v4 (#192) ─────────────────────────────────────────────────────────────
+    /// 붙여넣은 이미지를 SSH 세션의 원격 임시 폴더에 올린다. 응답 값: 원격 경로.
+    SshUploadBytes {
+        session_id: String,
+        name: String,
+        data_b64: String,
+    },
 }
 
 /// 데몬 → 클라이언트 메시지. `t` 태그로 응답/이벤트 구분.

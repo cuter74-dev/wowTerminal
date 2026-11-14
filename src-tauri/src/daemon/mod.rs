@@ -26,4 +26,6 @@ pub mod server;
 ///   2 미만이면 이 요청들을 보내지 않는다 — 구버전 데몬은 모르는 op에 엉뚱한 id로 답해
 ///   요청이 영영 응답을 못 받기 때문이다.
 /// - 3: 로컬 PTY 작업 폴더 조회(PtyCwd, #168). UI는 3 미만이면 보내지 않고 폴백한다.
-pub const PROTOCOL_VERSION: u32 = 3;
+/// - 4: SSH 세션에 붙여넣은 이미지 올리기(SshUploadBytes, #192). UI는 4 미만이면 보내지 않고
+///   SFTP로 올린다.
+pub const PROTOCOL_VERSION: u32 = 4;

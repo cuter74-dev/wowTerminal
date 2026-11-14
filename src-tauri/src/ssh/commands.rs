@@ -385,6 +385,76 @@ pub async fn ssh_remote_cwd(
     Ok(state.manager.remote_cwd(&session_id).await)
 }
 
+/// SSH 탭에 붙여넣은 이미지를 원격에 올리고 원격 경로를 돌려준다 (#192).
+/// 세션과 같은 연결로 올린다(인증 방식·점프 호스트 무관). 세션이 예전 데몬(프로토콜 4 미만)에
+/// 있으면 그 데몬은 이 요청을 모르므로 SFTP로 올린다(저장된 인증이 있는 호스트만).
+#[tauri::command]
+pub async fn ssh_paste_upload(
+    session_id: String,
+    host_id: String,
+    name: String,
+    data_b64: String,
+    state: State<'_, SshState>,
+) -> Result<String, String> {
+    let data = B64.decode(data_b64.as_bytes()).map_err(|e| e.to_string())?;
+    if data.len() > super::session::PASTE_MAX_BYTES {
+        return Err("too large".into());
+    }
+    #[cfg(unix)]
+    if let Some(d) = &state.daemon {
+        if d.protocol() >= 4 {
+            let v = d
+                .call(crate::daemon::proto::Req::SshUploadBytes { session_id, name, data_b64 })
+                .await?;
+            return serde_json::from_value::<String>(v).map_err(|e| e.to_string());
+        }
+        return sftp_paste_upload(&state, &host_id, &name, &data).await;
+    }
+    let _ = &host_id;
+    state
+        .manager
+        .upload_bytes(&session_id, &name, &data)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+/// 붙여넣기 이미지의 SFTP 대체 경로 (#192) — 사용자별 `/tmp/wowterminal-paste-<사용자>`(0700).
+#[cfg(unix)]
+async fn sftp_paste_upload(
+    state: &SshState,
+    host_id: &str,
+    name: &str,
+    data: &[u8],
+) -> Result<String, String> {
+    let name = super::session::paste_file_name(name).map_err(|e| e.to_string())?;
+    let host = state.store.get(host_id).map_err(|e| e.to_string())?;
+    let auth = resolve_auth(
+        &host.auth,
+        state.secrets.as_deref(),
+        None,
+        &host.host,
+        host.port,
+        &host.user,
+    )
+    .map_err(|e| e.to_string())?;
+    state.sftp.connect(&host, auth).await.map_err(|e| e.to_string())?;
+    let user: String = host
+        .user
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_'))
+        .collect();
+    let dir = format!("/tmp/wowterminal-paste-{user}");
+    let _ = state.sftp.mkdir(host_id, &dir).await;
+    let _ = state.sftp.chmod(host_id, &dir, 0o700).await;
+    let path = format!("{dir}/{name}");
+    state
+        .sftp
+        .write_bytes(host_id, &path, data)
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(path)
+}
+
 /// 원격 tmux 세션 목록 (#89). tmux 미설치/서버 없음이면 null — UI가 "세션 없음"으로 안내.
 #[tauri::command]
 pub async fn ssh_tmux_sessions(

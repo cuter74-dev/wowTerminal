@@ -158,6 +158,16 @@ impl SshManager {
         Ok(session_id)
     }
 
+    /// 붙여넣은 이미지를 세션의 원격으로 올린다 (#192).
+    pub async fn upload_bytes(&self, id: &str, name: &str, data: &[u8]) -> Result<String, SshError> {
+        let session = {
+            let sessions = self.sessions.lock().await;
+            sessions.get(id).cloned()
+        }
+        .ok_or_else(|| SshError::NotFound(id.to_string()))?;
+        session.upload_bytes(name, data).await
+    }
+
     pub async fn write(&self, id: &str, data: &[u8]) -> Result<(), SshError> {
         let session = {
             let guard = self.sessions.lock().await;

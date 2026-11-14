@@ -11,6 +11,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 - **Updates are found while the app stays open.** The desktop app used to check only at launch; it now also checks every 4 hours and after the computer wakes from sleep. A bar under the tabs offers "Restart to update" or "Later" and says whether your terminals and SSH sessions carry on (macOS, Linux) or close (Windows); it never restarts on its own. When the app is in the background you also get one notification per version. (#188)
 
 ### Added
+- **Paste an image into an SSH tab.** With only an image on the clipboard (for example a screenshot), ⌘V in an SSH tab uploads it to a private temp folder on the server over the same connection and types its path — handy for giving Claude Code on a server a screenshot. Text paste and local tabs are unchanged; images up to 10 MB. (#192)
 - **Startup command per host.** Set a command such as `cd ~/proj && claude` in the host form and it runs once in each new session — inside a newly created tmux session if the host uses tmux, never typed into an existing one. Restored tabs and reconnects don't run it again. (#191)
 - **SSH agent forwarding per host** (like `ssh -A`), off by default, with a note that the server's admins can use your agent while you're connected. (#191)
 - **Shift+Enter inserts a newline in Claude Code, Codex and Gemini CLI.** In a tab where an agent is running, Shift+Enter now sends Ctrl+J, which all three treat as a newline; plain shells are unchanged. (#190)

@@ -29,3 +29,17 @@ export async function readClipboard(): Promise<string> {
     return "";
   }
 }
+
+/** 클립보드의 이미지(#192, SSH 탭 붙여넣기). 없거나 읽을 수 없으면 null. Ctrl+V(Windows·Linux)·
+ *  우클릭 붙여넣기처럼 paste 이벤트 없이 읽을 때 쓴다(⌘V는 paste 이벤트로 받는다). */
+export async function readClipboardImage(): Promise<Blob | null> {
+  try {
+    for (const item of await navigator.clipboard.read()) {
+      const type = item.types.find((t) => t.startsWith("image/"));
+      if (type) return await item.getType(type);
+    }
+  } catch {
+    /* 권한 없음·지원 안 함 */
+  }
+  return null;
+}
