@@ -2,10 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getVersion } from "@tauri-apps/api/app";
-import { check, Update } from "@tauri-apps/plugin-updater";
-import { relaunch } from "@tauri-apps/plugin-process";
-import { markAppTeardown } from "../terminalRegistry";
-import { guardUnsaved } from "../fileDocs";
+import { installUpdate, useUpdateState } from "../updates";
 import { Group, SshHost, Tag } from "../types";
 import { isMobile } from "../platform";
 import { HostForm } from "./HostForm";
@@ -347,38 +344,14 @@ export function HostList({
     y: number;
   } | null>(null);
 
-  const [update, setUpdate] = useState<Update | null>(null);
-  const [updating, setUpdating] = useState(false);
+  // 업데이트 확인·설치는 App이 시작한 공용 모듈이 한다(#188) — 여기는 "↑ 버전" 버튼만.
+  const { update, installing: updating } = useUpdateState();
 
   useEffect(() => {
     getVersion()
       .then(setAppVersion)
       .catch(() => {});
-    // 시작 시 업데이트 확인 (endpoint에 latest.json이 없으면 조용히 무시).
-    check()
-      .then((u) => {
-        if (u) setUpdate(u);
-      })
-      .catch(() => {});
   }, []);
-
-  async function applyUpdate() {
-    if (!update || updating) return;
-    // 저장 안 한 편집 탭이 있으면 먼저 묻는다 — 편집 내용은 디스크에 남지 않아 재시작하면 사라진다(#166).
-    if (!(await guardUnsaved("update"))) return;
-    setUpdating(true);
-    try {
-      await update.downloadAndInstall();
-      // (#153) 재시작 전에 "앱 종료 중"으로 표시한다 — 이 플래그가 없으면 언마운트 정리에서
-      // 세션 kill이 나가 데몬의 세션(돌고 있는 Claude Code/Gemini 등)까지 죽는다.
-      // 세션은 데몬에 남고, 새로 뜬 UI가 복원 스냅샷의 세션 id로 다시 attach한다.
-      markAppTeardown();
-      await relaunch();
-    } catch (e) {
-      setError(String(e));
-      setUpdating(false);
-    }
-  }
 
   const reload = useCallback(async () => {
     try {
@@ -768,7 +741,7 @@ export function HostList({
         </span>
         {update && (
           <button
-            onClick={() => void applyUpdate()}
+            onClick={() => void installUpdate()}
             disabled={updating}
             title={t.updateAvailable}
             style={{

@@ -15,6 +15,8 @@ import {
 import { onAgentStatus, onCommandDone, onTitleChange } from "./commandBus";
 import { AGENT_NAMES } from "./aiActivity";
 import { AgentPanel, type AgentRow, type PaneAgent } from "./components/AgentPanel";
+import { UpdateBanner } from "./components/UpdateBanner";
+import { startUpdateChecks } from "./updates";
 import { getHistory } from "./commandHistory";
 import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
@@ -1188,6 +1190,12 @@ function App() {
     }
     return marks;
   }, [tabs, agentPanes]);
+
+  // 업데이트 확인(#188): 켤 때·4시간마다·절전 복귀 뒤. 데스크톱 메인 창만(분리 창은 같은 앱이다).
+  useEffect(() => {
+    if (isMobile || IS_DETACHED_WINDOW) return;
+    return startUpdateChecks();
+  }, []);
 
   // 왼쪽 패널 에이전트 목록의 행(#187) — 탭 순서대로, 패널이 있는 것만.
   const agentRows: AgentRow[] = useMemo(() => {
@@ -2427,6 +2435,8 @@ function App() {
           if (tabs.length > 0) setDrag({ tabId: id, active: false });
         }}
       />
+
+      {!isMobile && !IS_DETACHED_WINDOW && <UpdateBanner />}
 
       {/* 모바일 툴바 — 호스트/AI 시트 토글. 물리 키보드·마우스 없이 패널을 여닫는다(#114). */}
       {isMobile && (

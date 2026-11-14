@@ -7,6 +7,12 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Changed
+- **Updates are found while the app stays open.** The desktop app used to check only at launch; it now also checks every 4 hours and after the computer wakes from sleep. A bar under the tabs offers "Restart to update" or "Later" and says whether your terminals and SSH sessions carry on (macOS, Linux) or close (Windows); it never restarts on its own. When the app is in the background you also get one notification per version. (#188)
+
+### Fixed
+- **Claude Code's "trust this folder" prompt now counts as waiting for you** in the agents list and tab marker. (#188)
+
 ## [0.22.0] — 2026-11-13
 
 ### Added

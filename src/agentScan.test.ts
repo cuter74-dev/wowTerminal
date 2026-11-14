@@ -14,6 +14,8 @@ describe("scanAgent — 실제 화면 (#187)", () => {
     ["claude-idle", { agent: "claude", state: "idle" }],
     ["claude-working", { agent: "claude", state: "working" }],
     ["claude-blocked", { agent: "claude", state: "blocked" }],
+    // 폴더 신뢰 확인 — 번호 없는 메뉴(#188).
+    ["claude-trust", { agent: "claude", state: "blocked" }],
     ["claude-after-esc", { agent: "claude", state: "idle" }],
     // 종료 뒤에도 `✳ Bloviating…`이 남지만 입력 상자가 깨져 있다 → 에이전트 없음.
     ["claude-after-exit", null],
@@ -59,6 +61,11 @@ describe("scanAgent — 그 밖의 화면 (#187)", () => {
       "  enter continue · esc skip",
     ];
     expect(scanAgent(lines)).toEqual({ agent: "codex", state: "blocked" });
+  });
+
+  it("들여 쓴 꼬리말이 있는 입력란은 번호 없는 메뉴로 보지 않는다 (#188)", () => {
+    const lines = ["─".repeat(80), "❯ fix the build", "  second line of input", "─".repeat(80), "  ⏸ manual mode on"];
+    expect(scanAgent(lines)).toEqual({ agent: "claude", state: "idle" });
   });
 
   it("평범한 셸 화면은 에이전트 없음", () => {

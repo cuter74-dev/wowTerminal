@@ -58,6 +58,13 @@ const GEMINI_FOOTER_RE = /\(\d+% (?:used|context left)\)/;
 
 const MARK_AGENT: Record<string, AgentKind> = { "❯": "claude", "›": "codex", "●": "gemini" };
 
+// 번호 없는 선택 메뉴(#188) — Claude Code의 폴더 신뢰 확인(`❯ No, exit` / `  Yes, I trust this folder` /
+// `Enter to confirm · Esc to cancel`). 입력란의 `❯ …`와 헷갈리지 않게, 바로 아래 들여 쓴 선택지가 있고
+// 맨 아래 줄이 키 안내로 시작할 때만 메뉴로 본다.
+const PLAIN_MENU_RE = /^\s*([❯›])\s+\S/u;
+const OPTION_RE = /^\s{2,}\S/;
+const KEY_HINT_LINE_RE = /^\s*(?:enter to (?:confirm|select)|esc to (?:cancel|exit))\b/i;
+
 /** 맨 아래의 번호 메뉴 + 키 안내 → 입력 기다림. 어느 에이전트인지는 선택 표시로 안다. */
 function blockedAgent(rows: string[]): AgentKind | null {
   const n = rows.length;
@@ -67,6 +74,14 @@ function blockedAgent(rows: string[]): AgentKind | null {
     // 안내 줄은 메뉴와 같거나 아래, 그리고 화면 맨 아래 가까이(꼬리말 몇 줄만 허용).
     for (let j = i; j < n; j++) {
       if (HINT_RE.test(rows[j]) && n - 1 - j <= 5) return MARK_AGENT[m[1]];
+    }
+    return null;
+  }
+  for (let j = n - 1; j >= Math.max(0, n - 3); j--) {
+    if (!KEY_HINT_LINE_RE.test(rows[j])) continue;
+    for (let i = j - 2; i >= Math.max(0, j - 8); i--) {
+      const m = PLAIN_MENU_RE.exec(rows[i]);
+      if (m && OPTION_RE.test(rows[i + 1])) return MARK_AGENT[m[1]];
     }
     return null;
   }
