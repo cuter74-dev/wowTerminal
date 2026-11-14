@@ -3,7 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { save, open } from "@tauri-apps/plugin-dialog";
 import { readTextFile, writeTextFile } from "@tauri-apps/plugin-fs";
-import { isMobile } from "../platform";
+import { isMacOS, isMobile } from "../platform";
 import { getVersion } from "@tauri-apps/api/app";
 import {
   AppSettings,
@@ -61,6 +61,7 @@ const STR: LangDict<{
     cursorBlink: string;
     scrollback: string;
     altScreenWheelScroll: string;
+    optionAsMeta: string;
     logging: string;
     logDir: string;
     startDir: string;
@@ -119,6 +120,7 @@ const STR: LangDict<{
     cursorBlink: "Cursor blink",
     scrollback: "Scrollback (lines)",
     altScreenWheelScroll: "Wheel scroll in alt-screen (less/vim)",
+    optionAsMeta: "Use ⌥ Option as Meta (Claude Code ⌥+Enter newline, ⌥ shortcuts)",
     logging: "Session logging (save output to file)",
     logDir: "Log folder (blank = ~/wowterminal-logs)",
     startDir: "New terminal start folder (blank = home)",
@@ -181,6 +183,7 @@ const STR: LangDict<{
     cursorBlink: "커서 깜빡임",
     scrollback: "스크롤백 (줄)",
     altScreenWheelScroll: "대체 화면 휠 스크롤 (less/vim)",
+    optionAsMeta: "⌥ 키를 Meta로 사용 (Claude Code ⌥+Enter 줄바꿈 등 ⌥ 단축키)",
     logging: "세션 로깅 (출력을 파일로 저장)",
     logDir: "로그 폴더 (비우면 ~/wowterminal-logs)",
     startDir: "새 터미널 시작 폴더 (비우면 홈)",
@@ -243,6 +246,7 @@ const STR: LangDict<{
     cursorBlink: "Parpadeo del cursor",
     scrollback: "Desplazamiento (líneas)",
     altScreenWheelScroll: "Rueda en pantalla alternativa (less/vim)",
+    optionAsMeta: "Usar ⌥ Opción como Meta (⌥+Enter salto de línea y atajos ⌥ de Claude Code)",
     logging: "Registro de sesión (guardar salida en archivo)",
     logDir: "Carpeta de registros (vacío = ~/wowterminal-logs)",
     startDir: "Carpeta inicial de nuevos terminales (vacío = inicio)",
@@ -305,6 +309,7 @@ const STR: LangDict<{
     cursorBlink: "光标闪烁",
     scrollback: "回滚（行数）",
     altScreenWheelScroll: "备用屏幕滚轮滚动 (less/vim)",
+    optionAsMeta: "将 ⌥ Option 用作 Meta（Claude Code 的 ⌥+Enter 换行等 ⌥ 快捷键）",
     logging: "会话日志（输出保存到文件）",
     logDir: "日志文件夹（留空 = ~/wowterminal-logs）",
     startDir: "新终端起始文件夹（留空 = 主目录）",
@@ -367,6 +372,7 @@ const STR: LangDict<{
     cursorBlink: "カーソルの点滅",
     scrollback: "スクロールバック（行）",
     altScreenWheelScroll: "代替画面でホイールスクロール (less/vim)",
+    optionAsMeta: "⌥ Option を Meta として使う（Claude Code の ⌥+Enter 改行など ⌥ ショートカット）",
     logging: "セッションログ（出力をファイルに保存）",
     logDir: "ログフォルダ（空欄 = ~/wowterminal-logs）",
     startDir: "新しいターミナルの開始フォルダ（空欄 = ホーム）",
@@ -429,6 +435,7 @@ const STR: LangDict<{
     cursorBlink: "Мигание курсора",
     scrollback: "Прокрутка (строки)",
     altScreenWheelScroll: "Колесо в alt-экране (less/vim)",
+    optionAsMeta: "⌥ Option как Meta (⌥+Enter — новая строка и ⌥-сочетания Claude Code)",
     logging: "Логирование сессии (вывод в файл)",
     logDir: "Папка логов (пусто = ~/wowterminal-logs)",
     startDir: "Начальная папка новых терминалов (пусто = домашняя)",
@@ -491,6 +498,7 @@ const STR: LangDict<{
     cursorBlink: "Clignotement du curseur",
     scrollback: "Défilement arrière (lignes)",
     altScreenWheelScroll: "Molette en écran alternatif (less/vim)",
+    optionAsMeta: "Utiliser ⌥ Option comme Meta (⌥+Entrée nouvelle ligne et raccourcis ⌥ de Claude Code)",
     logging: "Journalisation de session (sortie vers fichier)",
     logDir: "Dossier des journaux (vide = ~/wowterminal-logs)",
     startDir: "Dossier de départ des nouveaux terminaux (vide = accueil)",
@@ -553,6 +561,7 @@ const STR: LangDict<{
     cursorBlink: "Cursor-Blinken",
     scrollback: "Rückblättern (Zeilen)",
     altScreenWheelScroll: "Mausrad im Alt-Bildschirm (less/vim)",
+    optionAsMeta: "⌥ Option als Meta verwenden (⌥+Enter Zeilenumbruch und ⌥-Kürzel in Claude Code)",
     logging: "Sitzungsprotokoll (Ausgabe in Datei)",
     logDir: "Log-Ordner (leer = ~/wowterminal-logs)",
     startDir: "Startordner neuer Terminals (leer = Home)",
@@ -615,6 +624,7 @@ const STR: LangDict<{
     cursorBlink: "Nhấp nháy con trỏ",
     scrollback: "Cuộn lại (dòng)",
     altScreenWheelScroll: "Cuộn chuột ở màn hình thay thế (less/vim)",
+    optionAsMeta: "Dùng ⌥ Option làm Meta (⌥+Enter xuống dòng và phím tắt ⌥ của Claude Code)",
     logging: "Ghi log phiên (lưu đầu ra ra tệp)",
     logDir: "Thư mục log (trống = ~/wowterminal-logs)",
     startDir: "Thư mục bắt đầu của terminal mới (trống = home)",
@@ -677,6 +687,7 @@ const STR: LangDict<{
     cursorBlink: "Kedipan kursor",
     scrollback: "Gulir balik (baris)",
     altScreenWheelScroll: "Gulir roda di layar alternatif (less/vim)",
+    optionAsMeta: "Gunakan ⌥ Option sebagai Meta (⌥+Enter baris baru dan pintasan ⌥ Claude Code)",
     logging: "Log sesi (simpan output ke berkas)",
     logDir: "Folder log (kosong = ~/wowterminal-logs)",
     startDir: "Folder awal terminal baru (kosong = home)",
@@ -739,6 +750,7 @@ const STR: LangDict<{
     cursorBlink: "कर्सर ब्लिंक",
     scrollback: "स्क्रॉलबैक (पंक्तियाँ)",
     altScreenWheelScroll: "ऑल्ट-स्क्रीन में व्हील स्क्रॉल (less/vim)",
+    optionAsMeta: "⌥ Option को Meta की तरह इस्तेमाल करें (Claude Code में ⌥+Enter नई पंक्ति आदि)",
     logging: "सत्र लॉगिंग (आउटपुट फ़ाइल में सहेजें)",
     logDir: "लॉग फ़ोल्डर (खाली = ~/wowterminal-logs)",
     startDir: "नए टर्मिनल का प्रारंभ फ़ोल्डर (खाली = होम)",
@@ -1231,6 +1243,15 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   }
                 />
               </Row>
+              {isMacOS() && (
+                <Row label={t.optionAsMeta}>
+                  <input
+                    type="checkbox"
+                    checked={settings.terminal.optionAsMeta}
+                    onChange={(e) => patchTerminal({ optionAsMeta: e.target.checked })}
+                  />
+                </Row>
+              )}
               <Row label={t.logging}>
                 <input
                   type="checkbox"

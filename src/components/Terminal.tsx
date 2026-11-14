@@ -486,6 +486,8 @@ export function Terminal({
       // 이 옵션이 없으면 호출 시 예외가 발생해 출력 파서가 멈춘다(명령 실행 직후 화면이 멈추는
       // 현상). @xterm/xterm 6.0.0이 이를 enforce한다.
       allowProposedApi: true,
+      // (#190) 설정에서 켜면 ⌥+키가 ESC+키(Meta)를 보낸다 — Claude Code의 ⌥+Enter 줄바꿈 등.
+      macOptionIsMeta: s.optionAsMeta,
       // ⌥(Option)+드래그로 **마우스 리포팅을 무시하고** 로컬 선택을 강제한다 (#154).
       // 원격 앱이 마우스 트래킹을 켜면(tmux 마우스 on, vim, htop, Claude Code/Gemini TUI 등)
       // xterm의 mousedown이 `areMouseEventsActive && !shouldForceSelection(e)`에서 이벤트를
@@ -1298,6 +1300,23 @@ export function Terminal({
         term.writeln(tRef.current.reconnecting);
         return false;
       }
+      // (#190) 에이전트 창의 Shift+Enter = 줄바꿈. xterm.js에는 kitty 키보드 규약이 없어 Shift+Enter가
+      // 그냥 Enter(\r)로 가고 Claude Code·Codex가 바로 전송한다. 세 에이전트 모두 Ctrl+J(\n)를
+      // 줄바꿈으로 받으므로 에이전트가 있는 창에서만 바꿔 보낸다(평범한 셸에선 \n도 실행이라 그대로).
+      if (
+        e.key === "Enter" &&
+        e.shiftKey &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !e.altKey &&
+        !e.isComposing &&
+        e.keyCode !== 229 &&
+        agentNow
+      ) {
+        e.preventDefault();
+        writeToSession("\n");
+        return false;
+      }
       // ⌘F: 터미널 스크롤백 검색 오버레이 열기.
       if (e.metaKey && !e.ctrlKey && !e.altKey && (e.key === "f" || e.key === "F")) {
         e.preventDefault();
@@ -1850,6 +1869,7 @@ export function Terminal({
     term.options.cursorBlink = termSettings.cursorBlink;
     term.options.scrollback = termSettings.scrollback;
     term.options.theme = TERMINAL_THEMES[termSettings.theme];
+    term.options.macOptionIsMeta = termSettings.optionAsMeta; // (#190)
     // 숨김 탭(0 크기)에서 fit하면 작은 크기가 원격에 전달돼 tmux가 쪼그라든다. 보일 때만.
     const el = containerRef.current;
     if (el && el.clientWidth >= 8 && el.clientHeight >= 8) {

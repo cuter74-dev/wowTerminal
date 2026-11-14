@@ -8,6 +8,8 @@ export interface TerminalSettings {
   scrollback: number;
   /** 대체 화면(less/man/vim 등)에서 마우스 휠을 위/아래 화살표로 변환해 스크롤. */
   altScreenWheelScroll: boolean;
+  /** macOS에서 ⌥(Option)를 Meta로 — ⌥+키가 ESC+키를 보낸다(#190). 끄면 ⌥로 특수문자를 친다. */
+  optionAsMeta: boolean;
   /** 세션 로깅 — 켜면 터미널 출력(ANSI 제거)을 로그 디렉터리에 파일로 남긴다. */
   logging: boolean;
   /** 로그 저장 디렉터리. 비우면 ~/wowterminal-logs 사용. */
@@ -283,6 +285,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     theme: "dark",
     scrollback: 1000,
     altScreenWheelScroll: true,
+    optionAsMeta: false,
     logging: false,
     logDir: "",
     startDir: "",
