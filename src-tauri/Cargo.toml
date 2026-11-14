@@ -52,6 +52,8 @@ rustls = { version = "0.23", features = ["ring"] }
 sentry = { version = "0.34", default-features = false, features = ["backtrace", "contexts", "panic", "reqwest", "rustls"] }
 tauri-plugin-os = "2.3.2"
 tauri-plugin-clipboard-manager = "2.3.3"
+# 로컬 셸·SSH에 넘길 UTF-8 언어 설정을 시스템 언어로 정한다(#189).
+sys-locale = "0.3.2"
 
 [dev-dependencies]
 wiremock = "0.6"

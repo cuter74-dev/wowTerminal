@@ -17,7 +17,8 @@ import {
   broadcastInput,
   isAppTeardown,
 } from "../terminalRegistry";
-import { emitCommandDone, emitTitleChange, emitAgentStatus } from "../commandBus";
+import { emitCommandDone, emitTitleChange, emitAgentStatus, emitPaneNotice } from "../commandBus";
+import { Osc99Collector, parseOsc777, parseOsc9, parseProgramStatus, programStatusToScan } from "../agentSignals";
 import { scanAgent, type AgentScan } from "../aiActivity";
 import { SessionLogger } from "../sessionLog";
 import { TerminalSettings, TERMINAL_THEMES } from "../settings";
@@ -604,13 +605,21 @@ export function Terminal({
     // 없다 — 화면에 에이전트 입력 상자가 그대로 남아 있어도(지우지 못하고 끝난 경우) 에이전트가 아니다.
     // 통합이 없는 패널(SSH 등)은 화면 판정만 쓴다.
     let shellAtPrompt = false;
+    // (#189) 에이전트가 OSC 7501로 상태를 알려 오는 동안은 그 보고를 믿고 화면 판정을 쉰다
+    // (tmux 밖의 Claude Code 2.1.295+). state=clear·셸 프롬프트 복귀(OSC 133 D)에서 끝난다.
+    let oscActive = false;
+    let agentProgress: number | null = null;
+    let publishedProgress: number | null = null;
     const publishAgent = (next: AgentScan | null) => {
-      if (next?.agent === agentNow?.agent && next?.state === agentNow?.state) return;
+      const progress = next ? agentProgress : null;
+      if (next?.agent === agentNow?.agent && next?.state === agentNow?.state && progress === publishedProgress) return;
       agentNow = next;
-      emitAgentStatus({ paneId: paneId ?? "", agent: next?.agent ?? null, state: next?.state ?? null });
+      publishedProgress = progress;
+      emitAgentStatus({ paneId: paneId ?? "", agent: next?.agent ?? null, state: next?.state ?? null, progress });
     };
     const aiScan = (settled = false) => {
       aiScanTimer = 0;
+      if (oscActive) return;
       let next: AgentScan | null;
       try {
         // 보이는 화면 전체(스크롤해 올려 봐도 판정은 맨 아래 화면 기준).
@@ -723,6 +732,8 @@ export function Terminal({
       } else if (kind === "D") {
         // 명령이 끝났다 = 그 안에서 돌던 에이전트도 끝났다(#187). 바로 목록에서 내린다.
         shellAtPrompt = true;
+        oscActive = false; // (#189)
+        agentProgress = null;
         clearTimeout(aiSettleTimer);
         aiSettleTimer = 0;
         publishAgent(null);
@@ -744,6 +755,59 @@ export function Terminal({
       }
       return true;
     });
+
+    // (#189) 에이전트 표준 신호(agentSignals.ts). 화면 판정을 보완한다.
+    // OSC 7501 — Claude Code 상태. 지원 여부 질의에 답해야 보내기 시작한다.
+    term.parser.registerOscHandler(7501, (payload) => {
+      const s = parseProgramStatus(payload);
+      if (s === "probe") {
+        writeToSession("\x1b]7501;?\x1b\\");
+        return true;
+      }
+      if (!s || s.id) return true; // 하위 작업(id 있음)은 따로 두지 않는다
+      clearTimeout(aiSettleTimer);
+      aiSettleTimer = 0;
+      if (s.state === "clear") {
+        oscActive = false;
+        agentProgress = null;
+        publishAgent(null);
+        return true;
+      }
+      const scan = programStatusToScan(s);
+      if (!scan) return true;
+      oscActive = true;
+      shellAtPrompt = false;
+      agentProgress = scan.state === "idle" ? null : (s.progress ?? null);
+      publishAgent(scan);
+      return true;
+    });
+    // OSC 9 — ConEmu 진행률(9;4) 또는 iTerm2식 알림 글.
+    term.parser.registerOscHandler(9, (payload) => {
+      const r = parseOsc9(payload);
+      if (!r) return true;
+      if ("notice" in r) {
+        emitPaneNotice({ paneId: paneId ?? "", ...r.notice });
+      } else if (agentNow) {
+        agentProgress = r.progress.state === 0 || r.progress.value === null ? null : r.progress.value;
+        publishAgent(agentNow);
+      }
+      return true;
+    });
+    // OSC 777 — `notify;제목;본문`.
+    term.parser.registerOscHandler(777, (payload) => {
+      const n = parseOsc777(payload);
+      if (n) emitPaneNotice({ paneId: paneId ?? "", ...n });
+      return true;
+    });
+    // OSC 99 — kitty 알림(조각을 모은다).
+    const osc99 = new Osc99Collector();
+    term.parser.registerOscHandler(99, (payload) => {
+      const n = osc99.feed(payload);
+      if (n) emitPaneNotice({ paneId: paneId ?? "", ...n });
+      return true;
+    });
+    // 벨 — 뒤쪽 탭이면 App이 알림 점을 붙인다.
+    const onBellDisposable = term.onBell(() => emitPaneNotice({ paneId: paneId ?? "" }));
 
     // 대체화면 TUI(vim/tmux/Claude Code 등)가 마우스 추적 모드를 켠 뒤 끄지 않고 종료하면,
     // 일반 셸 프롬프트에서 클릭/드래그 시 좌표가 텍스트로 찍힌다(`\e[<0;30;5M` 등이 셸로 감).
@@ -1743,6 +1807,7 @@ export function Terminal({
       if (paneId) unregisterTerminal(paneId);
       copyTarget.removeEventListener("copy", onCopy);
       onBufChange.dispose();
+      onBellDisposable.dispose(); // (#189)
       window.removeEventListener("resize", onWinResize);
       cancelAnimationFrame(raf);
       cancelAnimationFrame(roRaf);

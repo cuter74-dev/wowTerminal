@@ -12,7 +12,7 @@ import {
   requestPermission,
   sendNotification,
 } from "@tauri-apps/plugin-notification";
-import { onAgentStatus, onCommandDone, onTitleChange } from "./commandBus";
+import { onAgentStatus, onCommandDone, onPaneNotice, onTitleChange } from "./commandBus";
 import { AGENT_NAMES } from "./aiActivity";
 import { AgentPanel, type AgentRow, type PaneAgent } from "./components/AgentPanel";
 import { UpdateBanner } from "./components/UpdateBanner";
@@ -1120,8 +1120,10 @@ function App() {
   };
   const agentTextRef = useRef(tr);
   agentTextRef.current = tr;
+  // 패널별 마지막 에이전트 알림 시각 — 프로그램 알림(#189)과 겹치지 않게.
+  const agentNotifiedAt = useRef(new Map<string, number>());
   useEffect(() => {
-    return onAgentStatus(({ paneId, agent, state }) => {
+    return onAgentStatus(({ paneId, agent, state, progress = null }) => {
       if (!paneId) return;
       const prev = agentPanesRef.current.get(paneId);
       if (!agent || !state) {
@@ -1131,7 +1133,7 @@ function App() {
         commitAgentPanes(m);
         return;
       }
-      if (prev && prev.agent === agent && prev.state === state) return;
+      if (prev && prev.agent === agent && prev.state === state && (prev.progress ?? null) === progress) return;
       const tab = tabsRef.current.find((t) => findLeaf(t.root, paneId));
       const looking = !!tab && tab.id === activeTabIdRef.current && document.hasFocus();
       const finished = prev?.state === "working" && state === "idle";
@@ -1143,11 +1145,13 @@ function App() {
         since: prev?.state === state ? prev.since : Date.now(),
         // 끝남 = 보지 않는 사이에 일을 마친 것. 다시 일하거나 기다리면 지운다.
         unseen: state === "idle" ? (finished ? !looking : (prev?.unseen ?? false)) : false,
+        progress,
       });
       commitAgentPanes(m);
       if (!tab || looking || !(finished || startedWaiting)) return; // 닫힌 패널이거나 보고 있음
       if (finished) setTabAlerts((p) => new Set(p).add(tab.id));
       if (IS_DETACHED_WINDOW) return;
+      agentNotifiedAt.current.set(paneId, Date.now());
       const t = agentTextRef.current;
       void (async () => {
         if (!(await isPermissionGranted())) return;
@@ -1158,6 +1162,24 @@ function App() {
       })();
     });
   }, []);
+  // 프로그램이 보낸 알림(OSC 9/777/99)·벨 (#189): 보고 있지 않은 탭이면 알림 점, 알림 글이 있으면
+  // 데스크톱 알림. 방금 같은 패널의 에이전트 알림을 보냈으면(같은 일을 두 번 알리지 않게) 건너뛴다.
+  useEffect(() => {
+    return onPaneNotice(({ paneId, title, body }) => {
+      if (!paneId) return;
+      const tab = tabsRef.current.find((t) => findLeaf(t.root, paneId));
+      if (!tab) return;
+      if (tab.id === activeTabIdRef.current && document.hasFocus()) return;
+      setTabAlerts((p) => new Set(p).add(tab.id));
+      if (!body || IS_DETACHED_WINDOW) return;
+      if (Date.now() - (agentNotifiedAt.current.get(paneId) ?? 0) < 5000) return;
+      void (async () => {
+        if (!(await isPermissionGranted())) return;
+        sendNotification({ title: title || tab.label || "wowTerminal", body });
+      })();
+    });
+  }, []);
+
   // 보고 있는 탭의 "끝남"은 본 것으로 친다(탭 전환·창 포커스).
   useEffect(() => {
     const clearSeen = () => {

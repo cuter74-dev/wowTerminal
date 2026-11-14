@@ -401,6 +401,11 @@ impl SshSession {
             .request_pty(false, "xterm-256color", cols.into(), rows.into(), 0, 0, &[])
             .await
             .map_err(|e| SshError::Channel(e.to_string()))?;
+        // (#189) OpenSSH의 SendEnv처럼 언어 설정을 넘긴다 — 안 넘기면 기본 로캘이 없는 서버에서
+        // tmux가 UTF-8을 못 써 `❯`·`…` 등을 `_`로 바꾸고 에이전트 표시가 사라진다. 서버가
+        // AcceptEnv로 받지 않으면 조용히 무시된다(응답을 기다리지 않음).
+        let (env_name, env_value) = crate::locale::ssh_env();
+        let _ = channel.set_env(false, env_name, env_value).await;
         channel
             .request_shell(false)
             .await

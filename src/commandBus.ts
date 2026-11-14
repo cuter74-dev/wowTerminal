@@ -41,7 +41,13 @@ export function emitTitleChange(info: TitleInfo): void {
 
 // --- AI 에이전트 상태 버스 (#180, #187) — Terminal(화면 판정) → App(탭 표시·알림·에이전트 목록).
 // agent가 null이면 그 패널에 에이전트가 없다(끝났거나 패널이 닫힘). ---
-export type AgentStatusInfo = { paneId: string; agent: AgentKind | null; state: AgentState | null };
+export type AgentStatusInfo = {
+  paneId: string;
+  agent: AgentKind | null;
+  state: AgentState | null;
+  /** 에이전트가 알려 준 진행률 0~100(OSC 7501 progress·OSC 9;4, #189). 모르면 null. */
+  progress?: number | null;
+};
 type AgentStatusListener = (info: AgentStatusInfo) => void;
 const agentStatusListeners = new Set<AgentStatusListener>();
 export function onAgentStatus(cb: AgentStatusListener): () => void {
@@ -50,4 +56,17 @@ export function onAgentStatus(cb: AgentStatusListener): () => void {
 }
 export function emitAgentStatus(info: AgentStatusInfo): void {
   agentStatusListeners.forEach((l) => l(info));
+}
+
+// --- 프로그램이 보낸 알림·벨 버스 (#189) — Terminal(OSC 9/777/99, BEL) → App(탭 알림 점·데스크톱 알림).
+// body가 없으면 벨이다(점만 붙인다). ---
+export type PaneNoticeInfo = { paneId: string; title?: string; body?: string };
+type PaneNoticeListener = (info: PaneNoticeInfo) => void;
+const paneNoticeListeners = new Set<PaneNoticeListener>();
+export function onPaneNotice(cb: PaneNoticeListener): () => void {
+  paneNoticeListeners.add(cb);
+  return () => paneNoticeListeners.delete(cb);
+}
+export function emitPaneNotice(info: PaneNoticeInfo): void {
+  paneNoticeListeners.forEach((l) => l(info));
 }

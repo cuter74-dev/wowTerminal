@@ -6,8 +6,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Terminal } from "./components/Terminal";
 import { DEFAULT_SETTINGS } from "./settings";
 import { looksWorking } from "./aiActivity";
-import { onAgentStatus } from "./commandBus";
-import { SESSION_ID, emitEvent, invokeLog, resetTauriMock } from "./test/tauriMock";
+import { onAgentStatus, onPaneNotice } from "./commandBus";
+import { SESSION_ID, emitEvent, invokeLog, ptyWrites, resetTauriMock } from "./test/tauriMock";
 
 describe("looksWorking", () => {
   it.each([
@@ -154,4 +154,65 @@ it("패널이 닫히면 에이전트도 내린다 (#187)", async () => {
   await act(async () => root.unmount());
   expect(events).toEqual(["claude:idle", "none"]);
   root = createRoot(container); // afterEach가 다시 unmount한다
+});
+
+describe("에이전트 표준 신호 (#189)", () => {
+  it("OSC 7501 질의에 답한다", async () => {
+    await output("\x1b]7501;?\x1b\\");
+    await advance(50);
+    expect(ptyWrites.join("")).toContain("\x1b]7501;?\x1b\\");
+  });
+
+  it("상태 보고가 오는 동안은 그 보고를 따르고, clear면 내린다", async () => {
+    await output("\x1b]7501;state=working:app=claude-code:progress=30\x07");
+    await advance(50);
+    expect(events).toEqual(["claude:working"]);
+    // 화면에 상태 줄이 없어도(보고가 우선) 그대로 일하는 중.
+    await output("plain output\r\n");
+    await advance(2000);
+    expect(events).toEqual(["claude:working"]);
+    await output("\x1b]7501;state=blocked:app=claude-code:kind=permission\x07");
+    await advance(50);
+    await output("\x1b]7501;state=done:app=claude-code\x07");
+    await advance(50);
+    await output("\x1b]7501;state=clear\x07");
+    await advance(50);
+    expect(events).toEqual(["claude:working", "claude:blocked", "claude:idle", "none"]);
+  });
+
+  it("하위 작업(id 있음) 보고는 이 패널 상태로 쓰지 않는다", async () => {
+    await output("\x1b]7501;state=working:app=claude-code:id=task-1\x07");
+    await advance(50);
+    expect(events).toEqual([]);
+  });
+
+  it("진행률을 함께 알린다", async () => {
+    const got: (number | null | undefined)[] = [];
+    const offP = onAgentStatus(({ paneId, progress }) => {
+      if (paneId === "ai-pane") got.push(progress);
+    });
+    await output("\x1b]7501;state=working:app=claude-code:progress=30\x07");
+    await advance(50);
+    await output("\x1b]7501;state=working:app=claude-code:progress=60\x07");
+    await advance(50);
+    offP();
+    expect(got).toEqual([30, 60]);
+  });
+
+  it("OSC 9·777 알림과 벨을 버스로 보낸다", async () => {
+    const notices: unknown[] = [];
+    const offN = onPaneNotice(({ paneId, ...n }) => {
+      if (paneId === "ai-pane") notices.push(n);
+    });
+    await output("\x1b]9;Claude needs your permission\x07");
+    await output("\x1b]777;notify;Codex;Task finished\x07");
+    await output("\x07");
+    await advance(50);
+    offN();
+    expect(notices).toEqual([
+      { body: "Claude needs your permission" },
+      { title: "Codex", body: "Task finished" },
+      {},
+    ]);
+  });
 });

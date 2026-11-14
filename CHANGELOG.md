@@ -10,8 +10,12 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ### Changed
 - **Updates are found while the app stays open.** The desktop app used to check only at launch; it now also checks every 4 hours and after the computer wakes from sleep. A bar under the tabs offers "Restart to update" or "Later" and says whether your terminals and SSH sessions carry on (macOS, Linux) or close (Windows); it never restarts on its own. When the app is in the background you also get one notification per version. (#188)
 
+### Added
+- **Agents report their own status.** wowTerminal now answers Claude Code's status query (OSC 7501), so Claude Code 2.1.295 and later tell the agents list directly whether they are working, waiting for you or done, with progress when available; screen reading remains the fallback (for example inside tmux). Notifications that programs send with OSC 9, OSC 777 or OSC 99 become desktop notifications, and a bell in a background tab marks the tab. (#189)
+
 ### Fixed
 - **Claude Code's "trust this folder" prompt now counts as waiting for you** in the agents list and tab marker. (#188)
+- **Agent status over SSH and inside tmux on servers without a default locale.** wowTerminal now passes a UTF-8 locale to the server like `ssh` does (your `LANG`, or `LC_CTYPE=C.UTF-8` when the app has none), and gives local shells your system locale when `LANG` is unset. Without it, tmux replaced characters such as `❯` and `…` with `_`, garbling Claude Code and hiding its status. (#189)
 
 ## [0.22.0] — 2026-11-13
 

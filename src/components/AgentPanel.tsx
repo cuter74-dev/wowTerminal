@@ -8,7 +8,14 @@ import { AGENT_COLORS, AGENT_NAMES, type AgentKind, type AgentState } from "../a
 import { LangDict, useT } from "../i18n";
 
 /** 패널 하나의 에이전트 상태. unseen = 보지 않는 사이에 일을 마침(목록에서 "끝남"). */
-export type PaneAgent = { agent: AgentKind; state: AgentState; since: number; unseen: boolean };
+export type PaneAgent = {
+  agent: AgentKind;
+  state: AgentState;
+  since: number;
+  unseen: boolean;
+  /** 에이전트가 알려 준 진행률(#189). */
+  progress?: number | null;
+};
 export type AgentRow = PaneAgent & {
   paneId: string;
   tabId: string;
@@ -150,7 +157,11 @@ export function AgentPanel({ rows, onJump }: { rows: AgentRow[]; onJump: (tabId:
                 </span>
               </span>
               <span style={{ display: "block", marginTop: 2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: "#8b949e", fontSize: 11 }}>
-                <span style={{ color: STATE_COLOR[shown] }}>{t[shown]}</span> · {where}
+                <span style={{ color: STATE_COLOR[shown] }}>
+                  {t[shown]}
+                  {r.progress != null && shown !== "idle" && shown !== "done" ? ` ${Math.round(r.progress)}%` : ""}
+                </span>{" "}
+                · {where}
               </span>
             </span>
           </button>

@@ -194,6 +194,11 @@ impl PtyManager {
         // "  "만 출력, 어떤 유효 TERM이든 `\b`(지우기)를 출력. xterm.js는 xterm 계열을 에뮬레이트.
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
+        // (#189) Finder로 띄운 앱엔 LANG이 없다 — 그러면 셸 안의 tmux가 UTF-8을 못 써 글자를 `_`로
+        // 바꾼다. macOS 터미널 앱처럼 비어 있을 때만 시스템 언어로 채운다.
+        if std::env::var("LANG").map(|v| v.is_empty()).unwrap_or(true) {
+            cmd.env("LANG", crate::locale::local_lang());
+        }
         // zsh는 개행 없이 끝난 줄에 부분 줄 표시(%/PROMPT_SP)를 붙인다. 로그인 메시지가 없는
         // PTY 첫 프롬프트에서 거슬리게 나오므로 promptsp 옵션을 꺼서 시작한다.
         let shell_name = std::path::Path::new(&prog)

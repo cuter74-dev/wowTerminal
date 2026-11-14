@@ -1,5 +1,6 @@
 pub mod ai;
 pub mod daemon;
+pub mod locale;
 pub mod pty;
 pub mod secrets;
 pub mod ssh;
