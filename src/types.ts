@@ -19,6 +19,10 @@ export interface SshHost {
   proxy_jump?: string | null;
   /** tmux 자동 attach 세션 이름 (#89). 설정 시 접속 직후 tmux new -A -s <이름> 실행. */
   tmux_session?: string | null;
+  /** 접속 후 시작 명령 (#191). 새로 연 세션의 셸(tmux가 있으면 새 tmux 세션 안)에 한 번 입력. */
+  startup_command?: string | null;
+  /** SSH 에이전트 포워딩(`ssh -A`, #191). */
+  agent_forwarding?: boolean;
 }
 
 /** tmux 세션 정보 (#89) — Rust TmuxSessionInfo와 일치. */

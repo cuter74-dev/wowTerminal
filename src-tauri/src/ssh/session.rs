@@ -54,6 +54,9 @@ struct TofuShared {
     outcome: Arc<Mutex<Option<TofuOutcome>>>,
     /// -R 원격 포워드 라우팅(비어 있으면 forwarded-tcpip를 무시).
     remote_forwards: RemoteForwards,
+    /// 에이전트 포워딩 허용(#191). 이 연결에서 사용자가 켜고 요청한 뒤에만 true — 요청하지 않은
+    /// 연결에서 서버가 에이전트 채널을 열면 닫는다(서버가 몰래 내 에이전트를 쓰지 못하게).
+    agent_forward: Arc<std::sync::atomic::AtomicBool>,
 }
 
 /// TOFU 정책 핸들러.
@@ -76,6 +79,7 @@ fn make_handler(
     host: &str,
     port: u16,
     remote_forwards: RemoteForwards,
+    agent_forward: Arc<std::sync::atomic::AtomicBool>,
 ) -> (TofuHandler, TofuShared) {
     let shared = TofuShared {
         store,
@@ -83,6 +87,7 @@ fn make_handler(
         port,
         outcome: Arc::new(Mutex::new(None)),
         remote_forwards,
+        agent_forward,
     };
     (
         TofuHandler {
@@ -174,6 +179,32 @@ impl Handler for TofuHandler {
         }
         Ok(())
     }
+
+    /// 에이전트 포워딩(#191): 이 연결에서 켜고 요청했을 때만 서버가 연 auth-agent 채널을 로컬
+    /// ssh-agent(SSH_AUTH_SOCK)에 잇는다. 아니면 채널을 그대로 버려 닫는다.
+    async fn server_channel_open_agent_forward(
+        &mut self,
+        channel: Channel<client::Msg>,
+        _session: &mut client::Session,
+    ) -> Result<(), Self::Error> {
+        if !self
+            .shared
+            .agent_forward
+            .load(std::sync::atomic::Ordering::Relaxed)
+        {
+            return Ok(());
+        }
+        #[cfg(unix)]
+        if let Some(sock) = std::env::var_os("SSH_AUTH_SOCK") {
+            let mut stream = channel.into_stream();
+            tokio::spawn(async move {
+                if let Ok(mut local) = tokio::net::UnixStream::connect(sock).await {
+                    let _ = tokio::io::copy_bidirectional(&mut local, &mut stream).await;
+                }
+            });
+        }
+        Ok(())
+    }
 }
 
 /// 외부 → actor 태스크로 보내는 명령.
@@ -215,7 +246,8 @@ impl SshSession {
         auth: ResolvedAuth,
         known_hosts: Arc<KnownHostsStore>,
     ) -> Result<client::Handle<TofuHandler>, SshError> {
-        Self::establish_inner(host, port, user, auth, known_hosts, Default::default()).await
+        Self::establish_inner(host, port, user, auth, known_hosts, Default::default(), Default::default())
+            .await
     }
 
     /// establish + 원격 포워드(-R) 라우팅 표를 핸들러에 심는다. -R 터널 전용.
@@ -227,7 +259,8 @@ impl SshSession {
         known_hosts: Arc<KnownHostsStore>,
         remote_forwards: RemoteForwards,
     ) -> Result<client::Handle<TofuHandler>, SshError> {
-        Self::establish_inner(host, port, user, auth, known_hosts, remote_forwards).await
+        Self::establish_inner(host, port, user, auth, known_hosts, remote_forwards, Default::default())
+            .await
     }
 
     async fn establish_inner(
@@ -237,8 +270,9 @@ impl SshSession {
         auth: ResolvedAuth,
         known_hosts: Arc<KnownHostsStore>,
         remote_forwards: RemoteForwards,
+        agent_forward: Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<client::Handle<TofuHandler>, SshError> {
-        let (handler, shared) = make_handler(known_hosts, host, port, remote_forwards);
+        let (handler, shared) = make_handler(known_hosts, host, port, remote_forwards, agent_forward);
         let config = Arc::new({
             let mut c = client::Config::default();
             // 절전/네트워크 단절로 죽은 연결을 ~1분 내 감지한다 (#96). 응답 없는
@@ -291,6 +325,7 @@ impl SshSession {
         user: &str,
         auth: ResolvedAuth,
         known_hosts: Arc<KnownHostsStore>,
+        agent_forward: Arc<std::sync::atomic::AtomicBool>,
     ) -> Result<(client::Handle<TofuHandler>, client::Handle<TofuHandler>), SshError> {
         let jump_handle = Self::establish(
             &jump.host,
@@ -309,7 +344,7 @@ impl SshSession {
             })?;
         let stream = channel.into_stream();
 
-        let (handler, shared) = make_handler(known_hosts, host, port, Default::default());
+        let (handler, shared) = make_handler(known_hosts, host, port, Default::default(), agent_forward);
         let config = Arc::new({
             let mut c = client::Config::default();
             // 절전/네트워크 단절로 죽은 연결을 ~1분 내 감지한다 (#96). 응답 없는
@@ -375,16 +410,38 @@ impl SshSession {
         closed: crate::pty::manager::ClosedSink,
         known_hosts: Arc<KnownHostsStore>,
         jump: Option<JumpSpec>,
+        agent_forward: bool,
     ) -> Result<Self, SshError> {
+        let agent_flag: Arc<std::sync::atomic::AtomicBool> = Default::default();
         // ProxyJump이 지정되면 점프 호스트를 통해 접속하고, 점프 핸들을 actor 태스크에서
         // 유지한다(아래 spawn으로 move). 그렇지 않으면 직접 접속.
         let (handle, jump_keepalive) = match jump {
             Some(j) => {
-                let (h, jk) =
-                    Self::establish_via(j, host, port, user, auth, known_hosts).await?;
+                let (h, jk) = Self::establish_via(
+                    j,
+                    host,
+                    port,
+                    user,
+                    auth,
+                    known_hosts,
+                    Arc::clone(&agent_flag),
+                )
+                .await?;
                 (h, Some(jk))
             }
-            None => (Self::establish(host, port, user, auth, known_hosts).await?, None),
+            None => (
+                Self::establish_inner(
+                    host,
+                    port,
+                    user,
+                    auth,
+                    known_hosts,
+                    Default::default(),
+                    Arc::clone(&agent_flag),
+                )
+                .await?,
+                None,
+            ),
         };
 
         // 핸들을 Arc로 감싸 세션에 보관 — 드래그 업로드 시 별도 exec 채널로 원격 cwd를 조회한다.
@@ -406,6 +463,11 @@ impl SshSession {
         // AcceptEnv로 받지 않으면 조용히 무시된다(응답을 기다리지 않음).
         let (env_name, env_value) = crate::locale::ssh_env();
         let _ = channel.set_env(false, env_name, env_value).await;
+        // (#191) `ssh -A`: 허용 표시를 먼저 켜고 요청한다(서버가 채널을 열면 핸들러가 받는다).
+        if agent_forward {
+            agent_flag.store(true, std::sync::atomic::Ordering::Relaxed);
+            let _ = channel.agent_forward(false).await;
+        }
         channel
             .request_shell(false)
             .await
@@ -780,6 +842,7 @@ mod tests {
             port,
             outcome: Arc::new(Mutex::new(None)),
             remote_forwards: Default::default(),
+            agent_forward: Default::default(),
         };
         (TofuHandler { shared: shared.clone() }, shared)
     }
@@ -939,6 +1002,7 @@ mod tests {
             Arc::new(|_| {}), // ClosedSink — 이 테스트는 종료 알림을 쓰지 않는다.
             store,
             None,
+            false,
         );
         let result = timeout(Duration::from_secs(5), result)
             .await

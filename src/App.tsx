@@ -17,6 +17,7 @@ import { AGENT_NAMES } from "./aiActivity";
 import { AgentPanel, type AgentRow, type PaneAgent } from "./components/AgentPanel";
 import { UpdateBanner } from "./components/UpdateBanner";
 import { startUpdateChecks } from "./updates";
+import { connectInput } from "./hostStartup";
 import { getHistory } from "./commandHistory";
 import { loadSnippets } from "./snippets";
 import { CommandPalette, PaletteItem } from "./components/CommandPalette";
@@ -618,6 +619,8 @@ function App() {
   const initAttachByLeaf = useRef<Record<string, string>>(
     RESTORED_SESSION?.initAttach ?? {},
   );
+  // 접속 후 시작 명령을 이미 보낸 leaf (#191) — 재접속 때 다시 보내지 않는다.
+  const startupSentByLeaf = useRef<Record<string, true>>({});
   // leaf id → attach할 기존 sessionId (분리 윈도우 부트스트랩).
   const [attachSessionByLeaf, setAttachSessionByLeaf] = useState<Record<string, string>>({});
   const [attachScreenByLeaf, setAttachScreenByLeaf] = useState<Record<string, string>>({});
@@ -1687,8 +1690,13 @@ function App() {
         const hostId0 = src0.hostId;
         const host = hosts.find((h) => h.id === hostId0);
         const name = (host?.tmux_session ?? "").replace(/[^A-Za-z0-9_@-]/g, "");
+        // (#191) 시작 명령은 새로 연 세션에서 한 번만 — 복원된 탭(살아 있던 세션에 다시 붙었을 수
+        // 있다)과 끊긴 뒤 재접속에는 보내지 않는다. tmux가 있으면 tmux 세션이 새로 생길 때만.
+        const fresh = !startupSentByLeaf.current[leafId] && !(leafId in initAttachByLeaf.current);
+        const input = connectInput(name, fresh ? (host?.startup_command ?? "") : "");
+        if (fresh) startupSentByLeaf.current[leafId] = true;
+        if (input) getTerminal(leafId)?.sendInput(input);
         if (name) {
-          getTerminal(leafId)?.sendInput(`tmux new-session -A -s '${name}'\r`);
           tmuxByLeaf.current[leafId] = name;
           labelTabForLeaf(leafId, name);
           return true;

@@ -326,6 +326,7 @@ pub async fn ssh_connect(
                 cols,
                 rows,
                 jump,
+                agent_forward: host.agent_forwarding,
             })
             .await
             .map_err(SshConnectError::from_string)?;

@@ -53,6 +53,9 @@ pub enum Req {
         rows: u16,
         #[serde(default)]
         jump: Option<crate::ssh::session::WireJump>,
+        /// (#191) 에이전트 포워딩. 예전 데몬은 이 값을 모르고 무시한다(포워딩만 빠진다).
+        #[serde(default)]
+        agent_forward: bool,
     },
     SshWrite { session_id: String, data_b64: String },
     SshResize { session_id: String, cols: u16, rows: u16 },
@@ -157,6 +160,28 @@ pub async fn write_json<W: AsyncWrite + Unpin, T: Serialize>(w: &mut W, v: &T) -
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn ssh_connect_without_agent_forward_still_parses() {
+        // (#191) 예전 UI가 보낸 SshConnect(agent_forward 없음)도 새 데몬이 읽는다 — 기본 false.
+        let mut v = serde_json::to_value(Req::SshConnect {
+            host: "h".into(),
+            port: 22,
+            user: "u".into(),
+            auth: crate::ssh::session::WireAuth::Password { password: "x".into() },
+            cols: 80,
+            rows: 24,
+            jump: None,
+            agent_forward: true,
+        })
+        .unwrap();
+        // `op` 태그 방식이라 값이 한 객체에 평평하게 들어 있다.
+        assert!(v.as_object_mut().unwrap().remove("agent_forward").is_some());
+        match serde_json::from_value::<Req>(v).unwrap() {
+            Req::SshConnect { agent_forward, .. } => assert!(!agent_forward),
+            _ => panic!("wrong variant"),
+        }
+    }
 
     #[tokio::test]
     async fn frame_roundtrip_preserves_payload() {

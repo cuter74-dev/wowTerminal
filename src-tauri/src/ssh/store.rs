@@ -111,6 +111,8 @@ mod tests {
             group_id: None,
             proxy_jump: None,
             tmux_session: None,
+            startup_command: None,
+            agent_forwarding: false,
         }
     }
 

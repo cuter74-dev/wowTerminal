@@ -1174,6 +1174,8 @@ mod e2e {
             group_id: None,
             proxy_jump: None,
             tmux_session: None,
+            startup_command: None,
+            agent_forwarding: false,
         };
         let pw = || {
             ResolvedAuth::Password(
@@ -1228,6 +1230,8 @@ mod e2e {
                 group_id: None,
                 proxy_jump: None,
                 tmux_session: None,
+                startup_command: None,
+                agent_forwarding: false,
             };
             let pw = ResolvedAuth::Password(
                 std::env::var("WT_TEST_SFTP_PASS").unwrap_or_else(|_| "x".into()),

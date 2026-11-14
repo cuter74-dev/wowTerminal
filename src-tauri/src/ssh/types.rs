@@ -23,6 +23,14 @@ pub struct SshHost {
     /// `tmux new-session -A -s <이름>`을 보내 영속 세션에 들어간다. None이면 끔.
     #[serde(default)]
     pub tmux_session: Option<String>,
+    /// 접속 후 시작 명령 (#191). 새로 연 세션의 셸(tmux가 있으면 새 tmux 세션 안)에 한 번 입력한다.
+    /// 프런트가 보낸다 — 백엔드는 저장만.
+    #[serde(default)]
+    pub startup_command: Option<String>,
+    /// SSH 에이전트 포워딩(`ssh -A`, #191). 켜면 셸 채널에서 auth-agent-req를 보내고 서버가 여는
+    /// 에이전트 채널을 로컬 ssh-agent(SSH_AUTH_SOCK)에 잇는다.
+    #[serde(default)]
+    pub agent_forwarding: bool,
 }
 
 /// tmux 세션 한 줄 (#89). `tmux list-sessions -F '#{session_name}\t#{session_windows}\t#{session_attached}'`

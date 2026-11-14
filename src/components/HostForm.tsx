@@ -33,6 +33,10 @@ const STR: LangDict<{
     proxyDirect: string;
     tmuxSession: string;
     tmuxSessionPh: string;
+    startupCommand: string;
+    startupCommandPh: string;
+    agentForwarding: string;
+    agentForwardingHint: string;
     noTags: string;
     cancel: string;
     saving: string;
@@ -60,6 +64,10 @@ const STR: LangDict<{
     proxyDirect: "(Direct — no jump)",
     tmuxSession: "tmux auto-attach",
     tmuxSessionPh: "Session name (empty = off) — runs tmux new -A -s <name> on connect",
+    startupCommand: "Startup command",
+    startupCommandPh: "Runs once in a new session, e.g. cd ~/proj && claude (inside tmux if set)",
+    agentForwarding: "SSH agent forwarding (ssh -A)",
+    agentForwardingHint: "Lets the server use your local SSH keys (e.g. git push) while connected. Only for servers you trust: their admins can use your agent too.",
     noTags: "No tags registered — add them via Group/Tag Manager in the sidebar",
     cancel: "Cancel",
     saving: "Saving...",
@@ -86,6 +94,10 @@ const STR: LangDict<{
     proxyDirect: "(직접 — 점프 없음)",
     tmuxSession: "tmux 자동 attach",
     tmuxSessionPh: "세션 이름 (비우면 끔) — 접속 시 tmux new -A -s <이름> 실행",
+    startupCommand: "접속 후 시작 명령",
+    startupCommandPh: "새 세션에서 한 번 실행 — 예: cd ~/proj && claude (tmux를 쓰면 그 안에서)",
+    agentForwarding: "SSH 에이전트 포워딩 (ssh -A)",
+    agentForwardingHint: "접속해 있는 동안 서버가 내 SSH 키를 쓸 수 있습니다(예: git push). 믿는 서버에서만 켜세요 — 그 서버 관리자도 내 에이전트를 쓸 수 있습니다.",
     noTags: "등록된 태그 없음 — 사이드바의 그룹/태그 관리로 추가",
     cancel: "취소",
     saving: "저장 중...",
@@ -112,6 +124,10 @@ const STR: LangDict<{
     proxyDirect: "(Directo — sin salto)",
     tmuxSession: "Auto-adjuntar tmux",
     tmuxSessionPh: "Nombre de sesión (vacío = desactivado) — ejecuta tmux new -A -s <nombre> al conectar",
+    startupCommand: "Comando inicial",
+    startupCommandPh: "Se ejecuta una vez en una sesión nueva, p. ej. cd ~/proj && claude (dentro de tmux si está activo)",
+    agentForwarding: "Reenvío del agente SSH (ssh -A)",
+    agentForwardingHint: "Permite al servidor usar tus claves SSH locales (p. ej. git push) mientras estás conectado. Solo en servidores de confianza: sus administradores también pueden usar tu agente.",
     noTags: "No hay etiquetas registradas — agrégalas con el Gestor de grupos/etiquetas en la barra lateral",
     cancel: "Cancelar",
     saving: "Guardando...",
@@ -138,6 +154,10 @@ const STR: LangDict<{
     proxyDirect: "(直连 — 无跳板)",
     tmuxSession: "tmux 自动附加",
     tmuxSessionPh: "会话名（留空=关闭）— 连接时执行 tmux new -A -s <名称>",
+    startupCommand: "连接后启动命令",
+    startupCommandPh: "在新会话中运行一次，例如 cd ~/proj && claude（若设置了 tmux 则在其中）",
+    agentForwarding: "SSH 代理转发 (ssh -A)",
+    agentForwardingHint: "连接期间服务器可以使用你本地的 SSH 密钥（如 git push）。只在信任的服务器上开启：其管理员也能使用你的代理。",
     noTags: "没有已注册的标签 — 通过侧边栏的分组/标签管理器添加",
     cancel: "取消",
     saving: "保存中...",
@@ -164,6 +184,10 @@ const STR: LangDict<{
     proxyDirect: "(直接 — 踏み台なし)",
     tmuxSession: "tmux 自動アタッチ",
     tmuxSessionPh: "セッション名（空=オフ）— 接続時に tmux new -A -s <名前> を実行",
+    startupCommand: "接続後の開始コマンド",
+    startupCommandPh: "新しいセッションで一度実行 — 例: cd ~/proj && claude（tmux 設定時はその中で）",
+    agentForwarding: "SSH エージェント転送 (ssh -A)",
+    agentForwardingHint: "接続中、サーバーがローカルの SSH 鍵を使えます（例: git push）。信頼できるサーバーでのみ有効に — その管理者もエージェントを使えます。",
     noTags: "登録済みのタグなし — サイドバーのグループ/タグ管理から追加",
     cancel: "キャンセル",
     saving: "保存中...",
@@ -190,6 +214,10 @@ const STR: LangDict<{
     proxyDirect: "(Прямое — без прыжка)",
     tmuxSession: "Автоподключение tmux",
     tmuxSessionPh: "Имя сессии (пусто = выкл) — при подключении выполняется tmux new -A -s <имя>",
+    startupCommand: "Команда при подключении",
+    startupCommandPh: "Выполняется один раз в новом сеансе, напр. cd ~/proj && claude (внутри tmux, если задан)",
+    agentForwarding: "Проброс SSH-агента (ssh -A)",
+    agentForwardingHint: "Пока вы подключены, сервер может использовать ваши локальные SSH-ключи (напр. git push). Только для доверенных серверов: их администраторы тоже смогут использовать агент.",
     noTags: "Нет зарегистрированных тегов — добавьте их в Менеджере групп/тегов на боковой панели",
     cancel: "Отмена",
     saving: "Сохранение...",
@@ -216,6 +244,10 @@ const STR: LangDict<{
     proxyDirect: "(Direct — sans rebond)",
     tmuxSession: "Attachement auto tmux",
     tmuxSessionPh: "Nom de session (vide = désactivé) — exécute tmux new -A -s <nom> à la connexion",
+    startupCommand: "Commande au démarrage",
+    startupCommandPh: "S'exécute une fois dans une nouvelle session, ex. cd ~/proj && claude (dans tmux s'il est défini)",
+    agentForwarding: "Transfert de l'agent SSH (ssh -A)",
+    agentForwardingHint: "Le serveur peut utiliser vos clés SSH locales (ex. git push) pendant la connexion. Uniquement pour des serveurs de confiance : leurs administrateurs peuvent aussi utiliser votre agent.",
     noTags: "Aucune étiquette enregistrée — ajoutez-les via le Gestionnaire de groupes/étiquettes dans la barre latérale",
     cancel: "Annuler",
     saving: "Enregistrement...",
@@ -242,6 +274,10 @@ const STR: LangDict<{
     proxyDirect: "(Direkt — kein Sprung)",
     tmuxSession: "tmux Auto-Attach",
     tmuxSessionPh: "Sitzungsname (leer = aus) — führt beim Verbinden tmux new -A -s <Name> aus",
+    startupCommand: "Startbefehl",
+    startupCommandPh: "Läuft einmal in einer neuen Sitzung, z. B. cd ~/proj && claude (in tmux, falls gesetzt)",
+    agentForwarding: "SSH-Agent-Weiterleitung (ssh -A)",
+    agentForwardingHint: "Der Server kann während der Verbindung deine lokalen SSH-Schlüssel nutzen (z. B. git push). Nur für vertrauenswürdige Server: deren Admins können deinen Agenten ebenfalls nutzen.",
     noTags: "Keine Tags registriert — füge sie über die Gruppen-/Tag-Verwaltung in der Seitenleiste hinzu",
     cancel: "Abbrechen",
     saving: "Wird gespeichert...",
@@ -268,6 +304,10 @@ const STR: LangDict<{
     proxyDirect: "(Trực tiếp — không nhảy)",
     tmuxSession: "Tự động gắn tmux",
     tmuxSessionPh: "Tên phiên (trống = tắt) — chạy tmux new -A -s <tên> khi kết nối",
+    startupCommand: "Lệnh khởi động",
+    startupCommandPh: "Chạy một lần trong phiên mới, ví dụ cd ~/proj && claude (trong tmux nếu đã đặt)",
+    agentForwarding: "Chuyển tiếp SSH agent (ssh -A)",
+    agentForwardingHint: "Khi đang kết nối, máy chủ có thể dùng khóa SSH cục bộ của bạn (ví dụ git push). Chỉ bật với máy chủ tin cậy: quản trị viên của nó cũng dùng được agent của bạn.",
     noTags: "Không có thẻ nào được đăng ký — thêm chúng qua Trình quản lý nhóm/thẻ ở thanh bên",
     cancel: "Hủy",
     saving: "Đang lưu...",
@@ -294,6 +334,10 @@ const STR: LangDict<{
     proxyDirect: "(Langsung — tanpa lompat)",
     tmuxSession: "Lampir otomatis tmux",
     tmuxSessionPh: "Nama sesi (kosong = mati) — menjalankan tmux new -A -s <nama> saat terhubung",
+    startupCommand: "Perintah awal",
+    startupCommandPh: "Dijalankan sekali di sesi baru, mis. cd ~/proj && claude (di dalam tmux jika diatur)",
+    agentForwarding: "Penerusan agen SSH (ssh -A)",
+    agentForwardingHint: "Selama terhubung, server dapat memakai kunci SSH lokal Anda (mis. git push). Hanya untuk server tepercaya: adminnya juga bisa memakai agen Anda.",
     noTags: "Tidak ada tag terdaftar — tambahkan melalui Pengelola grup/tag di bilah sisi",
     cancel: "Batal",
     saving: "Menyimpan...",
@@ -320,6 +364,10 @@ const STR: LangDict<{
     proxyDirect: "(सीधा — कोई जंप नहीं)",
     tmuxSession: "tmux ऑटो-अटैच",
     tmuxSessionPh: "सत्र नाम (खाली = बंद) — कनेक्ट पर tmux new -A -s <नाम> चलता है",
+    startupCommand: "कनेक्ट के बाद शुरुआती कमांड",
+    startupCommandPh: "नए सत्र में एक बार चलता है, जैसे cd ~/proj && claude (tmux सेट हो तो उसके अंदर)",
+    agentForwarding: "SSH एजेंट फ़ॉरवर्डिंग (ssh -A)",
+    agentForwardingHint: "कनेक्ट रहते समय सर्वर आपकी लोकल SSH कुंजियाँ इस्तेमाल कर सकता है (जैसे git push)। सिर्फ़ भरोसेमंद सर्वर पर चालू करें: उसके एडमिन भी आपका एजेंट इस्तेमाल कर सकते हैं।",
     noTags: "कोई टैग पंजीकृत नहीं — साइडबार में समूह/टैग प्रबंधक के माध्यम से जोड़ें",
     cancel: "रद्द करें",
     saving: "सहेजा जा रहा है...",
@@ -359,6 +407,9 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
   );
   // tmux 자동 attach 세션 이름 (#89). 빈 문자열 = 끔.
   const [tmuxSession, setTmuxSession] = useState(initial?.tmux_session ?? "");
+  // 접속 후 시작 명령·에이전트 포워딩 (#191).
+  const [startupCommand, setStartupCommand] = useState(initial?.startup_command ?? "");
+  const [agentForwarding, setAgentForwarding] = useState(initial?.agent_forwarding ?? false);
   const [hostTags, setHostTags] = useState<string[]>(initial?.tags ?? []);
   const [groups, setGroups] = useState<Group[]>([]);
   const [tags, setTags] = useState<Tag[]>([]);
@@ -436,6 +487,8 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
       group_id: groupId,
       proxy_jump: proxyJump,
       tmux_session: tmuxSession.trim() ? tmuxSession.trim() : null,
+      startup_command: startupCommand.trim() ? startupCommand.trim() : null,
+      agent_forwarding: agentForwarding,
     };
 
     try {
@@ -632,6 +685,30 @@ export function HostForm({ initial, onCancel, onSaved }: Props) {
             placeholder={t.tmuxSessionPh}
             style={inputStyle}
           />
+        </Field>
+
+        <Field label={t.startupCommand}>
+          <input
+            value={startupCommand}
+            onChange={(e) => setStartupCommand(e.target.value.replace(/[\r\n]+/g, " "))}
+            placeholder={t.startupCommandPh}
+            spellCheck={false}
+            autoCapitalize="off"
+            autoCorrect="off"
+            style={inputStyle}
+          />
+        </Field>
+
+        <Field label={t.agentForwarding}>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: 8, fontSize: 11, color: "#9aa3b0", lineHeight: 1.5 }}>
+            <input
+              type="checkbox"
+              checked={agentForwarding}
+              onChange={(e) => setAgentForwarding(e.target.checked)}
+              style={{ marginTop: 2 }}
+            />
+            <span>{t.agentForwardingHint}</span>
+          </label>
         </Field>
 
         <Field label="Tags">

@@ -116,7 +116,7 @@ impl SshManager {
         rows: u16,
         jump: Option<JumpSpec>,
     ) -> Result<SessionId, SshError> {
-        self.connect_addr(&host.host, host.port, &host.user, auth, cols, rows, jump)
+        self.connect_addr(&host.host, host.port, &host.user, auth, cols, rows, jump, host.agent_forwarding)
             .await
     }
 
@@ -131,6 +131,7 @@ impl SshManager {
         cols: u16,
         rows: u16,
         jump: Option<JumpSpec>,
+        agent_forward: bool,
     ) -> Result<SessionId, SshError> {
         let session_id: SessionId = uuid::Uuid::new_v4().to_string();
         let session = SshSession::connect(
@@ -145,6 +146,7 @@ impl SshManager {
             Arc::clone(&self.closed),
             Arc::clone(&self.known_hosts),
             jump,
+            agent_forward,
         )
         .await?;
 
@@ -233,7 +235,7 @@ mod remote_cwd_e2e {
         let mgr = SshManager::new(Arc::new(|_, _| {}), Arc::clone(&ks));
         let pw = || ResolvedAuth::Password("test".into());
         let id = match mgr
-            .connect_addr("127.0.0.1", port, "test", pw(), 80, 24, None)
+            .connect_addr("127.0.0.1", port, "test", pw(), 80, 24, None, false)
             .await
         {
             Err(SshError::FirstContactRequired {
@@ -243,7 +245,7 @@ mod remote_cwd_e2e {
             }) => {
                 ks.record("127.0.0.1", port, &algorithm, &fingerprint)
                     .unwrap();
-                mgr.connect_addr("127.0.0.1", port, "test", pw(), 80, 24, None)
+                mgr.connect_addr("127.0.0.1", port, "test", pw(), 80, 24, None, false)
                     .await
                     .unwrap()
             }

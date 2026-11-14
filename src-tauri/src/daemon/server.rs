@@ -320,11 +320,11 @@ async fn handle(d: &Daemon, req: Req) -> ReplyResult {
             ReplyResult::ok(ids)
         }
         // ── v2 (#160) ─────────────────────────────────────────────────────────
-        Req::SshConnect { host, port, user, auth, cols, rows, jump } => {
+        Req::SshConnect { host, port, user, auth, cols, rows, jump, agent_forward } => {
             let outcome: Result<String, SshConnectError> = async {
                 let auth = auth.into_resolved()?;
                 let jump = jump.map(|j| j.into_spec()).transpose()?;
-                d.ssh.connect_addr(&host, port, &user, auth, cols, rows, jump).await
+                d.ssh.connect_addr(&host, port, &user, auth, cols, rows, jump, agent_forward).await
             }
             .await
             .map_err(SshConnectError::from);
@@ -534,6 +534,7 @@ mod tests {
                 cols: 80,
                 rows: 24,
                 jump: None,
+                agent_forward: false,
             })
             .await
             .expect("reply");
@@ -582,6 +583,7 @@ mod e2e {
                     cols: 80,
                     rows: 24,
                     jump: None,
+                    agent_forward: false,
                 })
                 .await
                 .unwrap();
@@ -603,6 +605,7 @@ mod e2e {
                     cols: 80,
                     rows: 24,
                     jump: None,
+                    agent_forward: false,
                 })
                 .await
                 .unwrap();
