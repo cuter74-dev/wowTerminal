@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.22.1] — 2026-11-14
+
 ### Changed
 - **Updates are found while the app stays open.** The desktop app used to check only at launch; it now also checks every 4 hours and after the computer wakes from sleep. A bar under the tabs offers "Restart to update" or "Later" and says whether your terminals and SSH sessions carry on (macOS, Linux) or close (Windows); it never restarts on its own. When the app is in the background you also get one notification per version. (#188)
 
@@ -682,7 +684,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.0...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.1...HEAD
+[0.22.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.11...v0.22.0
 [0.21.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.10...v0.21.11
 [0.21.10]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.9...v0.21.10
