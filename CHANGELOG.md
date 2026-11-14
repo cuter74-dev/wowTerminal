@@ -19,6 +19,7 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 - **Agents report their own status.** wowTerminal now answers Claude Code's status query (OSC 7501), so Claude Code 2.1.295 and later tell the agents list directly whether they are working, waiting for you or done, with progress when available; screen reading remains the fallback (for example inside tmux). Notifications that programs send with OSC 9, OSC 777 or OSC 99 become desktop notifications, and a bell in a background tab marks the tab. (#189)
 
 ### Fixed
+- **"Check for updates" in Settings now actually checks.** It used to say you were on the latest version without checking. It now reports a new version (and brings back the update bar if you had dismissed it), says you're up to date, or says it couldn't check. (#188)
 - **Claude Code's "trust this folder" prompt now counts as waiting for you** in the agents list and tab marker. (#188)
 - **Agent status over SSH and inside tmux on servers without a default locale.** wowTerminal now passes a UTF-8 locale to the server like `ssh` does (your `LANG`, or `LC_CTYPE=C.UTF-8` when the app has none), and gives local shells your system locale when `LANG` is unset. Without it, tmux replaced characters such as `❯` and `…` with `_`, garbling Claude Code and hiding its status. (#189)
 

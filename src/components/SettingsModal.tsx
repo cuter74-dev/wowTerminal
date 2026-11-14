@@ -22,6 +22,7 @@ import { setErrorReporting } from "../telemetry";
 import { BackendInfo, Group, SshHost, Tag } from "../types";
 import { Snippet, loadSnippets, saveSnippets } from "../snippets";
 import { newId } from "../ids";
+import { checkForUpdate, getUpdateState } from "../updates";
 import { copyText } from "../clipboard";
 
 interface Props {
@@ -53,6 +54,9 @@ const STR: LangDict<{
     aboutDesc: string;
     checkUpdate: string;
     upToDate: string;
+    checking: string;
+    updateFound: (v: string) => string;
+    checkFailed: string;
     fontSize: string;
     fontFamily: string;
     theme: string;
@@ -112,6 +116,9 @@ const STR: LangDict<{
     aboutDesc: "A context-aware AI terminal — LLM × SSH × SFTP.",
     checkUpdate: "Check for updates",
     upToDate: "You're on the latest version.",
+    checking: "Checking…",
+    updateFound: (v) => `Version ${v} is available — restart from the bar under the tabs.`,
+    checkFailed: "Couldn't check — make sure you're online.",
     fontSize: "Font size",
     fontFamily: "Font family",
     theme: "Theme",
@@ -175,6 +182,9 @@ const STR: LangDict<{
     aboutDesc: "컨텍스트를 아는 AI 터미널 — LLM × SSH × SFTP.",
     checkUpdate: "업데이트 확인",
     upToDate: "현재 최신 버전입니다.",
+    checking: "확인하는 중…",
+    updateFound: (v) => `새 버전 ${v}이 있습니다 — 탭 아래 안내 줄에서 재시작해 업데이트하세요.`,
+    checkFailed: "확인하지 못했습니다 — 인터넷 연결을 확인하세요.",
     fontSize: "글꼴 크기",
     fontFamily: "글꼴",
     theme: "테마",
@@ -238,6 +248,9 @@ const STR: LangDict<{
     aboutDesc: "Un terminal de IA con reconocimiento de contexto — LLM × SSH × SFTP.",
     checkUpdate: "Buscar actualizaciones",
     upToDate: "Estás en la última versión.",
+    checking: "Comprobando…",
+    updateFound: (v) => `La versión ${v} está disponible: reinicia desde la barra bajo las pestañas.`,
+    checkFailed: "No se pudo comprobar: revisa tu conexión.",
     fontSize: "Tamaño de fuente",
     fontFamily: "Familia de fuente",
     theme: "Tema",
@@ -301,6 +314,9 @@ const STR: LangDict<{
     aboutDesc: "一个具有上下文感知的 AI 终端 — LLM × SSH × SFTP.",
     checkUpdate: "检查更新",
     upToDate: "您使用的是最新版本.",
+    checking: "正在检查…",
+    updateFound: (v) => `有新版本 ${v} — 在标签页下方的提示栏重启以更新。`,
+    checkFailed: "无法检查 — 请确认已联网。",
     fontSize: "字体大小",
     fontFamily: "字体",
     theme: "主题",
@@ -364,6 +380,9 @@ const STR: LangDict<{
     aboutDesc: "コンテキストを理解する AI ターミナル — LLM × SSH × SFTP.",
     checkUpdate: "更新を確認",
     upToDate: "最新バージョンです.",
+    checking: "確認中…",
+    updateFound: (v) => `新しいバージョン ${v} があります — タブの下のバーから再起動して更新してください。`,
+    checkFailed: "確認できませんでした — 接続を確認してください。",
     fontSize: "フォントサイズ",
     fontFamily: "フォントファミリー",
     theme: "テーマ",
@@ -427,6 +446,9 @@ const STR: LangDict<{
     aboutDesc: "Контекстно-зависимый ИИ-терминал — LLM × SSH × SFTP.",
     checkUpdate: "Проверить обновления",
     upToDate: "У вас последняя версия.",
+    checking: "Проверка…",
+    updateFound: (v) => `Доступна версия ${v} — перезапустите из полосы под вкладками.`,
+    checkFailed: "Не удалось проверить — проверьте подключение.",
     fontSize: "Размер шрифта",
     fontFamily: "Семейство шрифтов",
     theme: "Тема",
@@ -490,6 +512,9 @@ const STR: LangDict<{
     aboutDesc: "Un terminal IA sensible au contexte — LLM × SSH × SFTP.",
     checkUpdate: "Vérifier les mises à jour",
     upToDate: "Vous utilisez la dernière version.",
+    checking: "Vérification…",
+    updateFound: (v) => `La version ${v} est disponible — redémarrez depuis la barre sous les onglets.`,
+    checkFailed: "Vérification impossible — vérifiez votre connexion.",
     fontSize: "Taille de police",
     fontFamily: "Famille de police",
     theme: "Thème",
@@ -553,6 +578,9 @@ const STR: LangDict<{
     aboutDesc: "Ein kontextbewusstes KI-Terminal — LLM × SSH × SFTP.",
     checkUpdate: "Nach Updates suchen",
     upToDate: "Sie haben die neueste Version.",
+    checking: "Wird geprüft…",
+    updateFound: (v) => `Version ${v} ist verfügbar — starte über die Leiste unter den Tabs neu.`,
+    checkFailed: "Prüfung fehlgeschlagen — bitte Verbindung prüfen.",
     fontSize: "Schriftgröße",
     fontFamily: "Schriftfamilie",
     theme: "Design",
@@ -616,6 +644,9 @@ const STR: LangDict<{
     aboutDesc: "Một terminal AI nhận biết ngữ cảnh — LLM × SSH × SFTP.",
     checkUpdate: "Kiểm tra cập nhật",
     upToDate: "Bạn đang dùng phiên bản mới nhất.",
+    checking: "Đang kiểm tra…",
+    updateFound: (v) => `Đã có phiên bản ${v} — khởi động lại từ thanh dưới các tab.`,
+    checkFailed: "Không kiểm tra được — hãy kiểm tra kết nối mạng.",
     fontSize: "Cỡ chữ",
     fontFamily: "Phông chữ",
     theme: "Giao diện",
@@ -679,6 +710,9 @@ const STR: LangDict<{
     aboutDesc: "Terminal AI yang sadar konteks — LLM × SSH × SFTP.",
     checkUpdate: "Periksa pembaruan",
     upToDate: "Anda menggunakan versi terbaru.",
+    checking: "Memeriksa…",
+    updateFound: (v) => `Versi ${v} tersedia — mulai ulang dari bilah di bawah tab.`,
+    checkFailed: "Tidak dapat memeriksa — pastikan Anda terhubung.",
     fontSize: "Ukuran font",
     fontFamily: "Jenis font",
     theme: "Tema",
@@ -742,6 +776,9 @@ const STR: LangDict<{
     aboutDesc: "एक संदर्भ-जागरूक AI टर्मिनल — LLM × SSH × SFTP.",
     checkUpdate: "अपडेट जाँचें",
     upToDate: "आप नवीनतम संस्करण पर हैं.",
+    checking: "जाँच हो रही है…",
+    updateFound: (v) => `संस्करण ${v} उपलब्ध है — टैब के नीचे वाली पट्टी से रीस्टार्ट करें।`,
+    checkFailed: "जाँच नहीं हो सकी — इंटरनेट कनेक्शन देखें।",
     fontSize: "फ़ॉन्ट आकार",
     fontFamily: "फ़ॉन्ट परिवार",
     theme: "थीम",
@@ -787,6 +824,14 @@ const STR: LangDict<{
 
 export function SettingsModal({ settings, onChange, onClose }: Props) {
   const t = useT(STR);
+  // "업데이트 확인" 결과(#188) — 전에는 확인 없이 늘 "최신 버전"이라고 띄웠다.
+  const [updateMsg, setUpdateMsg] = useState("");
+  const runUpdateCheck = async () => {
+    setUpdateMsg(t.checking);
+    const r = await checkForUpdate({ manual: true });
+    const v = getUpdateState().update?.version;
+    setUpdateMsg(r === "available" && v ? t.updateFound(v) : r === "latest" ? t.upToDate : t.checkFailed);
+  };
   const [tab, setTab] = useState<TabId>("general");
   const [appVersion, setAppVersion] = useState("");
   // 입력칸에서 드래그 선택 후 오버레이 위에서 손을 떼면 닫히는 버그 방지(아래 onMouseDown/onClick).
@@ -1103,9 +1148,11 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   <br />
                   Tauri 2 (Rust) · React 19 · xterm.js · russh · russh-sftp
                 </div>
-                <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center" }}>
+                <div style={{ marginTop: 10, display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  {!isMobile && (
                   <button
-                    onClick={() => alert(t.upToDate)}
+                    onClick={() => void runUpdateCheck()}
+                    disabled={updateMsg === t.checking}
                     style={{
                       background: "#2a2a35",
                       color: "#ddd",
@@ -1118,9 +1165,14 @@ export function SettingsModal({ settings, onChange, onClose }: Props) {
                   >
                     {t.checkUpdate}
                   </button>
-                  <span style={{ fontSize: 11, color: "#566" }}>
-                    github.com/cuter74-dev/wowTerminal
-                  </span>
+                  )}
+                  {updateMsg ? (
+                    <span data-testid="update-check-result" style={{ fontSize: 11, color: "#9aa3b0" }}>
+                      {updateMsg}
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: 11, color: "#566" }}>github.com/cuter74-dev/wowTerminal</span>
+                  )}
                 </div>
               </div>
             </Section>

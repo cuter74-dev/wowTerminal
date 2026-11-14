@@ -106,9 +106,25 @@ describe("확인 시점", () => {
 
   it("확인이 실패해도(오프라인) 조용히 넘어간다", async () => {
     h.check.mockRejectedValue(new Error("offline"));
-    await checkForUpdate();
+    await expect(checkForUpdate()).resolves.toBe("failed");
     expect(getUpdateState().update).toBeNull();
     expect(getUpdateState().error).toBeNull();
+  });
+
+  it("결과를 돌려주고, 직접 확인하면 숨긴 안내를 다시 띄운다", async () => {
+    await expect(checkForUpdate()).resolves.toBe("latest");
+    h.check.mockResolvedValue(fakeUpdate("0.22.1"));
+    await expect(checkForUpdate()).resolves.toBe("available");
+    dismissUpdate();
+    await checkForUpdate(); // 주기 확인은 숨긴 채로
+    expect(getUpdateState().dismissed).toBe("0.22.1");
+    await checkForUpdate({ manual: true });
+    expect(getUpdateState().dismissed).toBeNull();
+  });
+
+  it("동시에 부르면 한 번만 확인한다", async () => {
+    await Promise.all([checkForUpdate(), checkForUpdate({ manual: true })]);
+    expect(h.check).toHaveBeenCalledTimes(1);
   });
 });
 

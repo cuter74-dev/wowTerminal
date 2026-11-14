@@ -39,21 +39,30 @@ export function useUpdateState(): UpdateState {
 }
 
 let lastCheck = 0;
-let checking = false;
+let inflight: Promise<CheckResult> | null = null;
 
-/** 지금 한 번 확인한다. 엔드포인트가 없거나 오프라인이면 조용히 넘어가고 다음 주기에 다시 본다. */
-export async function checkForUpdate(): Promise<void> {
-  if (checking) return;
-  checking = true;
-  lastCheck = Date.now();
-  try {
-    const u = await check();
-    if (u && u.version !== state.update?.version) set({ update: u, error: null });
-  } catch {
-    /* 다음 주기에 다시 */
-  } finally {
-    checking = false;
-  }
+export type CheckResult = "available" | "latest" | "failed";
+
+/** 지금 한 번 확인한다. 엔드포인트가 없거나 오프라인이면 "failed" — 주기 확인은 조용히 다음에 다시 본다.
+ *  `manual`(설정의 "업데이트 확인")이면 "나중에"로 숨긴 안내 줄도 다시 띄운다. */
+export function checkForUpdate(opts?: { manual?: boolean }): Promise<CheckResult> {
+  const run = (inflight ??= (async (): Promise<CheckResult> => {
+    lastCheck = Date.now();
+    try {
+      const u = await check();
+      if (!u) return "latest";
+      if (u.version !== state.update?.version) set({ update: u, error: null });
+      return "available";
+    } catch {
+      return "failed";
+    } finally {
+      inflight = null;
+    }
+  })());
+  return run.then((r) => {
+    if (r === "available" && opts?.manual && state.dismissed) set({ dismissed: null });
+    return r;
+  });
 }
 
 const dueNow = () => Date.now() - lastCheck >= CHECK_EVERY_MS;
@@ -102,6 +111,6 @@ export async function installUpdate(): Promise<void> {
 export function resetUpdatesForTest(): void {
   state = INITIAL;
   lastCheck = 0;
-  checking = false;
+  inflight = null;
   listeners.forEach((l) => l());
 }

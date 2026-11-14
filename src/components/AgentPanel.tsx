@@ -122,7 +122,8 @@ export function AgentPanel({ rows, onJump }: { rows: AgentRow[]; onJump: (tabId:
     <div role="list" data-testid="agent-panel" style={{ flex: 1, minHeight: 0, overflowY: "auto", padding: "2px 6px 8px" }}>
       {sortAgentRows(rows).map((r) => {
         const shown = shownState(r);
-        const where = r.hostLabel && r.hostLabel !== r.tabLabel ? `${r.tabLabel} · ${r.hostLabel}` : r.tabLabel;
+        // 탭 이름에 서버 이름이 이미 있으면(tmux 탭 "w · demo-server") 다시 붙이지 않는다.
+        const where = r.hostLabel && !r.tabLabel.includes(r.hostLabel) ? `${r.tabLabel} · ${r.hostLabel}` : r.tabLabel;
         return (
           <button
             key={r.paneId}
