@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.22.2] — 2026-11-16
+
 ### Fixed
 - **Agents that were running before a restart are detected again.** After the app restarts (for example to update) and reconnects to a running session, it now asks the program in it to redraw, so Claude Code started before the restart shows ✻ / ? on its tab and appears in the agents list. (#193)
 - **Reconnected tabs no longer repeat old side effects.** The old output shown again after a restart no longer copies old text to the clipboard, raises old notifications or bells again, answers old terminal queries into the running program, or reports an agent as "finished" on startup. (#193)
@@ -689,7 +691,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.1...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.2...HEAD
+[0.22.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.11...v0.22.0
 [0.21.11]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.10...v0.21.11
