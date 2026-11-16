@@ -1,7 +1,7 @@
 # Store release notes
 
 The "what's new" text sent to Google Play (en-US, ko-KR) and the App Store (en-US) for each
-version. Keep it short, plain `-` lists only (the App Store rejects `•` and quotes with 409
+version (#194). Keep it short, plain `-` lists only (the App Store rejects `•` and quotes with 409
 `INVALID_CHARACTERS`), and only list what applies to mobile — desktop-only changes (session
 daemon, detached windows, local tabs) don't go here. Full change history: `CHANGELOG.md`.
 
