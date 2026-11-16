@@ -60,7 +60,7 @@ import { exit as processExit } from "@tauri-apps/plugin-process";
 import { markAppTeardown } from "./terminalRegistry";
 import { SettingsModal } from "./components/SettingsModal";
 import { SplashScreen } from "./components/SplashScreen";
-import { LangDict, LangProvider, useT } from "./i18n";
+import { LangDict, LangProvider, pickT, useT } from "./i18n";
 import { isMacOS, isMobile } from "./platform";
 import { armTraceRecording, stopTraceRecording, traceRecordingActive } from "./imeTraceRecorder";
 import { MobileKeyBar } from "./components/MobileKeyBar";
@@ -547,8 +547,16 @@ const PAL_STR: LangDict<{
 };
 
 function App() {
-  const tr = useT(STR);
-  const pal = useT(PAL_STR);
+  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
+  function updateSettings(s: AppSettings) {
+    setSettings(s);
+    saveSettings(s);
+  }
+
+  const lang = settings.general.language;
+  // App은 LangProvider를 자기가 그리므로 useT(문맥)로는 늘 영어가 된다 — 설정 언어로 직접 고른다(#193).
+  const tr = pickT(STR, lang);
+  const pal = pickT(PAL_STR, lang);
   const [cmdPaletteOpen, setCmdPaletteOpen] = useState(false);
   // #62 세션 대시보드: 열림 여부 + 패널별 명령 통계.
   const [dashboardOpen, setDashboardOpen] = useState(false);
@@ -633,13 +641,6 @@ function App() {
     initialRemotePath?: string;
   } | null>(null);
   const [showSettings, setShowSettings] = useState(false);
-  const [settings, setSettings] = useState<AppSettings>(() => loadSettings());
-  function updateSettings(s: AppSettings) {
-    setSettings(s);
-    saveSettings(s);
-  }
-
-  const lang = settings.general.language;
   // UI 글꼴(호스트 목록·AI 패널 등)을 body에 적용 — 모든 UI가 상속. 터미널은 xterm 자체 폰트 사용.
   useEffect(() => {
     document.body.style.fontFamily = settings.general.uiFont;

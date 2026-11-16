@@ -7,6 +7,9 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Notifications and new-tab names follow your language.** Desktop notifications ("AI finished — waiting for you", command finished) and the first tab's name were always in English, whatever language you chose in Settings. (#193)
+
 ## [0.22.1] — 2026-11-14
 
 ### Changed

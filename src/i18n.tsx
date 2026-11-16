@@ -41,5 +41,10 @@ export type LangDict<T> = { en: T } & Partial<Record<Lang, T>>;
 
 /** 컴포넌트 로컬 사전에서 현재 언어 묶음을 고른다. 없으면 영어로 폴백. */
 export function useT<T>(dict: LangDict<T>): T {
-  return dict[useLang()] ?? dict.en;
+  return pickT(dict, useLang());
+}
+
+/** 언어를 직접 받아 고른다 — LangProvider 바깥(Provider를 그리는 App 자신)에서 쓴다 (#193). */
+export function pickT<T>(dict: LangDict<T>, lang: Lang): T {
+  return dict[lang] ?? dict.en;
 }
