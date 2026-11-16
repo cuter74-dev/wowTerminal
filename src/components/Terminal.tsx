@@ -647,11 +647,15 @@ export function Terminal({
     // (#174) 다시 붙을 때 재생하는 옛 출력에는 프로그램이 예전에 보낸 터미널 질의(예: tmux 시작 때의
     // 장치 속성 질의 ESC[c, ESC[>c)가 들어 있다. xterm이 그 질의에 다시 답하면 onData가 답을 살아
     // 있는 세션에 보내 실행 중인 프로그램에 입력된다. 재생분을 해석하는 동안에는 보내지 않는다.
+    // (#193) 재생 중에는 옛 출력이 다시 일으키는 일(질의 응답·클립보드 쓰기·알림·벨·에이전트 상태 알림)을
+    // 하지 않는다. 에이전트 상태는 다 읽은 뒤 마지막 것만 알린다.
     let replaying = 0;
-    const replay = (data: string | Uint8Array) => {
+    const replay = (data: string | Uint8Array, done?: () => void) => {
       replaying++;
       term.write(data, () => {
         replaying--;
+        if (replaying === 0) flushReplayedAgent();
+        done?.();
       });
     };
     let unlistenOutput: UnlistenFn | null = null;
@@ -671,13 +675,24 @@ export function Terminal({
     let oscActive = false;
     let agentProgress: number | null = null;
     let publishedProgress: number | null = null;
+    let replayedAgent: { next: AgentScan | null } | null = null;
     const publishAgent = (next: AgentScan | null) => {
+      if (replaying > 0) {
+        replayedAgent = { next }; // (#193) 재생한 옛 상태 보고 — 끝나고 마지막 것만
+        return;
+      }
       const progress = next ? agentProgress : null;
       if (next?.agent === agentNow?.agent && next?.state === agentNow?.state && progress === publishedProgress) return;
       agentNow = next;
       publishedProgress = progress;
       emitAgentStatus({ paneId: paneId ?? "", agent: next?.agent ?? null, state: next?.state ?? null, progress });
     };
+    function flushReplayedAgent() {
+      if (!replayedAgent) return;
+      const { next } = replayedAgent;
+      replayedAgent = null;
+      publishAgent(next);
+    }
     const aiScan = (settled = false) => {
       aiScanTimer = 0;
       if (oscActive) return;
@@ -767,6 +782,7 @@ export function Terminal({
       if (semi < 0) return true;
       const data = payload.slice(semi + 1); // 셀렉션(c/p/...) 다음의 base64
       if (data === "" || data === "?") return true; // 읽기 요청 — 응답 안 함
+      if (replaying > 0) return true; // 재생한 옛 복사로 지금 클립보드를 덮지 않는다 (#193)
       try {
         const text = new TextDecoder().decode(base64ToBytes(data));
         if (text) void copyText(text);
@@ -799,7 +815,7 @@ export function Terminal({
         aiSettleTimer = 0;
         publishAgent(null);
         const exit = parseInt(payload.split(";")[1] ?? "", 10);
-        if (cmdStart) {
+        if (cmdStart && replaying === 0) {
           emitCommandDone({
             paneId: paneId ?? "",
             durationMs: Date.now() - cmdStart,
@@ -822,7 +838,8 @@ export function Terminal({
     term.parser.registerOscHandler(7501, (payload) => {
       const s = parseProgramStatus(payload);
       if (s === "probe") {
-        writeToSession("\x1b]7501;?\x1b\\");
+        // 재생한 옛 질의에 답하면 그 답이 지금 돌고 있는 프로그램(셸 등)에 입력된다 (#193).
+        if (replaying === 0) writeToSession("\x1b]7501;?\x1b\\");
         return true;
       }
       if (!s || s.id) return true; // 하위 작업(id 있음)은 따로 두지 않는다
@@ -847,7 +864,7 @@ export function Terminal({
       const r = parseOsc9(payload);
       if (!r) return true;
       if ("notice" in r) {
-        emitPaneNotice({ paneId: paneId ?? "", ...r.notice });
+        if (replaying === 0) emitPaneNotice({ paneId: paneId ?? "", ...r.notice });
       } else if (agentNow) {
         agentProgress = r.progress.state === 0 || r.progress.value === null ? null : r.progress.value;
         publishAgent(agentNow);
@@ -857,18 +874,20 @@ export function Terminal({
     // OSC 777 — `notify;제목;본문`.
     term.parser.registerOscHandler(777, (payload) => {
       const n = parseOsc777(payload);
-      if (n) emitPaneNotice({ paneId: paneId ?? "", ...n });
+      if (n && replaying === 0) emitPaneNotice({ paneId: paneId ?? "", ...n });
       return true;
     });
     // OSC 99 — kitty 알림(조각을 모은다).
     const osc99 = new Osc99Collector();
     term.parser.registerOscHandler(99, (payload) => {
       const n = osc99.feed(payload);
-      if (n) emitPaneNotice({ paneId: paneId ?? "", ...n });
+      if (n && replaying === 0) emitPaneNotice({ paneId: paneId ?? "", ...n });
       return true;
     });
     // 벨 — 뒤쪽 탭이면 App이 알림 점을 붙인다.
-    const onBellDisposable = term.onBell(() => emitPaneNotice({ paneId: paneId ?? "" }));
+    const onBellDisposable = term.onBell(() => {
+      if (replaying === 0) emitPaneNotice({ paneId: paneId ?? "" });
+    });
 
     // 대체화면 TUI(vim/tmux/Claude Code 등)가 마우스 추적 모드를 켠 뒤 끄지 않고 종료하면,
     // 일반 셸 프롬프트에서 클릭/드래그 시 좌표가 텍스트로 찍힌다(`\e[<0;30;5M` 등이 셸로 감).
@@ -902,6 +921,24 @@ export function Terminal({
       );
     };
     sendToSessionRef.current = writeToSession;
+
+    // (#193) 다시 붙은 세션에서 지금 돌고 있는 프로그램이 화면 전체를 다시 그리게 한다. 재생한 옛 출력은
+    // 마지막 512KiB뿐이라, 바뀐 칸만 고쳐 그리는 프로그램(Claude Code 등)은 입력 상자 같은 부분이 빠진
+    // 화면이 되고 에이전트 판정도 못 한다. 높이를 한 줄 줄였다 되돌리면 크기 바뀜 신호(SIGWINCH)를 받아
+    // 다시 그린다(셸은 프롬프트만 제자리에 다시 그린다). 두 신호가 한 번으로 합쳐지면 프로그램이 크기
+    // 변화를 못 보므로 잠깐 띄운다. 숨은 탭은 보일 때 실제 크기로 바뀌며 어차피 다시 그리므로 건너뛴다.
+    const nudgeRedraw = (sid: string) => {
+      const el = containerRef.current;
+      if (!el || el.clientWidth < 8 || el.clientHeight < 8 || term.rows < 2) return;
+      void invoke(cmds.resizeCmd, { sessionId: sid, cols: term.cols, rows: term.rows - 1 })
+        .catch(() => {})
+        .finally(() => {
+          setTimeout(() => {
+            if (disposed || sessionId !== sid) return;
+            void invoke(cmds.resizeCmd, { sessionId: sid, cols: term.cols, rows: term.rows }).catch(() => {});
+          }, 150);
+        });
+    };
 
     // 한글/CJK IME 미러 상태 (자세한 설명은 아래 input 핸들러 참고).
     let imeActive = false;
@@ -1802,7 +1839,8 @@ export function Terminal({
         if (restoreSessionId && sessionId === restoreSessionId) {
           try {
             const b64 = await invoke<string>("session_history", { sessionId });
-            if (b64) replay(base64ToBytes(b64));
+            const sid = sessionId;
+            if (b64) replay(base64ToBytes(b64), () => nudgeRedraw(sid));
           } catch {
             /* 히스토리 실패는 치명적이지 않다 — 빈 화면에서 계속 */
           }
@@ -1919,6 +1957,8 @@ export function Terminal({
             });
             // 재생/스냅샷이 모두 없을 때만 Ctrl-L로 셸이 프롬프트를 다시 그리게 한다.
             if (!replayed && !attachScreen) writeToSession("\x0c");
+            // 옛 출력을 재생했으면 프로그램이 화면을 다시 그리게 한다 (#193).
+            if (replayed) nudgeRedraw(attachSessionId);
           };
           setTimeout(finishAttach, 250);
         } else {

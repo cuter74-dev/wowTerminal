@@ -8,6 +8,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 ## [Unreleased]
 
 ### Fixed
+- **Agents that were running before a restart are detected again.** After the app restarts (for example to update) and reconnects to a running session, it now asks the program in it to redraw, so Claude Code started before the restart shows ✻ / ? on its tab and appears in the agents list. (#193)
+- **Reconnected tabs no longer repeat old side effects.** The old output shown again after a restart no longer copies old text to the clipboard, raises old notifications or bells again, answers old terminal queries into the running program, or reports an agent as "finished" on startup. (#193)
 - **Notifications and new-tab names follow your language.** Desktop notifications ("AI finished — waiting for you", command finished) and the first tab's name were always in English, whatever language you chose in Settings. (#193)
 
 ## [0.22.1] — 2026-11-14
