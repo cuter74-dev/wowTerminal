@@ -7,6 +7,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+## [0.22.3] — 2026-11-20
+
 ### Fixed
 - **Deleting asks first again.** Deleting an SSH group, tag or key, an AI backend, or a file or folder on a server in the file browser went ahead without the confirmation dialog on macOS, Windows and Linux. The dialog now appears and nothing is deleted unless you confirm. (#195)
 - **Fewer false error reports.** Typing into or resizing a terminal whose shell or SSH connection had just ended no longer files an error report, and reports now show the actual error text instead of a generic prefix. (#195)
@@ -695,7 +697,8 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ---
 
-[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.2...HEAD
+[Unreleased]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.3...HEAD
+[0.22.3]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.2...v0.22.3
 [0.22.2]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.1...v0.22.2
 [0.22.1]: https://github.com/cuter74-dev/wowTerminal/compare/v0.22.0...v0.22.1
 [0.22.0]: https://github.com/cuter74-dev/wowTerminal/compare/v0.21.11...v0.22.0
