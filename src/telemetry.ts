@@ -16,6 +16,8 @@ const GLITCHTIP_DSN: string =
 const MAX_TEXT = 300;
 
 const RULES: [RegExp, string][] = [
+  // 세션 id 같은 UUID — 원인이 같은데 세션마다 다른 이슈로 갈리지 않게 (#195).
+  [/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, "<id>"],
   // URL은 스킴만 남긴다(자체 호스팅 게이트웨이 주소·쿼리 토큰).
   [/\b([a-z][a-z0-9+.-]*):\/\/[^\s'"<>()]+/gi, "$1://<url>"],
   [/[\w.+-]+@[\w-]+(?:\.[\w-]+)*\.[a-z]{2,}\b/gi, "<email>"],
@@ -33,6 +35,10 @@ export function scrubText(text: string): string {
   for (const [re, to] of RULES) s = s.replace(re, to);
   return s.length > MAX_TEXT ? `${s.slice(0, MAX_TEXT)}…` : s;
 }
+
+/** Sentry가 문자열 거부(예: Tauri 명령 오류)에 붙이는 머리말. 이게 앞에 있으면 제목이 잘릴 때 원인이
+ *  보이지 않는다(주간 요약에서 "…value: C"처럼) — 떼고 거부 글 자체를 값으로 보낸다 (#195). */
+const PRIMITIVE_REJECTION = "Non-Error promise rejection captured with value: ";
 
 /** contexts 중 남기는 것 — 실행 환경 종류만. */
 const KEEP_CONTEXTS = new Set(["os", "browser", "device", "runtime", "app"]);
@@ -56,6 +62,7 @@ export function scrubEvent(event: ErrorEvent): ErrorEvent {
   if (event.logentry?.message) event.logentry.message = scrubText(event.logentry.message);
   if (event.logentry?.params) delete event.logentry.params;
   for (const ex of event.exception?.values ?? []) {
+    if (ex.value?.startsWith(PRIMITIVE_REJECTION)) ex.value = ex.value.slice(PRIMITIVE_REJECTION.length);
     if (ex.value) ex.value = scrubText(ex.value);
   }
   return event;

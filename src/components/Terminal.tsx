@@ -1655,7 +1655,8 @@ export function Terminal({
 
     const onResizeDisposable = term.onResize(({ cols, rows }) => {
       if (!sessionId) return;
-      void invoke(cmds.resizeCmd, { sessionId, cols, rows });
+      // 셸·SSH 채널이 막 끝난 세션이면 "session not found"·"channel: …"로 거부된다 — 예상된 일 (#195).
+      void invoke(cmds.resizeCmd, { sessionId, cols, rows }).catch(() => {});
     });
 
     // 셸/tmux가 설정한 터미널 제목(OSC 0/2)을 App에 알려 탭 라벨에 반영한다 (#89).
@@ -1780,7 +1781,7 @@ export function Terminal({
           void invoke(cmds.writeCmd, {
             sessionId,
             dataB64: bytesToBase64(encoder.encode(text)),
-          });
+          }).catch(() => {}); // 끝난 세션 (#195)
         },
         paste: (text) => term.paste(text),
         bracketedPaste: () => term.modes.bracketedPasteMode,
@@ -1954,7 +1955,7 @@ export function Terminal({
               sessionId: attachSessionId,
               cols: term.cols,
               rows: term.rows,
-            });
+            }).catch(() => {}); // 끝난 세션 (#195)
             // 재생/스냅샷이 모두 없을 때만 Ctrl-L로 셸이 프롬프트를 다시 그리게 한다.
             if (!replayed && !attachScreen) writeToSession("\x0c");
             // 옛 출력을 재생했으면 프로그램이 화면을 다시 그리게 한다 (#193).

@@ -14,6 +14,7 @@ describe("scrubText", () => {
     ["connect 10.20.30.40:2222 timed out", "connect <ip> timed out"],
     ["mail alice.kim@example.com", "mail <email>"],
     ["POST https://llm.corp.local/v1/chat?key=abc 401", "POST https://<url> 401"],
+    ["session not found: ec870e93-2777-4bd1-86ed-10f08c2677a3", "session not found: <id>"],
   ])("%s", (input, want) => {
     expect(scrubText(input)).toBe(want);
   });
@@ -50,6 +51,20 @@ describe("scrubEvent", () => {
     expect(out).toContain('"os"');
     expect(out).toContain("<user>@<host> failed");
     expect(out).toContain("ENOENT <path>");
+  });
+
+  it("문자열 거부는 머리말을 떼고 거부 글을 값으로 보낸다 (#195)", () => {
+    const ev = scrubEvent({
+      exception: {
+        values: [
+          {
+            type: "UnhandledRejection",
+            value: "Non-Error promise rejection captured with value: session not found: ec870e93-2777-4bd1-86ed-10f08c2677a3",
+          },
+        ],
+      },
+    } as ErrorEvent);
+    expect(ev.exception?.values?.[0]).toMatchObject({ type: "UnhandledRejection", value: "session not found: <id>" });
   });
 
   it("breadcrumb은 하나도 남기지 않는다", () => {
