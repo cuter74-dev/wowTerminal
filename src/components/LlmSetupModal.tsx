@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { emit } from "@tauri-apps/api/event";
 import { LangDict, useT } from "../i18n";
 import { BackendInfo } from "../types";
+import { askConfirm } from "../askConfirm";
 
 /** 백엔드 추가/수정/삭제를 모든 AI 패널(탭별 인스턴스)에 알린다(#132). */
 function notifyBackendsChanged() {
@@ -564,7 +565,7 @@ export function LlmSetupModal({ onClose, onChanged }: Props) {
   }, []);
 
   async function deleteOne(id: string) {
-    if (!confirm(t.confirmDelete(id)))
+    if (!(await askConfirm(t.confirmDelete(id))))
       return;
     try {
       await invoke("ai_delete_backend", { id });

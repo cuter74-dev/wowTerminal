@@ -13,6 +13,7 @@ import { isMobile } from "../platform";
 import { Eol, toFileEol } from "../eol";
 import { newId } from "../ids";
 import { FileEntry, Listing, SearchHit } from "../types";
+import { askConfirm } from "../askConfirm";
 
 const STR: LangDict<{
     errLocal: (e: string) => string;
@@ -1746,7 +1747,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
 
   async function removeRemote() {
     if (!remoteSel || !remote) return;
-    if (!confirm(t.confirmDeleteRemote(remoteSel.name))) return;
+    if (!(await askConfirm(t.confirmDeleteRemote(remoteSel.name)))) return;
     try {
       await invoke("sftp_remove", {
         hostId,
@@ -1879,7 +1880,7 @@ export function FileBrowser({ hostId, hostLabel, initialRemotePath, onClose }: P
 
   async function deleteRemoteEntry(entry: FileEntry) {
     if (!remote) return;
-    if (!confirm(t.confirmDeleteRemote(entry.name))) return;
+    if (!(await askConfirm(t.confirmDeleteRemote(entry.name)))) return;
     try {
       await invoke("sftp_remove", {
         hostId,

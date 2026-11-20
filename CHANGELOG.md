@@ -7,6 +7,10 @@ Categories: **Added** (new features) · **Changed** (behavior changes) · **Fixe
 
 ## [Unreleased]
 
+### Fixed
+- **Deleting asks first again.** Deleting an SSH group, tag or key, an AI backend, or a file or folder on a server in the file browser went ahead without the confirmation dialog on macOS, Windows and Linux. The dialog now appears and nothing is deleted unless you confirm. (#195)
+- **Fewer false error reports.** Typing into or resizing a terminal whose shell or SSH connection had just ended no longer files an error report, and reports now show the actual error text instead of a generic prefix. (#195)
+
 ## [0.22.2] — 2026-11-16
 
 ### Fixed

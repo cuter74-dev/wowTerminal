@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Group, Tag, TAG_PALETTE } from "../types";
 import { LangDict, useT } from "../i18n";
 import { newId } from "../ids";
+import { askConfirm } from "../askConfirm";
 
 interface Props {
   onClose: () => void;
@@ -259,7 +260,7 @@ export function GroupTagManager({ onClose, onChanged }: Props) {
   }
 
   async function deleteGroup(id: string) {
-    if (!confirm(tr.confirmDeleteGroup)) return;
+    if (!(await askConfirm(tr.confirmDeleteGroup))) return;
     try {
       await invoke("ssh_delete_group", { id });
       await reload();
@@ -295,7 +296,7 @@ export function GroupTagManager({ onClose, onChanged }: Props) {
   }
 
   async function deleteTag(id: string) {
-    if (!confirm(tr.confirmDeleteTag)) return;
+    if (!(await askConfirm(tr.confirmDeleteTag))) return;
     try {
       await invoke("ssh_delete_tag", { id });
       await reload();

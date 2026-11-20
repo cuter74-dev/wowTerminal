@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { LangDict, useT } from "../i18n";
 import { SshKeyEntry } from "../types";
 import { copyText } from "../clipboard";
+import { askConfirm } from "../askConfirm";
 
 interface Props {
   onClose: () => void;
@@ -391,7 +392,7 @@ export function SshKeyManager({ onClose, onChanged }: Props) {
   }, []);
 
   async function remove(id: string, name: string) {
-    if (!confirm(t.confirmDelete(name))) return;
+    if (!(await askConfirm(t.confirmDelete(name)))) return;
     try {
       await invoke("ssh_delete_key", { id });
       await reload();
