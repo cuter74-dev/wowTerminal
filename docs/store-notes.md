@@ -7,9 +7,22 @@ daemon, detached windows, local tabs) don't go here. Full change history: `CHANG
 
 | App version | Play versionCode | App Store version (build) |
 |---|---|---|
+| 0.22.3 | 22003 | 1.0.24 (0.22.3.22003) |
 | 0.22.2 | 22002 | 1.0.23 (0.22.2.22002) |
 | 0.22.1 | 22001 | 1.0.22 (0.22.1.22001) |
 | 0.22.0 | 22000 | 1.0.21 |
+
+## 0.22.3 — 2026-11-20
+
+**en-US (Play, App Store)**
+```
+- Deleting an SSH key, group or tag, an AI backend, or a file on a server now always asks for confirmation first.
+```
+
+**ko-KR (Play)**
+```
+- SSH 키·그룹·태그, AI 백엔드, 서버의 파일을 지울 때 항상 먼저 확인합니다.
+```
 
 ## 0.22.2 — 2026-11-16
 
